@@ -1,126 +1,385 @@
-<!-- index.html의 전체 코드를 아래 내용으로 갱신하세요 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Next-Gen 팀 메신저</title>
+    <title>Next-Gen 프리미엄 팀 메신저</title>
+    <!-- 프리텐다드 프로급 웹폰트 및 아이콘 라이브러리 로드 -->
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        :root { --primary: #4f46e5; --bg-main: #f8fafc; --text-main: #0f172a; --border-color: #e2e8f0; }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Pretendard", sans-serif; }
-        body { display: flex; justify-content: center; align-items: center; height: 100vh; background: #e2e8f0; }
-        .chat-container { width: 440px; height: 680px; background: white; border-radius: 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        :root {
+            --primary: #4f46e5;
+            --primary-dark: #3730a3;
+            --bg-main: #f8fafc;
+            --chat-bg: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+        }
+
+        * { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+            font-family: "Pretendard Variable", Pretendard, sans-serif; 
+        }
         
-        /* 헤더/메시지 스타일 (이전과 동일) */
-        .chat-header { background: var(--text-main); color: white; padding: 20px; }
-        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; background: var(--bg-main); display: flex; flex-direction: column; gap: 14px; }
+        body { 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            background: linear-gradient(135deg, #e0e7ff 0%, #f1f5f9 100%);
+        }
+        
+        .chat-container { 
+            width: 440px; 
+            height: 680px; 
+            background-color: var(--chat-bg); 
+            border-radius: 20px; 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+            position: relative;
+        }
+
+        /* 헤더 디자인 */
+        .chat-header { 
+            background-color: var(--text-main); 
+            color: white; 
+            padding: 20px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 10px;
+        }
+        .chat-header.admin-mode { background-color: #dc2626; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; }
+        .header-top h2 { font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .header-bottom { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            font-size: 0.8rem; 
+            background: rgba(255,255,255,0.08); 
+            padding: 8px 12px; 
+            border-radius: 8px; 
+        }
+        .change-btn { 
+            background: rgba(255,255,255,0.15); 
+            border: none; 
+            color: white; 
+            padding: 4px 10px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-size: 0.75rem; 
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .change-btn:hover { background: rgba(255,255,255,0.3); }
+        
+        /* 메시지 영역 */
+        .chat-messages { 
+            flex: 1; 
+            padding: 20px; 
+            overflow-y: auto; 
+            background-color: var(--bg-main); 
+            display: flex; 
+            flex-direction: column; 
+            gap: 14px; 
+        }
+        
         .message-wrapper { display: flex; flex-direction: column; max-width: 80%; }
         .message-wrapper.sent { align-self: flex-end; align-items: flex-end; }
         .message-wrapper.received { align-self: flex-start; align-items: flex-start; }
-        .message { padding: 12px 16px; border-radius: 16px; font-size: 0.9rem; border: 1px solid var(--border-color); }
-        .message.sent { background: var(--primary); color: white; border-bottom-right-radius: 4px; }
-        .message.received { background: white; border-bottom-left-radius: 4px; }
+        .message-sender { font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; color: var(--text-muted); }
         
-        /* 이미지 UI 개선 */
-        .img-msg-container { display: flex; flex-direction: column; gap: 8px; }
+        .message { padding: 12px 16px; border-radius: 16px; font-size: 0.9rem; line-height: 1.4; word-break: break-all; }
+        .message.sent { background-color: var(--primary); color: white; border-bottom-right-radius: 4px; }
+        .message.received { background-color: var(--chat-bg); color: var(--text-main); border-bottom-left-radius: 4px; border: 1px solid var(--border-color); }
+        .message-time { font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; }
+        
+        /* 📸 이미지 및 다운로드 디자인 */
+        .img-msg-container { display: flex; flex-direction: column; gap: 6px; padding: 2px; }
         .chat-img { max-width: 200px; border-radius: 10px; cursor: pointer; transition: transform 0.2s; }
         .chat-img:hover { transform: scale(1.02); }
-        .download-btn { display: inline-block; background: #e2e8f0; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; text-decoration: none; color: #475569; font-weight: 600; text-align: center; }
+        .download-btn { 
+            display: flex; align-items: center; justify-content: center; gap: 4px;
+            background: #e2e8f0; padding: 6px 12px; border-radius: 6px; 
+            font-size: 0.75rem; text-decoration: none; color: #475569; font-weight: 600; 
+        }
         .download-btn:hover { background: #cbd5e1; }
+        .message.sent .download-btn { background: rgba(255,255,255,0.2); color: white; }
+        .message.sent .download-btn:hover { background: rgba(255,255,255,0.3); }
 
-        /* 이미지 뷰어 모달 */
-        #img-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); z-index: 100; justify-content: center; align-items: center; }
-        #img-modal img { max-width: 90%; max-height: 90%; border-radius: 8px; }
+        /* 이미지 확대 모달 뷰어 */
+        #img-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; cursor: zoom-out; }
+        #img-modal img { max-width: 90%; max-height: 90%; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
         
-        /* 입력창 및 기타 디자인 (이전과 동일) */
-        .chat-input-area { padding: 16px; border-top: 1px solid #e2e8f0; display: flex; gap: 10px; align-items: center; background: white; }
-        #message-input { flex: 1; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; outline: none; }
-        #send-btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 12px; cursor: pointer; }
+        /* 🛠️ 관리자 대시보드 전용 스타일 */
+        .admin-title { font-weight: bold; font-size: 1rem; color: #1e293b; margin-bottom: 10px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; }
+        .room-item { display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 8px; width: 100%; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .room-name { font-weight: 600; color: #334155; font-size: 0.95rem; cursor: pointer; }
+        .room-name:hover { color: var(--primary); }
+        .room-delete-btn { background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: bold; }
+        .room-delete-btn:hover { background-color: #b91c1c; }
+
+        /* 입력 영역 */
+        .chat-input-area { padding: 16px 20px; background-color: var(--chat-bg); border-top: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; }
+        #message-input { flex: 1; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 12px; outline: none; font-size: 0.9rem; background-color: var(--bg-main); }
+        #message-input:focus { border-color: var(--primary); background-color: var(--chat-bg); }
+        
+        .file-label { background-color: var(--bg-main); color: var(--text-muted); padding: 12px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; }
+        .file-label:hover { background-color: #e2e8f0; }
+        #file-input { display: none; }
+        
+        #send-btn { background-color: var(--primary); color: white; border: none; width: 44px; height: 44px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        #send-btn.admin-btn { background-color: #dc2626; }
     </style>
 </head>
 <body>
 
-<!-- 이미지 크게 보기 모달 -->
+<!-- 이미지 크게 보기 뷰어 모달 -->
 <div id="img-modal" onclick="this.style.display='none'">
-    <img id="modal-img" src="" alt="확대">
+    <img id="modal-img" src="" alt="확대 이미지">
 </div>
 
 <div class="chat-container">
-    <div class="chat-header">
-        <h2 id="room-title">💬 채팅방</h2>
+    <div class="chat-header" id="chat-header">
+        <div class="header-top">
+            <h2 id="room-display"><i class="fa-regular fa-comments"></i> 로딩 중...</h2>
+            <button class="change-btn" onclick="changeRoom()"><i class="fa-solid fa-right-from-bracket"></i> 방 변경</button>
+        </div>
+        <div class="header-bottom">
+            <span><i class="fa-regular fa-user"></i> 내 이름: <b id="user-display"></b></span>
+            <button class="change-btn" onclick="changeName()">이름 변경</button>
+        </div>
     </div>
+    
     <div class="chat-messages" id="chat-messages"></div>
+    
     <div class="chat-input-area">
-        <input type="file" id="file-input" style="display:none" onchange="handleFile(this)">
-        <button onclick="document.getElementById('file-input').click()" style="border:none; background:none; cursor:pointer;">📎</button>
-        <input type="text" id="message-input" placeholder="메시지 입력..." onkeypress="if(event.key==='Enter') sendMessage()">
-        <button id="send-btn" onclick="sendMessage()">전송</button>
+        <label Lifor="file-input" class="file-label" id="file-label" onclick="document.getElementById('file-input').click()"><i class="fa-solid fa-paperclip"></i></label>
+        <input type="file" id="file-input" onchange="handleFileSelect(this)">
+        
+        <input type="text" id="message-input" placeholder="메시지를 입력하세요..." onkeypress="if(event.key==='Enter') handleActionButton()">
+        <button id="send-btn" onclick="handleActionButton()"><i class="fa-solid fa-paper-plane"></i></button>
     </div>
 </div>
 
+<!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
 <script>
-    // [Firebase 설정은 기존과 동일]
     const firebaseConfig = {
         apiKey: "AIzaSyDfACFo9nn2MaJusjlII9y6Wj6QIGuf65g",
         databaseURL: "https://my-team-chat-2712e-default-rtdb.firebaseio.com",
         projectId: "my-team-chat-2712e"
     };
+
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    
-    // [기능 로직]
-    const myName = localStorage.getItem('chat_username') || "익명";
-    const currentRoom = localStorage.getItem('chat_roomname') || "기본방";
-    
-    function sendMessage() {
-        const input = document.getElementById('message-input');
-        if(!input.value.trim()) return;
-        db.ref(`messages/${currentRoom}`).push({ sender: myName, text: input.value, time: new Date().toLocaleTimeString() });
-        input.value = '';
+    const database = firebase.database();
+    const ADMIN_PASSWORD = "1234";
+
+    let myName = localStorage.getItem('chat_username') || "사용자" + Math.floor(Math.random() * 1000);
+    localStorage.setItem('chat_username', myName);
+    let currentRoom = localStorage.getItem('chat_roomname') || "기본방";
+    localStorage.setItem('chat_roomname', currentRoom);
+
+    document.getElementById('user-display').innerText = myName;
+
+    const chatMessages = document.getElementById('chat-messages');
+    const messageInput = document.getElementById('message-input');
+    const chatHeader = document.getElementById('chat-header');
+    const sendBtn = document.getElementById('send-btn');
+    const fileLabel = document.getElementById('file-label');
+
+    let msgListener = null;
+    let roomsListener = null;
+    let isAdminMode = false;
+
+    function initMessenger() {
+        if (currentRoom === "시스템관리자") {
+            enterAdminMode();
+        } else {
+            document.getElementById('room-display').innerHTML = `<i class="fa-regular fa-comments"></i> ${currentRoom}`;
+            loadMessages();
+        }
     }
 
-    function handleFile(input) {
+    // 일반 채팅 메시지 로딩
+    function loadMessages() {
+        isAdminMode = false;
+        chatHeader.classList.remove('admin-mode');
+        sendBtn.classList.remove('admin-btn');
+        sendBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i>`;
+        messageInput.placeholder = "메시지를 입력하세요...";
+        fileLabel.style.display = "flex";
+
+        if(msgListener) database.ref(`rooms_v2/${currentRoom}`).off();
+        if(roomsListener) database.ref('rooms_v2').off();
+        chatMessages.innerHTML = '';
+
+        msgListener = database.ref(`rooms_v2/${currentRoom}`).limitToLast(50);
+        msgListener.on('child_added', (snapshot) => {
+            const data = snapshot.val();
+            if(!data || !data.sender) return;
+            appendMessage(data.sender, data.text, data.sender === myName ? 'sent' : 'received', data.time, data.fileData, data.fileName);
+        });
+    }
+
+    // 🛠️ 관리자 모드 진입
+    function enterAdminMode() {
+        isAdminMode = true;
+        currentRoom = "시스템관리자";
+        localStorage.setItem('chat_roomname', currentRoom);
+
+        chatHeader.classList.add('admin-mode');
+        sendBtn.classList.add('admin-btn');
+        sendBtn.innerHTML = `<i class="fa-solid fa-plus"></i>`;
+        document.getElementById('room-display').innerHTML = `<i class="fa-solid fa-gears"></i> 관리자 모드`;
+        messageInput.placeholder = "생성할 새 대화방 이름을 입력하세요...";
+        fileLabel.style.display = "none";
+
+        if(msgListener) database.ref(`rooms_v2/${currentRoom}`).off();
+        if(roomsListener) database.ref('rooms_v2').off();
+        chatMessages.innerHTML = '<div class="admin-title">📋 개설된 전체 채팅방 목록</div>';
+
+        roomsListener = database.ref('rooms_v2');
+        roomsListener.on('value', (snapshot) => {
+            chatMessages.innerHTML = '<div class="admin-title">📋 개설된 전체 채팅방 목록</div>';
+            const roomsData = snapshot.val();
+            if (!roomsData) {
+                chatMessages.innerHTML += '<p style="text-align:center; color:#94a3b8; margin-top:20px;">개설된 방이 없습니다.</p>';
+                return;
+            }
+
+            Object.keys(roomsData).forEach(roomName => {
+                if (roomName === "시스템관리자") return;
+
+                const roomItem = document.createElement('div');
+                roomItem.classList.add('room-item');
+                roomItem.innerHTML = `
+                    <span class="room-name" onclick="selectRoomFromAdmin('${roomName}')"><i class="fa-regular fa-comment-dots"></i> ${roomName}</span>
+                    <button class="room-delete-btn" onclick="deleteRoom('${roomName}')">폭파</button>
+                `;
+                chatMessages.appendChild(roomItem);
+            });
+        });
+    }
+
+    function selectRoomFromAdmin(roomName) {
+        currentRoom = roomName;
+        localStorage.setItem('chat_roomname', currentRoom);
+        document.getElementById('room-display').innerHTML = `<i class="fa-regular fa-comments"></i> ${currentRoom}`;
+        loadMessages();
+    }
+
+    function deleteRoom(roomName) {
+        if(confirm(`[${roomName}] 방의 모든 대화와 사진을 완전히 삭제하시겠습니까?`)) {
+            database.ref(`rooms_v2/${roomName}`).remove();
+        }
+    }
+
+    // 메시지 전송 및 방 생성 공용 핸들러
+    function handleActionButton() {
+        const val = messageInput.value.trim();
+        if(!val) return;
+
+        if(isAdminMode) {
+            // 관리자 모드일 때는 방 개설
+            database.ref(`rooms_v2/${val}`).push({
+                sender: "시스템", text: `✨ [${val}] 방이 개설되었습니다.`, time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+            });
+            alert(`[${val}] 방이 생성되었습니다.`);
+        } else {
+            // 일반 모드일 때는 대화 전송
+            const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
+            database.ref(`rooms_v2/${currentRoom}`).push({ sender: myName, text: val, time: timeString });
+        }
+        messageInput.value = '';
+    }
+
+    // 파일/사진 선택 시 처리
+    function handleFileSelect(input) {
         const file = input.files[0];
         if(!file) return;
+
+        fileLabel.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
         const reader = new FileReader();
         reader.onload = (e) => {
-            db.ref(`messages/${currentRoom}`).push({ 
-                sender: myName, fileData: e.target.result, fileName: file.name, time: new Date().toLocaleTimeString() 
+            const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
+            database.ref(`rooms_v2/${currentRoom}`).push({
+                sender: myName, text: "📎 사진 전송", fileData: e.target.result, fileName: file.name, time: timeString
             });
+            fileLabel.innerHTML = `<i class="fa-solid fa-paperclip"></i>`;
+            input.value = '';
         };
         reader.readAsDataURL(file);
     }
 
-    db.ref(`messages/${currentRoom}`).on('child_added', (snap) => {
-        const d = snap.val();
-        const msgDiv = document.createElement('div');
-        msgDiv.className = `message-wrapper ${d.sender === myName ? 'sent' : 'received'}`;
+    // 화면에 말풍선 그리기 (사진 다운로드 기능 탑재)
+    function appendMessage(sender, text, type, time, fileData, fileName) {
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('message-wrapper', type);
         
-        let content = `<div class="message ${d.sender === myName ? 'sent' : 'received'}">`;
-        if(d.fileData) {
+        let content = `<span class="message-sender">${sender}</span>`;
+        content += `<div class="message ${type}">`;
+        
+        if(fileData) {
             content += `
                 <div class="img-msg-container">
-                    <img src="${d.fileData}" class="chat-img" onclick="showModal('${d.fileData}')">
-                    <a href="${d.fileData}" download="${d.fileName || 'image.png'}" class="download-btn">💾 다운로드</a>
+                    <img src="${fileData}" class="chat-img" onclick="showModal('${fileData}')" alt="전송된 이미지">
+                    <a href="${fileData}" download="${fileName || 'image.png'}" class="download-btn"><i class="fa-solid fa-floppy-disk"></i> 저장</a>
                 </div>`;
         } else {
-            content += d.text;
+            content += text;
         }
-        content += `</div>`;
-        msgDiv.innerHTML = content;
-        document.getElementById('chat-messages').appendChild(msgDiv);
-        document.getElementById('chat-messages').scrollTop = 99999;
-    });
+        
+        content += `</div><span class="message-time">${time}</span>`;
+        wrapper.innerHTML = content;
+        chatMessages.appendChild(wrapper);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
 
     function showModal(src) {
         document.getElementById('modal-img').src = src;
         document.getElementById('img-modal').style.display = 'flex';
     }
+
+    function changeRoom() {
+        const target = prompt("이동할 방 이름을 입력하세요 (관리자 모드는 admin 입력):", isAdminMode ? "" : currentRoom);
+        if(!target || !target.trim()) return;
+        const clean = target.trim();
+
+        if(clean === "admin") {
+            const pass = prompt("관리자 비밀번호를 입력하세요:");
+            if(pass === ADMIN_PASSWORD) enterAdminMode();
+            else alert("비밀번호가 다릅니다.");
+        } else {
+            currentRoom = clean;
+            localStorage.setItem('chat_roomname', currentRoom);
+            document.getElementById('room-display').innerHTML = `<i class="fa-regular fa-comments"></i> ${currentRoom}`;
+            loadMessages();
+        }
+    }
+
+    function changeName() {
+        const newName = prompt("변경할 이름을 입력하세요:", myName);
+        if (newName && newName.trim()) {
+            myName = newName.trim();
+            localStorage.setItem('chat_username', myName);
+            document.getElementById('user-display').innerText = myName;
+            if(!isAdminMode) loadMessages();
+        }
+    }
+
+    initMessenger();
 </script>
 </body>
 </html>

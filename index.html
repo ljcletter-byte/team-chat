@@ -3,13 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Next-Gen 프리미엄 팀 메신저</title>
-    <!-- 프리텐다드 프로급 웹폰트 및 아이콘 라이브러리 로드 -->
+    <title>Next-Gen 프로페셔널 팀 메신저</title>
+    <!-- 프리텐다드 폰트 및 폰트어썸 아이콘 프로급 웹 로드 -->
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
         :root {
+            --sidebar-bg: #1e1b4b; 
+            --sidebar-hover: #312e81;
             --primary: #4f46e5;
             --primary-dark: #3730a3;
             --bg-main: #f8fafc;
@@ -19,93 +21,82 @@
             --border-color: #e2e8f0;
         }
 
-        * { 
-            box-sizing: border-box; 
-            margin: 0; 
-            padding: 0; 
-            font-family: "Pretendard Variable", Pretendard, sans-serif; 
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Pretendard Variable", Pretendard, sans-serif; }
+        body { display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%); }
         
-        body { 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            height: 100vh; 
-            background: linear-gradient(135deg, #e0e7ff 0%, #f1f5f9 100%);
-        }
-        
-        .chat-container { 
-            width: 440px; 
+        /* 메인 앱 레이아웃 */
+        .app-container { 
+            width: 900px; 
             height: 680px; 
             background-color: var(--chat-bg); 
             border-radius: 20px; 
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
             display: flex; 
-            flex-direction: column; 
             overflow: hidden; 
-            position: relative;
         }
 
-        /* 헤더 디자인 */
-        .chat-header { 
-            background-color: var(--text-main); 
-            color: white; 
-            padding: 20px; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 10px;
-        }
-        .chat-header.admin-mode { background-color: #dc2626; }
-        .header-top { display: flex; justify-content: space-between; align-items: center; }
-        .header-top h2 { font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-        .header-bottom { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            font-size: 0.8rem; 
-            background: rgba(255,255,255,0.08); 
-            padding: 8px 12px; 
-            border-radius: 8px; 
-        }
-        .change-btn { 
-            background: rgba(255,255,255,0.15); 
-            border: none; 
-            color: white; 
-            padding: 4px 10px; 
-            border-radius: 6px; 
-            cursor: pointer; 
-            font-size: 0.75rem; 
-            font-weight: 600;
+        /* 📁 왼쪽 고정 사이드바 */
+        .sidebar {
+            width: 260px;
+            background-color: var(--sidebar-bg);
+            color: #ecfeff;
             display: flex;
-            align-items: center;
-            gap: 4px;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
         }
-        .change-btn:hover { background: rgba(255,255,255,0.3); }
+        .sidebar-header { padding: 24px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-header h3 { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 12px; color: #fff; }
         
-        /* 메시지 영역 */
-        .chat-messages { 
-            flex: 1; 
-            padding: 20px; 
-            overflow-y: auto; 
-            background-color: var(--bg-main); 
-            display: flex; 
-            flex-direction: column; 
-            gap: 14px; 
+        /* 유저 프로필 영역 영역 (말줄임 방어코드 최적화) */
+        .user-profile { 
+            display: flex; justify-content: space-between; align-items: center; 
+            background: rgba(255,255,255,0.08); padding: 8px 12px; border-radius: 8px; font-size: 0.8rem;
         }
+        .user-profile span { display: flex; align-items: center; gap: 6px; min-width: 0; width: 80%; }
+        .user-profile b { color: #67e8f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+        .profile-btn { background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 0.75rem; font-weight: 600; flex-shrink: 0; }
+        .profile-btn:hover { color: #fff; }
+
+        .room-section { flex: 1; padding: 20px 10px; overflow-y: auto; }
+        .section-title { font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; padding-left: 10px; margin-bottom: 10px; }
         
-        .message-wrapper { display: flex; flex-direction: column; max-width: 80%; }
+        .room-list { display: flex; flex-direction: column; gap: 4px; }
+        .room-item { 
+            display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; 
+            font-size: 0.9rem; color: #cbd5e1; cursor: pointer; transition: all 0.2s;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .room-item:hover { background-color: var(--sidebar-hover); color: #fff; }
+        .room-item.active { background-color: var(--primary); color: #fff; font-weight: 600; }
+
+        .sidebar-footer { padding: 16px; border-top: 1px solid rgba(255,255,255,0.1); }
+        .admin-toggle-btn { 
+            width: 100%; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); 
+            color: #fca5a5; padding: 10px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600; transition: 0.2s;
+        }
+        .admin-toggle-btn:hover { background: #ef4444; color: white; }
+
+        /* 💬 오른쪽 메인 메신저 바디 */
+        .main-content { flex: 1; display: flex; flex-direction: column; background-color: var(--bg-main); position: relative; }
+        .view-panel { display: flex; flex-direction: column; width: 100%; height: 100%; }
+
+        .chat-header { background-color: #fff; padding: 20px 24px; border-bottom: 1px solid var(--border-color); }
+        .chat-header h2 { font-size: 1.15rem; font-weight: 700; color: var(--text-main); }
+
+        .chat-messages { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+        .message-wrapper { display: flex; flex-direction: column; max-width: 75%; }
         .message-wrapper.sent { align-self: flex-end; align-items: flex-end; }
         .message-wrapper.received { align-self: flex-start; align-items: flex-start; }
         .message-sender { font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; color: var(--text-muted); }
         
         .message { padding: 12px 16px; border-radius: 16px; font-size: 0.9rem; line-height: 1.4; word-break: break-all; }
-        .message.sent { background-color: var(--primary); color: white; border-bottom-right-radius: 4px; }
-        .message.received { background-color: var(--chat-bg); color: var(--text-main); border-bottom-left-radius: 4px; border: 1px solid var(--border-color); }
+        .message.sent { background-color: var(--primary); color: white; border-bottom-right-radius: 4px; box-shadow: 0 2px 4px rgba(79,70,229,0.15); }
+        .message.received { background-color: var(--chat-bg); color: var(--text-main); border-bottom-left-radius: 4px; border: 1px solid var(--border-color); box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
         .message-time { font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; }
-        
-        /* 이미지 및 다운로드 디자인 */
-        .img-msg-container { display: flex; flex-direction: column; gap: 6px; padding: 2px; }
-        .chat-img { max-width: 200px; border-radius: 10px; cursor: pointer; transition: transform 0.2s; }
+
+        /* 이미지 메시지 레이아웃 */
+        .img-msg-container { display: flex; flex-direction: column; gap: 6px; }
+        .chat-img { max-width: 220px; border-radius: 10px; cursor: pointer; transition: transform 0.2s; }
         .chat-img:hover { transform: scale(1.02); }
         .download-btn { 
             display: flex; align-items: center; justify-content: center; gap: 4px;
@@ -116,62 +107,114 @@
         .message.sent .download-btn { background: rgba(255,255,255,0.2); color: white; }
         .message.sent .download-btn:hover { background: rgba(255,255,255,0.3); }
 
-        /* 이미지 확대 모달 뷰어 */
-        #img-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; cursor: zoom-out; }
-        #img-modal img { max-width: 90%; max-height: 90%; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+        /* 하단 하단 입력창 컨트롤 */
+        .chat-input-area { padding: 20px 24px; background-color: var(--chat-bg); border-top: 1px solid var(--border-color); display: flex; gap: 12px; align-items: center; }
+        #message-input { flex: 1; padding: 14px 18px; border: 1px solid var(--border-color); border-radius: 12px; outline: none; font-size: 0.9rem; background-color: var(--bg-main); transition: 0.2s; }
+        #message-input:focus { border-color: var(--primary); background-color: var(--chat-bg); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
         
-        /* 관리자 대시보드 전용 스타일 */
-        .admin-title { font-weight: bold; font-size: 1rem; color: #1e293b; margin-bottom: 10px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; }
-        .room-item { display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 8px; width: 100%; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-        .room-name { font-weight: 600; color: #334155; font-size: 0.95rem; cursor: pointer; }
-        .room-name:hover { color: var(--primary); }
-        .room-delete-btn { background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: bold; }
-        .room-delete-btn:hover { background-color: #b91c1c; }
-
-        /* 입력 영역 */
-        .chat-input-area { padding: 16px 20px; background-color: var(--chat-bg); border-top: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; }
-        #message-input { flex: 1; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 12px; outline: none; font-size: 0.9rem; background-color: var(--bg-main); }
-        #message-input:focus { border-color: var(--primary); background-color: var(--chat-bg); }
-        
-        .file-label { background-color: var(--bg-main); color: var(--text-muted); padding: 12px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; }
+        /* 표준 명세 규격에 맞춘 파일 라벨 최적화 */
+        .file-label { background-color: var(--bg-main); color: var(--text-muted); width: 46px; height: 46px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-color); }
         .file-label:hover { background-color: #e2e8f0; }
         #file-input { display: none; }
+        #send-btn { background-color: var(--primary); color: white; border: none; width: 46px; height: 46px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; }
+        #send-btn:hover { background-color: var(--primary-dark); }
+
+        /* 🛠️ 관리자 패널 전용 대시보드 */
+        .admin-header { background-color: #dc2626; color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; }
+        .admin-header h2 { font-size: 1.15rem; font-weight: 700; }
+        .exit-admin-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: bold; }
+        .exit-admin-btn:hover { background: rgba(255,255,255,0.3); }
         
-        #send-btn { background-color: var(--primary); color: white; border: none; width: 44px; height: 44px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-        #send-btn.admin-btn { background-color: #dc2626; }
+        .admin-body { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+        .admin-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .admin-card h4 { font-size: 0.95rem; margin-bottom: 12px; color: var(--text-main); }
+        
+        .create-group { display: flex; gap: 10px; }
+        .create-group input { flex: 1; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; outline: none; }
+        .create-group button { background: #10b981; color: white; border: none; padding: 0 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .create-group button:hover { background: #059669; }
+
+        .admin-room-list { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }
+        .admin-room-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-main); border-radius: 8px; border: 1px solid var(--border-color); }
+        .admin-room-name { font-weight: 600; color: #334155; font-size: 0.9rem; }
+        .explode-btn { background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: bold; }
+        .explode-btn:hover { background: #b91c1c; }
+
+        /* 이미지 확대 뷰어 모달 */
+        #img-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; cursor: zoom-out; }
+        #img-modal img { max-width: 90%; max-height: 90%; border-radius: 12px; }
     </style>
 </head>
 <body>
 
-<!-- 이미지 크게 보기 뷰어 모달 -->
+<!-- 이미지 모달 뷰어 팝업 -->
 <div id="img-modal" onclick="this.style.display='none'">
     <img id="modal-img" src="" alt="확대 이미지">
 </div>
 
-<div class="chat-container">
-    <div class="chat-header" id="chat-header">
-        <div class="header-top">
-            <h2 id="room-display"><i class="fa-regular fa-comments"></i> 로딩 중...</h2>
-            <button class="change-btn" onclick="changeRoom()"><i class="fa-solid fa-right-from-bracket"></i> 방 변경</button>
+<div class="app-container">
+    <!-- 📁 왼쪽 사이드바 (고정 가로 패널) -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h3><i class="fa-solid fa-layer-group"></i> Team Workspace</h3>
+            <div class="user-profile">
+                <span><i class="fa-regular fa-user"></i> <b id="user-display">로딩..</b></span>
+                <button class="profile-btn" onclick="changeName()">변경</button>
+            </div>
         </div>
-        <div class="header-bottom">
-            <span><i class="fa-regular fa-user"></i> 내 이름: <b id="user-display"></b></span>
-            <button class="change-btn" onclick="changeName()">이름 변경</button>
+        <div class="room-section">
+            <div class="section-title">Channels</div>
+            <div class="room-list" id="sidebar-room-list"></div>
+        </div>
+        <div class="sidebar-footer">
+            <button class="admin-toggle-btn" id="admin-sidebar-btn" onclick="toggleAdminView()"><i class="fa-solid fa-gears"></i> 관리자 대시보드</button>
         </div>
     </div>
-    
-    <div class="chat-messages" id="chat-messages"></div>
-    
-    <div class="chat-input-area">
-        <label for="file-input" class="file-label" id="file-label" onclick="document.getElementById('file-input').click()"><i class="fa-solid fa-paperclip"></i></label>
-        <input type="file" id="file-input" onchange="handleFileSelect(this)">
+
+    <!-- 💬 오른쪽 실시간 메인 디스플레이 -->
+    <div class="main-content">
         
-        <input type="text" id="message-input" placeholder="메시지를 입력하세요..." onkeypress="if(event.key==='Enter') handleActionButton()">
-        <button id="send-btn" onclick="handleActionButton()"><i class="fa-solid fa-paper-plane"></i></button>
+        <!-- [패널 1] 대화 및 채팅 뷰 -->
+        <div id="chat-view" class="view-panel">
+            <div class="chat-header">
+                <h2 id="room-display"><i class="fa-regular fa-hashtag"></i> 대화방</h2>
+            </div>
+            <div class="chat-messages" id="chat-messages"></div>
+            <div class="chat-input-area">
+                <!-- 💡 [불필요 코드 제거] 인라인 onclick 삭제 및 label 표준 명세 바인딩 -->
+                <label for="file-input" class="file-label"><i class="fa-solid fa-paperclip"></i></label>
+                <input type="file" id="file-input" onchange="handleFileSelect(this)">
+                
+                <input type="text" id="message-input" placeholder="메시지를 입력하세요..." onkeypress="if(event.key==='Enter') sendMessage()">
+                <button id="send-btn" onclick="sendMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </div>
+
+        <!-- [패널 2] 원격 폭파 및 방 개설 관리자 대시보드 -->
+        <div id="admin-view" class="view-panel" style="display: none;">
+            <div class="admin-header">
+                <h2><i class="fa-solid fa-shield-halved"></i> 워크스페이스 최고 관리자 모드</h2>
+                <button class="exit-admin-btn" onclick="exitAdminMode()">대화방으로 복귀</button>
+            </div>
+            <div class="admin-body">
+                <div class="admin-card">
+                    <h4><i class="fa-solid fa-plus"></i> 새로운 대화방 신설</h4>
+                    <div class="create-group">
+                        <input type="text" id="new-room-name" placeholder="개설할 채널 명을 입력하세요 (예: 개발팀)">
+                        <button onclick="createNewRoom()">방 생성</button>
+                    </div>
+                </div>
+                <div class="admin-card">
+                    <h4><i class="fa-solid fa-list-check"></i> 활성화된 채널 관리 및 폭파</h4>
+                    <div class="admin-room-list" id="admin-room-list"></div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 
-<!-- Firebase SDK -->
+<!-- Firebase SDK 인프라 로드 -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
@@ -186,47 +229,87 @@
     const database = firebase.database();
     const ADMIN_PASSWORD = "1234";
 
-    let myName = localStorage.getItem('chat_username') || "사용자" + Math.floor(Math.random() * 1000);
+    let myName = localStorage.getItem('chat_username') || "유저_" + Math.floor(Math.random() * 1000);
     localStorage.setItem('chat_username', myName);
     let currentRoom = localStorage.getItem('chat_roomname') || "기본방";
+    if(currentRoom === "시스템관리자") currentRoom = "기본방"; 
     localStorage.setItem('chat_roomname', currentRoom);
 
     document.getElementById('user-display').innerText = myName;
 
     const chatMessages = document.getElementById('chat-messages');
     const messageInput = document.getElementById('message-input');
-    const chatHeader = document.getElementById('chat-header');
-    const sendBtn = document.getElementById('send-btn');
-    const fileLabel = document.getElementById('file-label');
+    const sidebarRoomList = document.getElementById('sidebar-room-list');
+    const adminRoomList = document.getElementById('admin-room-list');
+    const chatView = document.getElementById('chat-view');
+    const adminView = document.getElementById('admin-view');
 
     let msgListener = null;
-    let roomsListener = null;
-    let isAdminMode = false;
+    let globalRoomsListener = null;
+    let isAdminAuthenticated = false;
 
-    function initMessenger() {
-        if (currentRoom === "시스템관리자") {
-            enterAdminMode();
-        } else {
-            document.getElementById('room-display').innerHTML = `<i class="fa-regular fa-comments"></i> ${currentRoom}`;
-            loadMessages();
-        }
+    function initApp() {
+        listenGlobalRooms(); 
+        selectRoom(currentRoom); 
     }
 
-    // 일반 채팅 메시지 로딩
-    function loadMessages() {
-        isAdminMode = false;
-        chatHeader.classList.remove('admin-mode');
-        sendBtn.classList.remove('admin-btn');
-        sendBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i>`;
-        messageInput.placeholder = "메시지를 입력하세요...";
-        fileLabel.style.display = "flex";
+    // 🌐 전체 대화방 디렉토리 실시간 바인딩 및 사이드바 출력
+    function listenGlobalRooms() {
+        if(globalRoomsListener) globalRoomsListener.off();
+        
+        globalRoomsListener = database.ref('rooms_v2');
+        globalRoomsListener.on('value', (snapshot) => {
+            const roomsData = snapshot.val();
+            
+            sidebarRoomList.innerHTML = '';
+            adminRoomList.innerHTML = '';
 
-        // [핵심 수정] 변수가 바뀌기 전, 기존에 켜져있던 리스너 객체를 다이렉트로 완벽하게 종료시킵니다.
-        if(msgListener) msgListener.off();
-        if(roomsListener) roomsListener.off();
+            let roomNames = roomsData ? Object.keys(roomsData) : [];
+            if(!roomNames.includes("기본방")) {
+                roomNames.unshift("기본방");
+            }
+
+            roomNames.forEach(roomName => {
+                if(roomName === "시스템관리자") return;
+
+                // 사이드바 버튼 동적 엘리먼트 빌드
+                const item = document.createElement('div');
+                item.className = `room-item ${roomName === currentRoom ? 'active' : ''}`;
+                item.innerHTML = `<i class="fa-regular fa-hashtag"></i> ${roomName}`;
+                item.onclick = () => {
+                    exitAdminMode(); 
+                    selectRoom(roomName);
+                };
+                sidebarRoomList.appendChild(item);
+
+                // 관리자용 대시보드 리스트 빌드
+                const adminItem = document.createElement('div');
+                adminItem.className = 'admin-room-item';
+                adminItem.innerHTML = `
+                    <span class="admin-room-name"><i class="fa-regular fa-comment-dots"></i> ${roomName}</span>
+                    <button class="explode-btn" onclick="deleteRoom('${roomName}')">채널 폭파</button>
+                `;
+                adminRoomList.appendChild(adminItem);
+            });
+        });
+    }
+
+    // 🔄 채널 체인지 트랜잭션 (유령 리스너 결벽 차단)
+    function selectRoom(roomName) {
+        if(msgListener) {
+            msgListener.off();
+        }
+        
+        currentRoom = roomName;
+        localStorage.setItem('chat_roomname', currentRoom);
+        document.getElementById('room-display').innerHTML = `<i class="fa-solid fa-hashtag"></i> ${currentRoom}`;
         chatMessages.innerHTML = '';
 
-        // 새로운 대화방 리스너 바인딩 및 저장
+        Array.from(sidebarRoomList.children).forEach(el => {
+            if(el.innerText.trim() === roomName) el.classList.add('active');
+            else el.classList.remove('active');
+        });
+
         msgListener = database.ref(`rooms_v2/${currentRoom}`).limitToLast(50);
         msgListener.on('child_added', (snapshot) => {
             const data = snapshot.val();
@@ -235,96 +318,37 @@
         });
     }
 
-    // 🛠️ 관리자 모드 진입
-    function enterAdminMode() {
-        isAdminMode = true;
-        currentRoom = "시스템관리자";
-        localStorage.setItem('chat_roomname', currentRoom);
-
-        chatHeader.classList.add('admin-mode');
-        sendBtn.classList.add('admin-btn');
-        sendBtn.innerHTML = `<i class="fa-solid fa-plus"></i>`;
-        document.getElementById('room-display').innerHTML = `<i class="fa-solid fa-gears"></i> 관리자 모드`;
-        messageInput.placeholder = "생성할 새 대화방 이름을 입력하세요...";
-        fileLabel.style.display = "none";
-
-        // [핵심 수정] 관리자 모드로 전환 시에도 이전 채팅방의 리스너를 확실히 제거합니다.
-        if(msgListener) msgListener.off();
-        if(roomsListener) roomsListener.off();
-        chatMessages.innerHTML = '<div class="admin-title">📋 개설된 전체 채팅방 목록</div>';
-
-        roomsListener = database.ref('rooms_v2');
-        roomsListener.on('value', (snapshot) => {
-            chatMessages.innerHTML = '<div class="admin-title">📋 개설된 전체 채팅방 목록</div>';
-            const roomsData = snapshot.val();
-            if (!roomsData) {
-                chatMessages.innerHTML += '<p style="text-align:center; color:#94a3b8; margin-top:20px;">개설된 방이 없습니다.</p>';
-                return;
-            }
-
-            Object.keys(roomsData).forEach(roomName => {
-                if (roomName === "시스템관리자") return;
-
-                const roomItem = document.createElement('div');
-                roomItem.classList.add('room-item');
-                roomItem.innerHTML = `
-                    <span class="room-name" onclick="selectRoomFromAdmin('${roomName}')"><i class="fa-regular fa-comment-dots"></i> ${roomName}</span>
-                    <button class="room-delete-btn" onclick="deleteRoom('${roomName}')">폭파</button>
-                `;
-                chatMessages.appendChild(roomItem);
-            });
-        });
-    }
-
-    function selectRoomFromAdmin(roomName) {
-        currentRoom = roomName;
-        localStorage.setItem('chat_roomname', currentRoom);
-        document.getElementById('room-display').innerHTML = `<i class="fa-regular fa-comments"></i> ${currentRoom}`;
-        loadMessages();
-    }
-
-    function deleteRoom(roomName) {
-        if(confirm(`[${roomName}] 방의 모든 대화와 사진을 완전히 삭제하시겠습니까?`)) {
-            database.ref(`rooms_v2/${roomName}`).remove();
-        }
-    }
-
-    // 메시지 전송 및 방 생성 공용 핸들러
-    function handleActionButton() {
+    // ✉️ 대화 전송
+    function sendMessage() {
         const val = messageInput.value.trim();
         if(!val) return;
 
-        if(isAdminMode) {
-            database.ref(`rooms_v2/${val}`).push({
-                sender: "시스템", text: `✨ [${val}] 방이 개설되었습니다.`, time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
-            });
-            alert(`[${val}] 방이 생성되었습니다.`);
-        } else {
-            const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
-            database.ref(`rooms_v2/${currentRoom}`).push({ sender: myName, text: val, time: timeString });
-        }
+        const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
+        database.ref(`rooms_v2/${currentRoom}`).push({ sender: myName, text: val, time: timeString });
         messageInput.value = '';
     }
 
-    // 파일/사진 선택 시 처리
+    // 📸 사진 첨부 스트림 디코딩
     function handleFileSelect(input) {
         const file = input.files[0];
         if(!file) return;
 
-        fileLabel.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
+        const label = document.querySelector('.file-label');
+        label.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
+        
         const reader = new FileReader();
         reader.onload = (e) => {
             const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
             database.ref(`rooms_v2/${currentRoom}`).push({
                 sender: myName, text: "📎 사진 전송", fileData: e.target.result, fileName: file.name, time: timeString
             });
-            fileLabel.innerHTML = `<i class="fa-solid fa-paperclip"></i>`;
+            label.innerHTML = `<i class="fa-solid fa-paperclip"></i>`;
             input.value = '';
         };
         reader.readAsDataURL(file);
     }
 
-    // 화면에 말풍선 그리기
+    // 🎨 UI 렌더러: 메시지 버블 생성 (💡 이미지 로드 스크롤 버그 수정 완결)
     function appendMessage(sender, text, type, time, fileData, fileName) {
         const wrapper = document.createElement('div');
         wrapper.classList.add('message-wrapper', type);
@@ -333,9 +357,10 @@
         content += `<div class="message ${type}">`;
         
         if(fileData) {
+            // onload 트리거 추가: 이미지 렌더링 지연으로 스크롤이 끊기거나 잘리는 버그 완벽 예방
             content += `
                 <div class="img-msg-container">
-                    <img src="${fileData}" class="chat-img" onclick="showModal('${fileData}')" alt="전송된 이미지">
+                    <img src="${fileData}" class="chat-img" onload="scrollToBottom()" onclick="showModal('${fileData}')" alt="전송 이미지">
                     <a href="${fileData}" download="${fileName || 'image.png'}" class="download-btn"><i class="fa-solid fa-floppy-disk"></i> 저장</a>
                 </div>`;
         } else {
@@ -345,6 +370,11 @@
         content += `</div><span class="message-time">${time}</span>`;
         wrapper.innerHTML = content;
         chatMessages.appendChild(wrapper);
+        scrollToBottom();
+    }
+
+    // 📜 통합 스크롤 제어 로직
+    function scrollToBottom() {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
@@ -353,34 +383,70 @@
         document.getElementById('img-modal').style.display = 'flex';
     }
 
-    function changeRoom() {
-        const target = prompt("이동할 방 이름을 입력하세요 (관리자 모드는 admin 입력):", isAdminMode ? "" : currentRoom);
-        if(!target || !target.trim()) return;
-        const clean = target.trim();
-
-        if(clean === "admin") {
+    // ⚙️ 최고 권한자 비밀번호 검증 브릿지
+    function toggleAdminView() {
+        if(!isAdminAuthenticated) {
             const pass = prompt("관리자 비밀번호를 입력하세요:");
-            if(pass === ADMIN_PASSWORD) enterAdminMode();
-            else alert("비밀번호가 다릅니다.");
-        } else {
-            currentRoom = clean;
-            localStorage.setItem('chat_roomname', currentRoom);
-            document.getElementById('room-display').innerHTML = `<i class="fa-regular fa-comments"></i> ${currentRoom}`;
-            loadMessages();
+            if(pass === ADMIN_PASSWORD) {
+                isAdminAuthenticated = true;
+                const adminBtn = document.getElementById('admin-sidebar-btn');
+                adminBtn.style.background = "#dc2626";
+                adminBtn.style.color = "#fff";
+            } else {
+                alert("비밀번호가 일치하지 않습니다.");
+                return;
+            }
+        }
+        chatView.style.display = 'none';
+        adminView.style.display = 'flex';
+    }
+
+    function exitAdminMode() {
+        adminView.style.display = 'none';
+        chatView.style.display = 'flex';
+    }
+
+    // 🛠️ 대화방 개설 커맨드
+    function createNewRoom() {
+        const input = document.getElementById('new-room-name');
+        const name = input.value.trim();
+        if(!name) return;
+
+        database.ref(`rooms_v2/${name}`).push({
+            sender: "시스템", text: `✨ [${name}] 워크스페이스 채널이 신설되었습니다.`, time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+        });
+        alert(`[${name}] 방이 성공적으로 개설되었습니다.`);
+        input.value = '';
+        selectRoom(name); 
+        exitAdminMode();
+    }
+
+    // 🛠️ 대화방 원격 파괴 커맨드
+    function deleteRoom(roomName) {
+        if(roomName === "기본방") {
+            alert("기본방은 시스템 영구 보존구역이므로 폭파할 수 없습니다.");
+            return;
+        }
+        if(confirm(`[${roomName}] 채널의 모든 대화 데이터와 업로드된 이미지를 영구 파괴하시겠습니까?`)) {
+            database.ref(`rooms_v2/${roomName}`).remove();
+            if(currentRoom === roomName) {
+                selectRoom("기본방");
+            }
         }
     }
 
+    // 👤 프로필 네임 변경 컨텍스트
     function changeName() {
         const newName = prompt("변경할 이름을 입력하세요:", myName);
         if (newName && newName.trim()) {
             myName = newName.trim();
             localStorage.setItem('chat_username', myName);
             document.getElementById('user-display').innerText = myName;
-            if(!isAdminMode) loadMessages();
+            selectRoom(currentRoom); // 기존 대화 타임라인 정렬 갱신
         }
     }
 
-    initMessenger();
+    initApp();
 </script>
 </body>
 </html>

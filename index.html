@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KakaoT-Style 메신저 Enterprise v17 - Private Only</title>
+    <title>KakaoT-Style 메신저 Enterprise v18 - Admin Verified</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -262,7 +262,7 @@
 
         <div id="panel-admin-view" class="view-panel" style="display: none;">
             <div class="admin-header">
-                <h2><i class="fa-solid fa-shield-cat"></i> 시스템 관리 컨트롤러</h2>
+                <h2><i class="fa-solid fa-shield-cat"></i> 시스템 관리 컨트롤러 (ID: admin-ljc)</h2>
                 <button class="explode-btn" style="background:#555;" onclick="closeAdminMode()">대화방 복귀</button>
             </div>
             <div class="admin-body">
@@ -410,7 +410,10 @@
         localStorage.setItem('chat_username_v4', myName);
         
         document.getElementById('auth-overlay-layer').style.display = 'none';
-        initApplication();
+        
+        // 중요: 로그인/가입 직후 메인 어플리케이션 구동 및 초대방 처리 연계
+        await initApplication();
+        checkInvitedRoomAfterAuth();
     }
 
     async function initApplication() {
@@ -430,38 +433,42 @@
             await database.ref('kakao_style/system_config').set({ admin_hash: DEFAULT_ADMIN_HASH });
         }
 
+        // 로그인 상태에서 바로 진입했을 경우 링크 검증 수행
+        checkInvitedRoomAfterAuth();
+        switchTab(activeTab); 
+    }
+
+    async function checkInvitedRoomAfterAuth() {
+        if (!myId) return;
         const urlParams = new URLSearchParams(window.location.search);
         const invitedRoomId = urlParams.get('room');
 
         if (invitedRoomId) {
-            alert("💌 초대 링크를 통해 대화방에 연결 중입니다. 보안 비밀번호를 검증합니다.");
             const targetRoomMeta = await database.ref(`kakao_style/rooms/${invitedRoomId}/meta`).once('value');
             
             if (targetRoomMeta.exists()) {
                 const roomInfo = targetRoomMeta.val();
-                const userPass = prompt("이 대화방의 비밀번호를 입력하세요:");
+                const userPass = prompt("💌 초대 링크가 확인되었습니다.\n이 대화방의 보안 비밀번호를 입력하세요:");
                 
                 if (userPass) {
-                    const hashedUserPass = await computeSHA256(userPass);
+                    const hashedUserPass = await computeSHA256(userPass.trim());
                     if (hashedUserPass === roomInfo.passwordHash) {
                         await database.ref(`kakao_style/user_rooms/${myId}/${invitedRoomId}`).set({
                             roomId: invitedRoomId,
                             roomTitle: roomInfo.title
                         });
+                        // 주소창 초기화하여 재복사 방지
                         window.history.replaceState({}, document.title, window.location.pathname);
                         switchTab('chats');
                         joinChatRoom(invitedRoomId, roomInfo.title);
-                        return;
                     } else {
                         alert("보안 오류: 비밀번호가 일치하지 않습니다.");
                     }
                 }
             } else {
-                alert("존재하지 않거나 파괴된 대화방 링크입니다.");
+                alert("존재하지 않거나 이미 폭파된 대화방 링크입니다.");
             }
         }
-        
-        switchTab(activeTab); 
     }
 
     function clearSessionLogout() {
@@ -943,8 +950,15 @@
         if(activeTab === 'friends') switchTab('friends');
     }
 
+    // 중요 수정: 관리자 모드 진입 시 아이디가 반드시 admin-ljc인지 다이렉트 검증
     async function verifyAndOpenAdminMode() {
-        const pass = prompt("최고 관리자 암호 입력:");
+        if (myId !== "admin-ljc") {
+            alert("🚨 권한 오류: 해당 메뉴는 최고 관리자 고정 계정(admin-ljc)만 진입할 수 있습니다.");
+            isAdminAuthenticated = false;
+            return;
+        }
+
+        const pass = prompt("최고 관리자 마스터 암호 입력:");
         if(!pass) return;
 
         const hashedInput = await computeSHA256(pass);
@@ -952,7 +966,7 @@
         const currentServerAdminHash = adminConfigSnap.exists() ? adminConfigSnap.val() : DEFAULT_ADMIN_HASH;
 
         if(hashedInput !== currentServerAdminHash) {
-            alert("🚨 권한 경고: 인가되지 않은 인증 요청입니다. (접속 실패)");
+            alert("🚨 권한 경고: 관리자 비밀번호가 일치하지 않습니다.");
             isAdminAuthenticated = false;
             return;
         }

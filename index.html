@@ -411,7 +411,6 @@
         
         document.getElementById('auth-overlay-layer').style.display = 'none';
         
-        // 중요: 로그인/가입 직후 메인 어플리케이션 구동 및 초대방 처리 연계
         await initApplication();
         checkInvitedRoomAfterAuth();
     }
@@ -433,7 +432,6 @@
             await database.ref('kakao_style/system_config').set({ admin_hash: DEFAULT_ADMIN_HASH });
         }
 
-        // 로그인 상태에서 바로 진입했을 경우 링크 검증 수행
         checkInvitedRoomAfterAuth();
         switchTab(activeTab); 
     }
@@ -457,7 +455,6 @@
                             roomId: invitedRoomId,
                             roomTitle: roomInfo.title
                         });
-                        // 주소창 초기화하여 재복사 방지
                         window.history.replaceState({}, document.title, window.location.pathname);
                         switchTab('chats');
                         joinChatRoom(invitedRoomId, roomInfo.title);
@@ -950,7 +947,6 @@
         if(activeTab === 'friends') switchTab('friends');
     }
 
-    // 중요 수정: 관리자 모드 진입 시 아이디가 반드시 admin-ljc인지 다이렉트 검증
     async function verifyAndOpenAdminMode() {
         if (myId !== "admin-ljc") {
             alert("🚨 권한 오류: 해당 메뉴는 최고 관리자 고정 계정(admin-ljc)만 진입할 수 있습니다.");
@@ -989,18 +985,79 @@
             return;
         }
 
+        const adminBody = document.querySelector('.admin-body');
+        
         database.ref('kakao_style/rooms').once('value', (snapshot) => {
             const box = document.getElementById('admin-raw-rooms');
-            box.innerHTML = '';
-            const data = snapshot.val() || {};
-            Object.keys(data).forEach(id => {
-                const item = document.createElement('div');
-                item.className = 'admin-room-item';
-                item.innerHTML = `<span>UID: <b>${escapeHtml(id)}</b></span><button class="explode-btn" id="explode-btn-${id}">삭제</button>`;
-                item.querySelector(`#explode-btn-${id}`).onclick = () => systemExplodeRoom(id);
-                box.appendChild(item);
-            });
+            if(box) {
+                box.innerHTML = '';
+                const data = snapshot.val() || {};
+                const keys = Object.keys(data);
+                if(keys.length === 0) {
+                    box.innerHTML = '<div style="font-size:0.85rem; color:#707070;">활성화된 대화방이 없습니다.</div>';
+                }
+                keys.forEach(id => {
+                    const item = document.createElement('div');
+                    item.className = 'admin-room-item';
+                    item.innerHTML = `<span>방 UID: <b>${escapeHtml(id)}</b> (${escapeHtml(data[id].meta?.title || '이름 없음')})</span><button class="explode-btn" id="explode-btn-${id}">삭제</button>`;
+                    item.querySelector(`#explode-btn-${id}`).onclick = () => systemExplodeRoom(id);
+                    box.appendChild(item);
+                });
+            }
         });
+
+        let userCard = document.getElementById('admin-user-manage-card');
+        if (!userCard) {
+            userCard = document.createElement('div');
+            userCard.className = 'admin-card';
+            userCard.id = 'admin-user-manage-card';
+            userCard.style.marginTop = '20px';
+            adminBody.appendChild(userCard);
+        }
+
+        database.ref('kakao_style/users').once('value', (snapshot) => {
+            const usersData = snapshot.val() || {};
+            const userKeys = Object.keys(usersData);
+
+            let html = `<h4><i class="fa-solid fa-users"></i> 가입된 전체 회원 관리 (${userKeys.length}명)</h4>`;
+            html += `<div class="admin-room-list" style="max-height: 250px; overflow-y: auto; gap: 8px; display: flex; flex-direction: column;">`;
+            
+            if(userKeys.length === 0) {
+                html += `<div style="font-size:0.85rem; color:#707070; padding:10px;">가입된 회원이 존재하지 않습니다.</div>`;
+            }
+
+            userKeys.forEach(uId => {
+                const user = usersData[uId];
+                const safeId = escapeHtml(user.id || uId);
+                const safeName = escapeHtml(user.name || '이름 없음');
+                const lastActive = user.lastSeen ? new Date(user.lastSeen).toLocaleString('ko-KR') : '기록 없음';
+
+                html += `
+                    <div class="admin-room-item" style="background: #f8fafc;">
+                        <div>
+                            <span style="font-weight:700; color:#1e293b;">${safeName}</span> 
+                            <span style="font-size:0.8rem; color:#64748b;">(ID: ${safeId})</span>
+                            <div style="font-size:0.72rem; color:#94a3b8; margin-top:2px;">최근 접속: ${lastActive}</div>
+                        </div>
+                        <button class="explode-btn" style="background:#dc2626;" onclick="systemDeleteUser('${safeId}')">추방/삭제</button>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+            userCard.innerHTML = html;
+        });
+    }
+
+    function systemDeleteUser(userId) {
+        if (!isAdminAuthenticated) return;
+        if (userId === 'admin-ljc') return alert("최고 관리자 계정은 삭제할 수 없습니다.");
+        
+        if (confirm(`🚨 정말로 회원 [ ${userId} ] 계정을 서버에서 영구 삭제하시겠습니까?\n해당 유저의 모든 데이터와 친구 관계가 끊어집니다.`)) {
+            database.ref(`kakao_style/users/${userId}`).remove().then(() => {
+                alert("회원 계정이 성공적으로 강제 삭제되었습니다.");
+                loadAdminInfrastructure();
+            });
+        }
     }
 
     async function updateAdminPassword() {

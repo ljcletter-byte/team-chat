@@ -3,210 +3,186 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Next-Gen 프로페셔널 팀 메신저</title>
-    <!-- 프리텐다드 폰트 및 폰트어썸 아이콘 프로급 웹 로드 -->
+    <title>KakaoT-Style 엔터프라이즈 메신저</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
         :root {
-            --sidebar-bg: #1e1b4b; 
-            --sidebar-hover: #312e81;
-            --primary: #4f46e5;
-            --primary-dark: #3730a3;
-            --bg-main: #f8fafc;
-            --chat-bg: #ffffff;
-            --text-main: #0f172a;
-            --text-muted: #64748b;
-            --border-color: #e2e8f0;
+            --kakao-nav-bg: #2a2a2a;      
+            --kakao-sidebar-bg: #ffffff;  
+            --kakao-chat-bg: #bacbd9;     
+            --kakao-yellow: #fee500;      
+            --text-main: #191919;
+            --text-muted: #707070;
+            --border-color: #e5e5e5;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Pretendard Variable", Pretendard, sans-serif; }
-        body { display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%); }
+        body { display: flex; justify-content: center; align-items: center; height: 100vh; background: #eef2f5; }
         
-        /* 메인 앱 레이아웃 */
         .app-container { 
-            width: 900px; 
-            height: 680px; 
-            background-color: var(--chat-bg); 
-            border-radius: 20px; 
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+            width: 1000px; 
+            height: 700px; 
+            background-color: #fff; 
+            border-radius: 16px; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
             display: flex; 
             overflow: hidden; 
         }
 
-        /* 📁 왼쪽 고정 사이드바 */
-        .sidebar {
-            width: 260px;
-            background-color: var(--sidebar-bg);
-            color: #ecfeff;
+        /* 1단 내비게이션 바 */
+        .nav-bar {
+            width: 70px;
+            background-color: var(--kakao-nav-bg);
             display: flex;
             flex-direction: column;
+            align-items: center;
+            padding: 24px 0;
+            gap: 28px;
+            flex-shrink: 0;
+        }
+        .nav-item { color: #8e8e8e; font-size: 1.4rem; cursor: pointer; transition: color 0.2s; position: relative; }
+        .nav-item:hover, .nav-item.active { color: #ffffff; }
+
+        /* 2단 리스트 사이드바 */
+        .sub-sidebar {
+            width: 280px;
+            background-color: var(--kakao-sidebar-bg);
             border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
         }
-        .sidebar-header { padding: 24px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .sidebar-header h3 { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 12px; color: #fff; }
+        .sidebar-title-area { padding: 24px 20px 12px 20px; }
+        .sidebar-title-area h3 { font-size: 1.2rem; font-weight: 800; color: var(--text-main); }
         
-        /* 유저 프로필 영역 영역 (말줄임 방어코드 최적화) */
-        .user-profile { 
-            display: flex; justify-content: space-between; align-items: center; 
-            background: rgba(255,255,255,0.08); padding: 8px 12px; border-radius: 8px; font-size: 0.8rem;
-        }
-        .user-profile span { display: flex; align-items: center; gap: 6px; min-width: 0; width: 80%; }
-        .user-profile b { color: #67e8f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-        .profile-btn { background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 0.75rem; font-weight: 600; flex-shrink: 0; }
-        .profile-btn:hover { color: #fff; }
+        .my-profile-card { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border-color); }
+        .profile-avatar { width: 42px; height: 42px; background: #e2e8f0; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #475569; font-weight: bold; flex-shrink: 0; }
+        .my-profile-info { flex: 1; min-width: 0; }
+        .my-profile-info h4 { font-size: 0.9rem; font-weight: 700; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .my-profile-info p { font-size: 0.75rem; color: var(--text-muted); cursor: pointer; margin-top: 2px; display: inline-block; }
+        .my-profile-info p:hover { text-decoration: underline; color: #000; }
 
-        .room-section { flex: 1; padding: 20px 10px; overflow-y: auto; }
-        .section-title { font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; padding-left: 10px; margin-bottom: 10px; }
+        .list-scroll-area { flex: 1; overflow-y: auto; padding: 10px 0; }
         
-        .room-list { display: flex; flex-direction: column; gap: 4px; }
-        .room-item { 
-            display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; 
-            font-size: 0.9rem; color: #cbd5e1; cursor: pointer; transition: all 0.2s;
-            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
-        .room-item:hover { background-color: var(--sidebar-hover); color: #fff; }
-        .room-item.active { background-color: var(--primary); color: #fff; font-weight: 600; }
+        /* 리스트 아이템 컴포넌트 */
+        .list-item { display: flex; align-items: center; gap: 12px; padding: 12px 20px; cursor: pointer; transition: background 0.15s; }
+        .list-item:hover { background-color: #f7f7f7; }
+        .list-item.active { background-color: #ebebeb; }
+        .item-body { flex: 1; min-width: 0; }
+        .item-header-line { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+        .item-name { font-size: 0.9rem; font-weight: 600; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .item-time { font-size: 0.7rem; color: var(--text-muted); flex-shrink: 0; }
+        .item-preview { font-size: 0.8rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-        .sidebar-footer { padding: 16px; border-top: 1px solid rgba(255,255,255,0.1); }
-        .admin-toggle-btn { 
-            width: 100%; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); 
-            color: #fca5a5; padding: 10px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600; transition: 0.2s;
-        }
-        .admin-toggle-btn:hover { background: #ef4444; color: white; }
+        .empty-placeholder { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 0.85rem; line-height: 1.5; }
 
-        /* 💬 오른쪽 메인 메신저 바디 */
-        .main-content { flex: 1; display: flex; flex-direction: column; background-color: var(--bg-main); position: relative; }
+        /* 3단 메인 대화 영역 */
+        .main-chat { flex: 1; display: flex; flex-direction: column; background-color: var(--kakao-chat-bg); position: relative; }
         .view-panel { display: flex; flex-direction: column; width: 100%; height: 100%; }
 
-        .chat-header { background-color: #fff; padding: 20px 24px; border-bottom: 1px solid var(--border-color); }
-        .chat-header h2 { font-size: 1.15rem; font-weight: 700; color: var(--text-main); }
+        .chat-header { background-color: rgba(255,255,255,0.9); backdrop-filter: blur(5px); padding: 18px 24px; border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .chat-header h2 { font-size: 1rem; font-weight: 700; color: var(--text-main); }
 
-        .chat-messages { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
-        .message-wrapper { display: flex; flex-direction: column; max-width: 75%; }
-        .message-wrapper.sent { align-self: flex-end; align-items: flex-end; }
-        .message-wrapper.received { align-self: flex-start; align-items: flex-start; }
-        .message-sender { font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; color: var(--text-muted); }
+        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+        .msg-row { display: flex; gap: 8px; max-width: 85%; }
+        .msg-row.sent { align-self: flex-end; flex-direction: row-reverse; }
+        .msg-row.received { align-self: flex-start; }
         
-        .message { padding: 12px 16px; border-radius: 16px; font-size: 0.9rem; line-height: 1.4; word-break: break-all; }
-        .message.sent { background-color: var(--primary); color: white; border-bottom-right-radius: 4px; box-shadow: 0 2px 4px rgba(79,70,229,0.15); }
-        .message.received { background-color: var(--chat-bg); color: var(--text-main); border-bottom-left-radius: 4px; border: 1px solid var(--border-color); box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        .message-time { font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; }
+        .msg-row.sent .profile-avatar { display: none; } 
 
-        /* 이미지 메시지 레이아웃 */
-        .img-msg-container { display: flex; flex-direction: column; gap: 6px; }
-        .chat-img { max-width: 220px; border-radius: 10px; cursor: pointer; transition: transform 0.2s; }
-        .chat-img:hover { transform: scale(1.02); }
-        .download-btn { 
-            display: flex; align-items: center; justify-content: center; gap: 4px;
-            background: #e2e8f0; padding: 6px 12px; border-radius: 6px; 
-            font-size: 0.75rem; text-decoration: none; color: #475569; font-weight: 600; 
-        }
-        .download-btn:hover { background: #cbd5e1; }
-        .message.sent .download-btn { background: rgba(255,255,255,0.2); color: white; }
-        .message.sent .download-btn:hover { background: rgba(255,255,255,0.3); }
-
-        /* 하단 하단 입력창 컨트롤 */
-        .chat-input-area { padding: 20px 24px; background-color: var(--chat-bg); border-top: 1px solid var(--border-color); display: flex; gap: 12px; align-items: center; }
-        #message-input { flex: 1; padding: 14px 18px; border: 1px solid var(--border-color); border-radius: 12px; outline: none; font-size: 0.9rem; background-color: var(--bg-main); transition: 0.2s; }
-        #message-input:focus { border-color: var(--primary); background-color: var(--chat-bg); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+        .msg-container { display: flex; flex-direction: column; min-width: 0; }
+        .msg-row.sent .msg-container { align-items: flex-end; }
+        .msg-username { font-size: 0.75rem; color: #4e4e4e; margin-bottom: 4px; font-weight: 600; }
         
-        /* 표준 명세 규격에 맞춘 파일 라벨 최적화 */
-        .file-label { background-color: var(--bg-main); color: var(--text-muted); width: 46px; height: 46px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-color); }
-        .file-label:hover { background-color: #e2e8f0; }
+        .msg-bubble-wrap { display: flex; align-items: flex-end; gap: 6px; }
+        .msg-row.sent .msg-bubble-wrap { flex-direction: row-reverse; }
+
+        .bubble { padding: 10px 14px; border-radius: 12px; font-size: 0.88rem; line-height: 1.4; word-break: break-all; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .msg-row.sent .bubble { background-color: var(--kakao-yellow); color: #000; border-top-right-radius: 0; }
+        .msg-row.received .bubble { background-color: #ffffff; color: var(--text-main); border-top-left-radius: 0; }
+        .msg-time-stamp { font-size: 0.65rem; color: #556677; flex-shrink: 0; margin-bottom: 2px; }
+
+        .img-card { display: flex; flex-direction: column; gap: 4px; }
+        .chat-img { max-width: 200px; max-height: 250px; border-radius: 8px; cursor: pointer; object-fit: cover; }
+        .download-link { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; text-decoration: none; color: #334155; font-weight: bold; background: rgba(0,0,0,0.05); padding: 4px 8px; border-radius: 4px; width: fit-content; }
+
+        .chat-input-area { padding: 16px 20px; background-color: #fff; display: flex; gap: 12px; align-items: center; }
+        #message-input { flex: 1; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 8px; outline: none; font-size: 0.9rem; background-color: #f9f9f9; }
+        #message-input:focus { border-color: #bcccd9; background-color: #fff; }
+        
+        .file-label { color: #555; width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
         #file-input { display: none; }
-        #send-btn { background-color: var(--primary); color: white; border: none; width: 46px; height: 46px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; }
-        #send-btn:hover { background-color: var(--primary-dark); }
+        #send-btn { background-color: var(--kakao-yellow); color: #3c1e1e; border: 1px solid #e2cb00; width: 55px; height: 40px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.85rem; }
+        #send-btn:hover { background-color: #edd300; }
 
-        /* 🛠️ 관리자 패널 전용 대시보드 */
-        .admin-header { background-color: #dc2626; color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; }
-        .admin-header h2 { font-size: 1.15rem; font-weight: 700; }
-        .exit-admin-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: bold; }
-        .exit-admin-btn:hover { background: rgba(255,255,255,0.3); }
-        
-        .admin-body { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
-        .admin-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        /* 관리자 모드 기판 */
+        .admin-header { background-color: #1e293b; color: white; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; }
+        .admin-body { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; background-color: #f1f5f9; }
+        .admin-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); }
         .admin-card h4 { font-size: 0.95rem; margin-bottom: 12px; color: var(--text-main); }
-        
-        .create-group { display: flex; gap: 10px; }
-        .create-group input { flex: 1; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; outline: none; }
-        .create-group button { background: #10b981; color: white; border: none; padding: 0 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        .create-group button:hover { background: #059669; }
+        .admin-room-list { display: flex; flex-direction: column; gap: 8px; }
+        .admin-room-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border-color); }
 
-        .admin-room-list { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }
-        .admin-room-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-main); border-radius: 8px; border: 1px solid var(--border-color); }
-        .admin-room-name { font-weight: 600; color: #334155; font-size: 0.9rem; }
-        .explode-btn { background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: bold; }
-        .explode-btn:hover { background: #b91c1c; }
-
-        /* 이미지 확대 뷰어 모달 */
         #img-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; cursor: zoom-out; }
-        #img-modal img { max-width: 90%; max-height: 90%; border-radius: 12px; }
+        #img-modal img { max-width: 90%; max-height: 90%; border-radius: 8px; }
     </style>
 </head>
 <body>
 
-<!-- 이미지 모달 뷰어 팝업 -->
 <div id="img-modal" onclick="this.style.display='none'">
-    <img id="modal-img" src="" alt="확대 이미지">
+    <img id="modal-img" src="" alt="확대">
 </div>
 
 <div class="app-container">
-    <!-- 📁 왼쪽 사이드바 (고정 가로 패널) -->
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <h3><i class="fa-solid fa-layer-group"></i> Team Workspace</h3>
-            <div class="user-profile">
-                <span><i class="fa-regular fa-user"></i> <b id="user-display">로딩..</b></span>
-                <button class="profile-btn" onclick="changeName()">변경</button>
-            </div>
-        </div>
-        <div class="room-section">
-            <div class="section-title">Channels</div>
-            <div class="room-list" id="sidebar-room-list"></div>
-        </div>
-        <div class="sidebar-footer">
-            <button class="admin-toggle-btn" id="admin-sidebar-btn" onclick="toggleAdminView()"><i class="fa-solid fa-gears"></i> 관리자 대시보드</button>
-        </div>
+    <!-- [1단] 내비게이션 -->
+    <div class="nav-bar">
+        <div class="nav-item active" id="btn-tab-friends" onclick="switchTab('friends')"><i class="fa-solid fa-user"></i></div>
+        <div class="nav-item" id="btn-tab-chats" onclick="switchTab('chats')"><i class="fa-solid fa-comment"></i></div>
+        <div class="nav-item" id="btn-tab-admin" onclick="openAdminMode()"><i class="fa-solid fa-gear"></i></div>
     </div>
 
-    <!-- 💬 오른쪽 실시간 메인 디스플레이 -->
-    <div class="main-content">
-        
-        <!-- [패널 1] 대화 및 채팅 뷰 -->
-        <div id="chat-view" class="view-panel">
-            <div class="chat-header">
-                <h2 id="room-display"><i class="fa-regular fa-hashtag"></i> 대화방</h2>
+    <!-- [2단] 사이드바 서브 패널 -->
+    <div class="sub-sidebar">
+        <div class="sidebar-title-area">
+            <h3 id="sidebar-main-title">친구</h3>
+        </div>
+        <div class="my-profile-card">
+            <div class="profile-avatar" id="my-avatar-box">익</div>
+            <div class="my-profile-info">
+                <h4 id="my-name-display">로딩 중..</h4>
+                <p onclick="changeMyName()">프로필 편집</p>
             </div>
-            <div class="chat-messages" id="chat-messages"></div>
+        </div>
+        <div class="list-scroll-area" id="dynamic-list-container"></div>
+    </div>
+
+    <!-- [3단] 메인 액션 영역 -->
+    <div class="main-content" style="flex: 1; display: flex; flex-direction: column;">
+        
+        <div id="panel-chat-view" class="view-panel">
+            <div class="chat-header">
+                <h2 id="active-room-title">대화방을 선택해 주세요</h2>
+            </div>
+            <div class="chat-messages" id="chat-messages-box"></div>
             <div class="chat-input-area">
-                <!-- 💡 [불필요 코드 제거] 인라인 onclick 삭제 및 label 표준 명세 바인딩 -->
-                <label for="file-input" class="file-label"><i class="fa-solid fa-paperclip"></i></label>
-                <input type="file" id="file-input" onchange="handleFileSelect(this)">
-                
-                <input type="text" id="message-input" placeholder="메시지를 입력하세요..." onkeypress="if(event.key==='Enter') sendMessage()">
-                <button id="send-btn" onclick="sendMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+                <label for="file-input" class="file-label"><i class="fa-regular fa-plus-square"></i></label>
+                <input type="file" id="file-input" onchange="uploadPhoto(this)">
+                <input type="text" id="message-input" placeholder="메시지를 입력하세요..." onkeypress="if(event.key==='Enter') sendKakaoMsg()">
+                <button id="send-btn" onclick="sendKakaoMsg()">전송</button>
             </div>
         </div>
 
-        <!-- [패널 2] 원격 폭파 및 방 개설 관리자 대시보드 -->
-        <div id="admin-view" class="view-panel" style="display: none;">
+        <div id="panel-admin-view" class="view-panel" style="display: none;">
             <div class="admin-header">
-                <h2><i class="fa-solid fa-shield-halved"></i> 워크스페이스 최고 관리자 모드</h2>
-                <button class="exit-admin-btn" onclick="exitAdminMode()">대화방으로 복귀</button>
+                <h2><i class="fa-solid fa-shield-cat"></i> 시스템 관리 컨트롤러</h2>
+                <button class="explode-btn" style="background:#555;" onclick="closeAdminMode()">대화방 복귀</button>
             </div>
             <div class="admin-body">
                 <div class="admin-card">
-                    <h4><i class="fa-solid fa-plus"></i> 새로운 대화방 신설</h4>
-                    <div class="create-group">
-                        <input type="text" id="new-room-name" placeholder="개설할 채널 명을 입력하세요 (예: 개발팀)">
-                        <button onclick="createNewRoom()">방 생성</button>
-                    </div>
-                </div>
-                <div class="admin-card">
-                    <h4><i class="fa-solid fa-list-check"></i> 활성화된 채널 관리 및 폭파</h4>
-                    <div class="admin-room-list" id="admin-room-list"></div>
+                    <h4><i class="fa-solid fa-skull-crossbones"></i> 서버 인프라 액티브 룸 강제 셧다운</h4>
+                    <div class="admin-room-list" id="admin-raw-rooms"></div>
                 </div>
             </div>
         </div>
@@ -214,7 +190,6 @@
     </div>
 </div>
 
-<!-- Firebase SDK 인프라 로드 -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
@@ -227,226 +202,350 @@
 
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
-    const ADMIN_PASSWORD = "1234";
+    const ADMIN_PASS = "1234";
 
-    let myName = localStorage.getItem('chat_username') || "유저_" + Math.floor(Math.random() * 1000);
-    localStorage.setItem('chat_username', myName);
-    let currentRoom = localStorage.getItem('chat_roomname') || "기본방";
-    if(currentRoom === "시스템관리자") currentRoom = "기본방"; 
-    localStorage.setItem('chat_roomname', currentRoom);
+    // 💡 [전문가 개선] 유저 고유 ID(UID) 아키텍처 도입으로 이름 변경 시 연동 차단 버그 제거
+    let myId = localStorage.getItem('chat_userid_v4') || "u_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+    localStorage.setItem('chat_userid_v4', myId);
 
-    document.getElementById('user-display').innerText = myName;
+    let myName = localStorage.getItem('chat_username_v4') || "유저_" + Math.floor(Math.random() * 9000 + 1000);
+    localStorage.setItem('chat_username_v4', myName);
 
-    const chatMessages = document.getElementById('chat-messages');
-    const messageInput = document.getElementById('message-input');
-    const sidebarRoomList = document.getElementById('sidebar-room-list');
-    const adminRoomList = document.getElementById('admin-room-list');
-    const chatView = document.getElementById('chat-view');
-    const adminView = document.getElementById('admin-view');
-
+    // 전역 기지 상태 관리 메모리 바인딩
+    let currentRoomId = localStorage.getItem('chat_roomid_v4') || "global_public_room";
+    let currentRoomTitle = localStorage.getItem('chat_roomtitle_v4') || "기본 광장 오픈채팅방";
+    
+    let activeTab = "friends"; 
     let msgListener = null;
-    let globalRoomsListener = null;
-    let isAdminAuthenticated = false;
+    let friendsListener = null;
+    let roomsListener = null;
+    
+    // 💡 [메모리 누수 차단 리스트] 하위 실시간 변동 리스너 트래킹 맵
+    let metaListeners = {};
+    let roomMetaCache = {};
 
-    function initApp() {
-        listenGlobalRooms(); 
-        selectRoom(currentRoom); 
+    function initApplication() {
+        document.getElementById('my-name-display').innerText = myName;
+        document.getElementById('my-avatar-box').innerText = myName.substring(0, 1);
+
+        // 내 정보를 고유 식별자(UID) 하위에 매핑 등록
+        database.ref(`kakao_style/users/${myId}`).set({ id: myId, name: myName, lastSeen: Date.now() });
+        
+        // 내 개인 소속 룸에 기본 단체방 강제 포지셔닝
+        database.ref(`kakao_style/user_rooms/${myId}/global_public_room`).update({
+            roomId: "global_public_room",
+            roomTitle: "기본 광장 오픈채팅방"
+        });
+
+        switchTab(activeTab); 
+        joinChatRoom(currentRoomId, currentRoomTitle);
     }
 
-    // 🌐 전체 대화방 디렉토리 실시간 바인딩 및 사이드바 출력
-    function listenGlobalRooms() {
-        if(globalRoomsListener) globalRoomsListener.off();
+    function switchTab(tabName) {
+        activeTab = tabName;
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        document.getElementById(`btn-tab-${tabName}`).classList.add('active');
         
-        globalRoomsListener = database.ref('rooms_v2');
-        globalRoomsListener.on('value', (snapshot) => {
-            const roomsData = snapshot.val();
-            
-            sidebarRoomList.innerHTML = '';
-            adminRoomList.innerHTML = '';
+        // 💡 [좀비 리스너 예방] 이전 동적 바인딩 리스너 메모리 전격 해제
+        if(friendsListener) friendsListener.off();
+        if(roomsListener) roomsListener.off();
+        Object.keys(metaListeners).forEach(id => metaListeners[id].off());
+        metaListeners = {};
+        roomMetaCache = {};
 
-            let roomNames = roomsData ? Object.keys(roomsData) : [];
-            if(!roomNames.includes("기본방")) {
-                roomNames.unshift("기본방");
+        const container = document.getElementById('dynamic-list-container');
+        container.innerHTML = '';
+
+        if(tabName === 'friends') {
+            document.getElementById('sidebar-main-title').innerText = "친구";
+            loadFriendsTab(container);
+        } else if(tabName === 'chats') {
+            document.getElementById('sidebar-main-title').innerText = "채팅";
+            loadChatsTab(container);
+        }
+    }
+
+    function loadFriendsTab(container) {
+        friendsListener = database.ref('kakao_style/users');
+        friendsListener.on('value', (snapshot) => {
+            container.innerHTML = '';
+            
+            // 공용 오픈채팅방 헤더 바인딩
+            const publicItem = document.createElement('div');
+            publicItem.className = `list-item ${currentRoomId === 'global_public_room' ? 'active' : ''}`;
+            publicItem.innerHTML = `
+                <div class="profile-avatar" style="background:#ffeb3b;"><i class="fa-solid fa-comments"></i></div>
+                <div class="item-body">
+                    <div class="item-name">기본 광장 오픈채팅방</div>
+                    <div class="item-preview">누구나 참여 가능한 전체 공개 스페이스</div>
+                </div>
+            `;
+            publicItem.onclick = () => joinChatRoom('global_public_room', '기본 광장 오픈채팅방');
+            container.appendChild(publicItem);
+
+            const usersData = snapshot.val() || {};
+            const userKeys = Object.keys(usersData).filter(uid => uid !== myId);
+
+            if(userKeys.length === 0) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'empty-placeholder';
+                emptyDiv.innerText = "접속 중인 다른 유저(친구)가\n존재하지 않습니다.";
+                container.appendChild(emptyDiv);
+                return;
             }
 
-            roomNames.forEach(roomName => {
-                if(roomName === "시스템관리자") return;
-
-                // 사이드바 버튼 동적 엘리먼트 빌드
+            userKeys.forEach(uid => {
+                const targetUser = usersData[uid];
                 const item = document.createElement('div');
-                item.className = `room-item ${roomName === currentRoom ? 'active' : ''}`;
-                item.innerHTML = `<i class="fa-regular fa-hashtag"></i> ${roomName}`;
-                item.onclick = () => {
-                    exitAdminMode(); 
-                    selectRoom(roomName);
-                };
-                sidebarRoomList.appendChild(item);
-
-                // 관리자용 대시보드 리스트 빌드
-                const adminItem = document.createElement('div');
-                adminItem.className = 'admin-room-item';
-                adminItem.innerHTML = `
-                    <span class="admin-room-name"><i class="fa-regular fa-comment-dots"></i> ${roomName}</span>
-                    <button class="explode-btn" onclick="deleteRoom('${roomName}')">채널 폭파</button>
+                item.className = 'list-item';
+                item.innerHTML = `
+                    <div class="profile-avatar">${targetUser.name.substring(0, 1)}</div>
+                    <div class="item-body">
+                        <div class="item-name">${targetUser.name}</div>
+                        <div class="item-preview">클릭하여 1:1 메시지 보내기</div>
+                    </div>
                 `;
-                adminRoomList.appendChild(adminItem);
+                item.onclick = () => openPrivateChat(targetUser.id, targetUser.name);
+                container.appendChild(item);
             });
         });
     }
 
-    // 🔄 채널 체인지 트랜잭션 (유령 리스너 결벽 차단)
-    function selectRoom(roomName) {
-        if(msgListener) {
-            msgListener.off();
-        }
-        
-        currentRoom = roomName;
-        localStorage.setItem('chat_roomname', currentRoom);
-        document.getElementById('room-display').innerHTML = `<i class="fa-solid fa-hashtag"></i> ${currentRoom}`;
-        chatMessages.innerHTML = '';
+    // 💡 [전문가 구현] 카카오톡식 실시간 락(Lock) 구조 + 최신 메시지 순 정렬 알고리즘 탑재
+    function loadChatsTab(container) {
+        roomsListener = database.ref(`kakao_style/user_rooms/${myId}`);
+        roomsListener.on('value', (snapshot) => {
+            const myRooms = snapshot.val() || {};
+            const roomIds = Object.keys(myRooms);
 
-        Array.from(sidebarRoomList.children).forEach(el => {
-            if(el.innerText.trim() === roomName) el.classList.add('active');
+            if(roomIds.length === 0) {
+                container.innerHTML = '<div class="empty-placeholder">참여 중인 대화방이 없습니다.<br>친구 탭에서 대화를 시작해 보세요.</div>';
+                return;
+            }
+
+            roomIds.forEach(rId => {
+                if(!metaListeners[rId]) {
+                    metaListeners[rId] = database.ref(`kakao_style/rooms/${rId}/meta`);
+                    // 각 방의 메시지 갱신 시 캐시 업데이트 후 소팅 렌더링 호출 (실시간 리액티브 반응)
+                    metaListeners[rId].on('value', (metaSnap) => {
+                        const mData = metaSnap.val();
+                        roomMetaCache[rId] = mData || { lastMessage: "대화 기록 없음", lastTime: "", timestamp: 0 };
+                        renderSortedChats(container, myRooms);
+                    });
+                }
+            });
+        });
+    }
+
+    function renderSortedChats(container, myRooms) {
+        container.innerHTML = '';
+        
+        // 💡 [정렬 알고리즘] 카톡 인터페이스 표준 규격에 맞게 타임스탬프 역순(최신 대화순) 정렬
+        const sortedList = Object.keys(myRooms).map(rId => ({
+            id: rId,
+            title: myRooms[rId].roomTitle,
+            meta: roomMetaCache[rId] || { lastMessage: "대화 기록 없음", lastTime: "", timestamp: 0 }
+        })).sort((a, b) => b.meta.timestamp - a.meta.timestamp);
+
+        sortedList.forEach(room => {
+            const item = document.createElement('div');
+            item.className = `list-item ${currentRoomId === room.id ? 'active' : ''}`;
+            item.innerHTML = `
+                <div class="profile-avatar" style="background:#bcccd9;"><i class="fa-regular fa-comment"></i></div>
+                <div class="item-body">
+                    <div class="item-header-line">
+                        <span class="item-name">${room.title}</span>
+                        <span class="item-time">${room.meta.lastTime}</span>
+                    </div>
+                    <div class="item-preview">${room.meta.lastMessage}</div>
+                </div>
+            `;
+            item.onclick = () => joinChatRoom(room.id, room.title);
+            container.appendChild(item);
+        });
+    }
+
+    function openPrivateChat(targetUid, targetUname) {
+        // UID 정렬 조합으로 중복 없는 고유 1:1 세션 룸 ID 취득
+        const sortedPair = [myId, targetUid].sort();
+        const privateRoomId = `private_${sortedPair[0]}_and_${sortedPair[1]}`;
+
+        database.ref(`kakao_style/user_rooms/${myId}/${privateRoomId}`).update({ roomId: privateRoomId, roomTitle: `${targetUname}님과의 대화` });
+        database.ref(`kakao_style/user_rooms/${targetUid}/${privateRoomId}`).update({ roomId: privateRoomId, roomTitle: `${myName}님과의 대화` });
+
+        switchTab('chats');
+        joinChatRoom(privateRoomId, `${targetUname}님과의 대화`);
+    }
+
+    function joinChatRoom(roomId, roomTitle) {
+        if(msgListener) msgListener.off();
+
+        currentRoomId = roomId;
+        currentRoomTitle = roomTitle;
+        localStorage.setItem('chat_roomid_v4', roomId);
+        localStorage.setItem('chat_roomtitle_v4', roomTitle);
+
+        document.getElementById('active-room-title').innerText = roomTitle;
+        const msgBox = document.getElementById('chat-messages-box');
+        msgBox.innerHTML = '';
+
+        // 활성화된 방 하이라이트 CSS 즉각 동기화 처리
+        document.querySelectorAll('.list-item').forEach(el => {
+            const elTitle = el.querySelector('.item-name')?.innerText;
+            if(elTitle === roomTitle) el.classList.add('active');
             else el.classList.remove('active');
         });
 
-        msgListener = database.ref(`rooms_v2/${currentRoom}`).limitToLast(50);
+        msgListener = database.ref(`kakao_style/rooms/${roomId}/messages`).limitToLast(50);
         msgListener.on('child_added', (snapshot) => {
             const data = snapshot.val();
-            if(!data || !data.sender) return;
-            appendMessage(data.sender, data.text, data.sender === myName ? 'sent' : 'received', data.time, data.fileData, data.fileName);
+            if(!data) return;
+            renderKakaoBubble(data.senderName, data.text, data.senderId === myId ? 'sent' : 'received', data.time, data.fileData, data.fileName);
         });
     }
 
-    // ✉️ 대화 전송
-    function sendMessage() {
-        const val = messageInput.value.trim();
+    function sendKakaoMsg() {
+        const input = document.getElementById('message-input');
+        const val = input.value.trim();
         if(!val) return;
 
+        const now = Date.now();
         const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
-        database.ref(`rooms_v2/${currentRoom}`).push({ sender: myName, text: val, time: timeString });
-        messageInput.value = '';
+        
+        const msgPayload = { senderId: myId, senderName: myName, text: val, time: timeString, timestamp: now };
+        
+        database.ref(`kakao_style/rooms/${currentRoomId}/messages`).push(msgPayload);
+        // 💡 [구조 최적화] 요약본 기록 시 역순 소팅을 위한 고정 타임스탬프 동시 트랜잭션 주입
+        database.ref(`kakao_style/rooms/${currentRoomId}/meta`).set({ lastMessage: val, lastTime: timeString, timestamp: now });
+
+        input.value = '';
     }
 
-    // 📸 사진 첨부 스트림 디코딩
-    function handleFileSelect(input) {
+    function uploadPhoto(input) {
         const file = input.files[0];
         if(!file) return;
 
         const label = document.querySelector('.file-label');
         label.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
-        
+
         const reader = new FileReader();
         reader.onload = (e) => {
+            const now = Date.now();
             const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
-            database.ref(`rooms_v2/${currentRoom}`).push({
-                sender: myName, text: "📎 사진 전송", fileData: e.target.result, fileName: file.name, time: timeString
+            
+            database.ref(`kakao_style/rooms/${currentRoomId}/messages`).push({
+                senderId: myId, senderName: myName, text: "📎 사진 전송", fileData: e.target.result, fileName: file.name, time: timeString, timestamp: now
             });
-            label.innerHTML = `<i class="fa-solid fa-paperclip"></i>`;
+            database.ref(`kakao_style/rooms/${currentRoomId}/meta`).set({ lastMessage: "📎 사진을 공유했습니다.", lastTime: timeString, timestamp: now });
+
+            label.innerHTML = `<i class="fa-regular fa-plus-square"></i>`;
             input.value = '';
         };
         reader.readAsDataURL(file);
     }
 
-    // 🎨 UI 렌더러: 메시지 버블 생성 (💡 이미지 로드 스크롤 버그 수정 완결)
-    function appendMessage(sender, text, type, time, fileData, fileName) {
-        const wrapper = document.createElement('div');
-        wrapper.classList.add('message-wrapper', type);
-        
-        let content = `<span class="message-sender">${sender}</span>`;
-        content += `<div class="message ${type}">`;
+    function renderKakaoBubble(senderName, text, type, time, fileData, fileName) {
+        const msgBox = document.getElementById('chat-messages-box');
+        const row = document.createElement('div');
+        row.className = `msg-row ${type}`;
+
+        let initials = senderName.substring(0, 1);
+        let html = `<div class="profile-avatar">${initials}</div>`;
+        html += `<div class="msg-container">`;
+        if(type === 'received') {
+            html += `<span class="msg-username">${senderName}</span>`;
+        }
+        html += `<div class="msg-bubble-wrap">`;
+        html += `<div class="bubble">`;
         
         if(fileData) {
-            // onload 트리거 추가: 이미지 렌더링 지연으로 스크롤이 끊기거나 잘리는 버그 완벽 예방
-            content += `
-                <div class="img-msg-container">
-                    <img src="${fileData}" class="chat-img" onload="scrollToBottom()" onclick="showModal('${fileData}')" alt="전송 이미지">
-                    <a href="${fileData}" download="${fileName || 'image.png'}" class="download-btn"><i class="fa-solid fa-floppy-disk"></i> 저장</a>
+            html += `
+                <div class="img-card">
+                    <img src="${fileData}" class="chat-img" onload="scrollChatBottom()" onclick="zoomImg('${fileData}')" alt="이미지">
+                    <a href="${fileData}" download="${fileName || 'download.png'}" class="download-link"><i class="fa-solid fa-download"></i> 다운로드</a>
                 </div>`;
         } else {
-            content += text;
+            html += text;
         }
         
-        content += `</div><span class="message-time">${time}</span>`;
-        wrapper.innerHTML = content;
-        chatMessages.appendChild(wrapper);
-        scrollToBottom();
+        html += `</div>`;
+        html += `<span class="msg-time-stamp">${time}</span>`;
+        html += `</div></div>`;
+
+        row.innerHTML = html;
+        msgBox.appendChild(row);
+        scrollChatBottom();
     }
 
-    // 📜 통합 스크롤 제어 로직
-    function scrollToBottom() {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+    function scrollChatBottom() {
+        const msgBox = document.getElementById('chat-messages-box');
+        msgBox.scrollTop = msgBox.scrollHeight;
     }
 
-    function showModal(src) {
+    function zoomImg(src) {
         document.getElementById('modal-img').src = src;
         document.getElementById('img-modal').style.display = 'flex';
     }
 
-    // ⚙️ 최고 권한자 비밀번호 검증 브릿지
-    function toggleAdminView() {
-        if(!isAdminAuthenticated) {
-            const pass = prompt("관리자 비밀번호를 입력하세요:");
-            if(pass === ADMIN_PASSWORD) {
-                isAdminAuthenticated = true;
-                const adminBtn = document.getElementById('admin-sidebar-btn');
-                adminBtn.style.background = "#dc2626";
-                adminBtn.style.color = "#fff";
-            } else {
-                alert("비밀번호가 일치하지 않습니다.");
+    function changeMyName() {
+        const target = prompt("새로운 메신저 닉네임을 입력하세요:", myName);
+        if(target && target.trim()) {
+            myName = target.trim();
+            localStorage.setItem('chat_username_v4', myName);
+            document.getElementById('my-name-display').innerText = myName;
+            document.getElementById('my-avatar-box').innerText = myName.substring(0, 1);
+            
+            // 고유 식별자 내부의 메타 닉네임 정보만 깔끔하게 동기화 (기존 대화방 파괴 없음)
+            database.ref(`kakao_style/users/${myId}`).update({ name: myName });
+            if(activeTab === 'friends') switchTab('friends');
+        }
+    }
+
+    function openAdminMode() {
+        const pass = prompt("중앙 서버 인프라 관리자 토큰 암호 입력:");
+        if(pass !== ADMIN_PASS) { return alert("인증 권한 불일치"); }
+
+        document.getElementById('panel-chat-view').style.display = 'none';
+        document.getElementById('panel-admin-view').style.display = 'flex';
+
+        database.ref('kakao_style/rooms').once('value', (snapshot) => {
+            const box = document.getElementById('admin-raw-rooms');
+            box.innerHTML = '';
+            const data = snapshot.val() || {};
+            const roomKeys = Object.keys(data);
+
+            if(roomKeys.length === 0) {
+                box.innerHTML = '<div class="empty-placeholder">현재 서버 내에 생성된 능동적 세션 룸이 없습니다.</div>';
                 return;
             }
-        }
-        chatView.style.display = 'none';
-        adminView.style.display = 'flex';
-    }
 
-    function exitAdminMode() {
-        adminView.style.display = 'none';
-        chatView.style.display = 'flex';
-    }
-
-    // 🛠️ 대화방 개설 커맨드
-    function createNewRoom() {
-        const input = document.getElementById('new-room-name');
-        const name = input.value.trim();
-        if(!name) return;
-
-        database.ref(`rooms_v2/${name}`).push({
-            sender: "시스템", text: `✨ [${name}] 워크스페이스 채널이 신설되었습니다.`, time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+            roomKeys.forEach(id => {
+                const item = document.createElement('div');
+                item.className = 'admin-room-item';
+                item.innerHTML = `
+                    <span><i class="fa-solid fa-link"></i> UID: <b>${id}</b></span>
+                    <button class="explode-btn" onclick="systemExplodeRoom('${id}')">세션 파괴</button>
+                `;
+                box.appendChild(item);
+            });
         });
-        alert(`[${name}] 방이 성공적으로 개설되었습니다.`);
-        input.value = '';
-        selectRoom(name); 
-        exitAdminMode();
     }
 
-    // 🛠️ 대화방 원격 파괴 커맨드
-    function deleteRoom(roomName) {
-        if(roomName === "기본방") {
-            alert("기본방은 시스템 영구 보존구역이므로 폭파할 수 없습니다.");
-            return;
-        }
-        if(confirm(`[${roomName}] 채널의 모든 대화 데이터와 업로드된 이미지를 영구 파괴하시겠습니까?`)) {
-            database.ref(`rooms_v2/${roomName}`).remove();
-            if(currentRoom === roomName) {
-                selectRoom("기본방");
-            }
+    function closeAdminMode() {
+        document.getElementById('panel-admin-view').style.display = 'none';
+        document.getElementById('panel-chat-view').style.display = 'flex';
+        switchTab(activeTab);
+    }
+
+    function systemExplodeRoom(id) {
+        if(confirm("이 방의 모든 타임라인 로그를 서버에서 물리적으로 파괴하시겠습니까?")) {
+            database.ref(`kakao_style/rooms/${id}`).remove();
+            alert("지정 세션 소멸 완료");
+            closeAdminMode();
         }
     }
 
-    // 👤 프로필 네임 변경 컨텍스트
-    function changeName() {
-        const newName = prompt("변경할 이름을 입력하세요:", myName);
-        if (newName && newName.trim()) {
-            myName = newName.trim();
-            localStorage.setItem('chat_username', myName);
-            document.getElementById('user-display').innerText = myName;
-            selectRoom(currentRoom); // 기존 대화 타임라인 정렬 갱신
-        }
-    }
-
-    initApp();
+    initApplication();
 </script>
 </body>
 </html>

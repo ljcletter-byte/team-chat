@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KakaoT-Style 메신저 Enterprise v13 - Session Auth & Logout</title>
+    <title>KakaoT-Style 메신저 Enterprise v13 - Admin Password Change</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -63,7 +63,6 @@
         .my-profile-info p { font-size: 0.75rem; color: var(--text-muted); cursor: pointer; margin-top: 2px; display: inline-block; }
         .my-profile-info p:hover { text-decoration: underline; color: #000; }
         
-        /* [변경] 로그아웃 버튼 스타일 */
         .logout-btn-text { font-size: 0.72rem; color: #ef4444; cursor: pointer; margin-left: 6px; font-weight: 600;}
         .logout-btn-text:hover { text-decoration: underline; }
 
@@ -123,8 +122,15 @@
         .admin-header { background-color: #1e293b; color: white; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; }
         .admin-body { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; background-color: #f1f5f9; }
         .admin-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); }
+        .admin-card h4 { font-size: 1rem; color: #0f172a; margin-bottom: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px;}
         .admin-room-list { display: flex; flex-direction: column; gap: 8px; }
         .admin-room-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border-color); }
+        
+        /* [추가] 관리자 암호 변경 영역 스타일 */
+        .admin-pw-flex { display: flex; gap: 10px; align-items: center; margin-top: 10px;}
+        .admin-pw-input { padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.88rem; outline: none; width: 220px;}
+        .admin-pw-btn { background-color: #1e293b; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer;}
+        .admin-pw-btn:hover { background-color: #334155; }
 
         #img-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; }
         #img-modal img { max-width: 90%; max-height: 90%; border-radius: 8px; }
@@ -165,7 +171,6 @@
             <div class="profile-avatar" id="my-avatar-box">익</div>
             <div class="my-profile-info">
                 <h4 id="my-name-display">로딩 중..</h4>
-                <!-- [변경] 로그아웃 링크가 추가된 프로필 정보 라인 -->
                 <p onclick="changeMyName()">편집</p>
                 <span class="logout-btn-text" onclick="clearSessionLogout()">• 로그아웃</span>
             </div>
@@ -197,6 +202,17 @@
                 <button class="explode-btn" style="background:#555;" onclick="closeAdminMode()">대화방 복귀</button>
             </div>
             <div class="admin-body">
+                <!-- [추가] 관리자 마스터 비밀번호 변경 제어 카드 -->
+                <div class="admin-card">
+                    <h4><i class="fa-solid fa-key"></i> 최고 관리자 마스터 비밀번호 관리</h4>
+                    <p style="font-size: 0.82rem; color: var(--text-muted);">이 기기에서 사용할 최고 관리자 모드 진입 패스워드를 변경합니다. (공백 제외 4자 이상)</p>
+                    <div class="admin-pw-flex">
+                        <input type="password" id="new-admin-pw" class="admin-pw-input" placeholder="새로운 마스터 암호 입력">
+                        <button class="admin-pw-btn" onclick="updateAdminPassword()">비밀번호 변경</button>
+                        <button class="admin-pw-btn" style="background-color: #64748b;" onclick="resetAdminPassword()">초기화(1234)</button>
+                    </div>
+                </div>
+
                 <div class="admin-card">
                     <h4><i class="fa-solid fa-skull-crossbones"></i> 서버 인프라 세션 강제 셧다운</h4>
                     <div class="admin-room-list" id="admin-raw-rooms"></div>
@@ -219,7 +235,8 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    const ADMIN_PASS_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"; // "1234"
+    // 초기 마스터 해시 (1234)
+    const DEFAULT_ADMIN_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4";
 
     let myId = localStorage.getItem('chat_userid_v4') || "u_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
     localStorage.setItem('chat_userid_v4', myId);
@@ -305,17 +322,11 @@
         }
     }
 
-    // [핵심 추가] 로그아웃 프로세스: 현재 기기 세션을 끊고 새로고침하여 새 인스턴스를 부여받거나 계정 초기화
     function clearSessionLogout() {
         if(confirm("🔒 로그아웃하시겠습니까?\n로그아웃 시 현재 브라우저의 대화 정보 및 프로필이 초기화되며 다른 임의 계정으로 로그인됩니다.")) {
-            // Firebase 상에서 내 온라인 유저 메타 정보 제거
             database.ref(`kakao_style/users/${myId}`).remove();
-            
-            // 로컬 스토리지 키 삭제
             localStorage.removeItem('chat_userid_v4');
             localStorage.removeItem('chat_username_v4');
-            
-            // 페이지 새로고침을 통해 초기화 상태로 재진입
             window.location.reload();
         }
     }
@@ -697,12 +708,16 @@
         if(activeTab === 'friends') switchTab('friends');
     }
 
+    // [변경/추가] 관리자 진입 시 변경된 동적 패스워드 로직 검증하도록 수정
     async function openAdminMode() {
         const pass = prompt("관리자 암호 입력:");
         if(!pass) return;
 
         const hashedInput = await computeSHA256(pass);
-        if(hashedInput !== ADMIN_PASS_HASH) {
+        // localStorage에 커스텀 해시가 등록되어 있으면 그것을 쓰고, 없다면 기본(1234) 해시와 매칭함
+        const currentAdminHash = localStorage.getItem('system_admin_hash_v4') || DEFAULT_ADMIN_HASH;
+
+        if(hashedInput !== currentAdminHash) {
             alert("보안 위반: 권한이 일치하지 않습니다.");
             return;
         }
@@ -721,6 +736,32 @@
                 box.appendChild(item);
             });
         });
+    }
+
+    // [신설] 최고 관리자 패스워드를 실시간으로 변경하고 새로운 SHA-256 해시값으로 로컬에 바인딩
+    async function updateAdminPassword() {
+        const pwInput = document.getElementById('new-admin-pw');
+        const rawPassword = pwInput.value.trim();
+
+        if (rawPassword.length < 4) {
+            alert("보안 가이드라인: 비밀번호는 최소 4자 이상으로 입력하셔야 안전합니다.");
+            return;
+        }
+
+        const newHashString = await computeSHA256(rawPassword);
+        localStorage.setItem('system_admin_hash_v4', newHashString);
+        
+        alert("🔒 마스터 암호가 안전하게 변경되었습니다!\n다음 관리자 모드 진입 시부터 변경된 암호가 적용됩니다.");
+        pwInput.value = '';
+    }
+
+    // [신설] 변경한 비밀번호가 기억나지 않을 경우를 대비한 초기화 기능 (1234로 초기화)
+    function resetAdminPassword() {
+        if (confirm("초기 기본 비밀번호인 '1234' 상태로 되돌리시겠습니까?")) {
+            localStorage.removeItem('system_admin_hash_v4');
+            alert("⚙️ 관리자 마스터 패스워드가 '1234'로 복구되었습니다.");
+            document.getElementById('new-admin-pw').value = '';
+        }
     }
 
     function closeAdminMode() {

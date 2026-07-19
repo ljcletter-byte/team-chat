@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>실시간 팀 메신저</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f2f5; }
+        .chat-container { width: 450px; height: 600px; background-color: white; border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; overflow: hidden; }
+        .chat-header { background-color: #4f46e5; color: white; padding: 16px; display: flex; justify-content: space-between; align-items: center; }
+        .chat-messages { flex: 1; padding: 16px; overflow-y: auto; background-color: #f8fafc; display: flex; flex-direction: column; gap: 12px; }
+        .message { max-width: 75%; padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; word-break: break-all; }
+        .message.sent { background-color: #4f46e5; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .message.received { background-color: #e2e8f0; color: #1e293b; align-self: flex-start; border-bottom-left-radius: 2px; }
+        .message-sender { font-size: 0.75rem; font-weight: bold; margin-bottom: 4px; display: block; color: #64748b; }
+        .message.sent .message-sender { color: #c7d2fe; text-align: right; }
+        .chat-input-area { padding: 16px; background-color: white; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; }
+        #message-input { flex: 1; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; }
+        #send-btn { background-color: #4f46e5; color: white; border: none; padding: 0 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="chat-header">
+        <h2>👥 Team Project Room</h2>
+        <span id="user-display" style="font-size: 0.8rem; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 10px;"></span>
+    </div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="chat-input-area">
+        <input type="text" id="message-input" placeholder="메시지를 입력하세요..." onkeypress="handleKeyPress(event)">
+        <button id="send-btn" onclick="sendMessage()">전송</button>
+    </div>
+</div>
+
+<!-- Firebase SDK 로드 (v9 호환 버전 사용) -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+<script>
+    // ⭕ 종창님의 Firebase 실제 연결 정보가 적용되었습니다.
+    const firebaseConfig = {
+        apiKey: "AIzaSyDfACFo9nn2MaJusjlII9y6Wj6QIGuf65g",
+        authDomain: "my-team-chat-2712e.firebaseapp.com",
+        databaseURL: "https://my-team-chat-2712e-default-rtdb.firebaseio.com",
+        projectId: "my-team-chat-2712e",
+        storageBucket: "my-team-chat-2712e.firebasestorage.app",
+        messagingSenderId: "929450247074",
+        appId: "1:929450247074:web:fda396aa756800456028fb"
+    };
+
+    // Firebase 초기화
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // 사용자 이름 설정
+    let myName = localStorage.getItem('chat_username');
+    if (!myName) {
+        myName = prompt("메신저에서 사용할 이름을 입력해주세요:") || "익명" + Math.floor(Math.random() * 1000);
+        localStorage.setItem('chat_username', myName);
+    }
+    document.getElementById('user-display').innerText = myName;
+
+    const chatMessages = document.getElementById('chat-messages');
+    const messageInput = document.getElementById('message-input');
+
+    // 1. 데이터베이스에서 메시지 실시간으로 받아오기
+    database.ref('messages').limitToLast(50).on('child_added', (snapshot) => {
+        const data = snapshot.val();
+        const isMe = data.sender === myName;
+        appendMessage(data.sender, data.text, isMe ? 'sent' : 'received');
+        autoScroll();
+    });
+
+    // 2. 메시지 전송
+    function sendMessage() {
+        const text = messageInput.value.trim();
+        if (text === '') return;
+
+        database.ref('messages').push({
+            sender: myName,
+            text: text,
+            timestamp: Date.now()
+        });
+
+        messageInput.value = '';
+    }
+
+    function appendMessage(sender, text, type) {
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('message', type);
+
+        const senderSpan = document.createElement('span');
+        senderSpan.classList.add('message-sender');
+        senderSpan.innerText = sender;
+
+        const textNode = document.createTextNode(text);
+
+        messageDiv.appendChild(senderSpan);
+        messageDiv.appendChild(textNode);
+        chatMessages.appendChild(messageDiv);
+    }
+
+    function handleKeyPress(event) {
+        if (event.key === 'Enter') sendMessage();
+    }
+
+    function autoScroll() {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+</script>
+</body>
+</html>

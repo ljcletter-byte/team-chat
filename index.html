@@ -3,17 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>실시간 분리형 팀 메신저</title>
+    <title>실시간 분리형 팀 메신저 (관리자 기능 포함)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
         body { display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f2f5; }
         .chat-container { width: 450px; height: 600px; background-color: white; border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; overflow: hidden; }
         .chat-header { background-color: #4f46e5; color: white; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+        .chat-header.admin-mode { background-color: #dc2626; } /* 관리자 모드는 빨간색 헤더 */
         .header-top { display: flex; justify-content: space-between; align-items: center; }
         .header-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; background: rgba(255,255,255,0.15); padding: 6px 10px; border-radius: 6px; }
         .change-btn { background: rgba(255,255,255,0.3); border: none; color: white; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
         .change-btn:hover { background: rgba(255,255,255,0.5); }
         .chat-messages { flex: 1; padding: 16px; overflow-y: auto; background-color: #f8fafc; display: flex; flex-direction: column; gap: 12px; }
+        
+        /* 메시지 스타일 */
         .message-wrapper { display: flex; flex-direction: column; max-width: 75%; }
         .message-wrapper.sent { align-self: flex-end; align-items: flex-end; }
         .message-wrapper.received { align-self: flex-start; align-items: flex-start; }
@@ -22,15 +25,24 @@
         .message.sent { background-color: #4f46e5; color: white; border-bottom-right-radius: 2px; }
         .message.received { background-color: #e2e8f0; color: #1e293b; border-bottom-left-radius: 2px; }
         .message-time { font-size: 0.65rem; color: #94a3b8; margin-top: 2px; }
+        
+        /* 관리자용 방 관리 목록 스타일 */
+        .admin-title { font-weight: bold; font-size: 1rem; color: #1e293b; margin-bottom: 10px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; }
+        .room-item { display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .room-name { font-weight: 600; color: #334155; font-size: 0.95rem; }
+        .room-delete-btn { background-color: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: bold; }
+        .room-delete-btn:hover { background-color: #b91c1c; }
+        
         .chat-input-area { padding: 16px; background-color: white; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; }
         #message-input { flex: 1; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; }
         #send-btn { background-color: #4f46e5; color: white; border: none; padding: 0 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        #send-btn.admin-btn { background-color: #dc2626; }
     </style>
 </head>
 <body>
 
 <div class="chat-container">
-    <div class="chat-header">
+    <div class="chat-header" id="chat-header">
         <div class="header-top">
             <h2 id="room-display">🚪 방 로딩 중...</h2>
             <button class="change-btn" onclick="changeRoom()">방 변경</button>
@@ -43,7 +55,7 @@
     <div class="chat-messages" id="chat-messages"></div>
     <div class="chat-input-area">
         <input type="text" id="message-input" placeholder="메시지를 입력하세요..." onkeypress="handleKeyPress(event)">
-        <button id="send-btn" onclick="sendMessage()">전송</button>
+        <button id="send-btn" onclick="handleActionButton()">전송</button>
     </div>
 </div>
 
@@ -67,54 +79,63 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
+    // 관리자 비밀번호 설정
+    const ADMIN_PASSWORD = "1234";
+
     let myName = localStorage.getItem('chat_username');
     let currentRoom = localStorage.getItem('chat_roomname');
-    let messageListener = null; // 실시간 리스너 저장용 변수
+    let messageListener = null;
+    let roomsListener = null;
+    let isAdminMode = false;
 
     // 초기 실행 함수
     function initChat() {
-        // 1. 이름 설정
         if (!myName) {
             myName = prompt("메신저에서 사용할 이름을 입력해주세요:") || "익명" + Math.floor(Math.random() * 1000);
             localStorage.setItem('chat_username', myName);
         }
         document.getElementById('user-display').innerText = myName;
 
-        // 2. 방 설정
         if (!currentRoom) {
-            currentRoom = prompt("입장할 방 이름을 입력해주세요 (예: 기획팀, 디자인팀):") || "기본방";
+            currentRoom = "기본방";
             localStorage.setItem('chat_roomname', currentRoom);
         }
-        document.getElementById('room-display').innerText = "💬 " + currentRoom;
 
-        // 3. 해당 방의 메시지 실시간 불러오기 시작
-        loadMessages();
+        // 만약 기존에 관리자 모드로 종료했다면 복구, 아니면 일반 방 로드
+        if (currentRoom === "시스템관리자") {
+            enterAdminMode();
+        } else {
+            document.getElementById('room-display').innerText = "💬 " + currentRoom;
+            loadMessages();
+        }
     }
 
     const chatMessages = document.getElementById('chat-messages');
     const messageInput = document.getElementById('message-input');
+    const chatHeader = document.getElementById('chat-header');
+    const sendBtn = document.getElementById('send-btn');
 
-    // 지정된 방의 메시지를 실시간으로 가져오는 함수
+    // 일반 모드: 지정된 방의 메시지를 실시간으로 가져오기
     function loadMessages() {
-        // 기존에 연결된 리스너가 있다면 제거 (방 바꿀 때 중복 방지)
-        if (messageListener) {
-            database.ref('rooms/' + currentRoom).off();
-        }
-        
-        chatMessages.innerHTML = ''; // 화면 초기화
+        isAdminMode = false;
+        chatHeader.classList.remove('admin-mode');
+        sendBtn.classList.remove('admin-btn');
+        sendBtn.innerText = "전송";
+        messageInput.placeholder = "메시지를 입력하세요...";
 
-        // Firebase 상의 주소를 'messages' 대신 'rooms/방이름' 구조로 분리하여 저장합니다.
-        messageListener = database.ref('rooms/' + currentRoom).limitToLast(50);
+        if (messageListener) database.ref('rooms/' + currentRoom).off();
+        if (roomsListener) database.ref('rooms').off();
         
+        chatMessages.innerHTML = '';
+
+        messageListener = database.ref('rooms/' + currentRoom).limitToLast(50);
         messageListener.on('child_added', (snapshot) => {
             const data = snapshot.val();
-            const isMe = data.sender === myName;
+            if(!data || !data.sender) return; // 방 생성용 가짜 데이터 무시
             
-            // 시간 변환 (오후 2:30 형태)
+            const isMe = data.sender === myName;
             const timeString = new Date(data.timestamp).toLocaleTimeString('ko-KR', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
+                hour: '2-digit', minute: '2-digit', hour12: true
             });
 
             appendMessage(data.sender, data.text, isMe ? 'sent' : 'received', timeString);
@@ -122,21 +143,96 @@
         });
     }
 
-    // 메시지 전송
-    function sendMessage() {
-        const text = messageInput.value.trim();
-        if (text === '') return;
+    // 관리자 모드: 전체 방 목록을 불러오고 제어하기
+    function enterAdminMode() {
+        isAdminMode = true;
+        currentRoom = "시스템관리자";
+        localStorage.setItem('chat_roomname', currentRoom);
 
-        // 현재 들어가 있는 방 경로(rooms/방이름)에 메시지를 차곡차곡 넣습니다.
-        database.ref('rooms/' + currentRoom).push({
-            sender: myName,
-            text: text,
-            timestamp: Date.now()
+        // UI를 빨간색 관리자 테마로 변경
+        chatHeader.classList.add('admin-mode');
+        sendBtn.classList.add('admin-btn');
+        document.getElementById('room-display').innerText = "🛠️ 관리자 대시보드";
+        sendBtn.innerText = "방 생성";
+        messageInput.placeholder = "생성할 새 방 이름을 입력하세요...";
+
+        if (messageListener) database.ref('rooms/' + currentRoom).off();
+        if (roomsListener) database.ref('rooms').off();
+
+        chatMessages.innerHTML = '<div class="admin-title">📋 개설된 전체 채팅방 목록</div>';
+
+        // Firebase의 'rooms' 노드 전체를 감시하여 실시간으로 방 목록 렌더링
+        roomsListener = database.ref('rooms');
+        roomsListener.on('value', (snapshot) => {
+            // 타이틀 빼고 초기화
+            chatMessages.innerHTML = '<div class="admin-title">📋 개설된 전체 채팅방 목록</div>';
+            
+            const roomsData = snapshot.val();
+            if (!roomsData) {
+                chatMessages.innerHTML += '<p style="text-align:center; color:#94a3b8; margin-top:20px;">개설된 방이 없습니다.</p>';
+                return;
+            }
+
+            Object.keys(roomsData).forEach(roomName => {
+                if (roomName === "시스템관리자") return; // 관리자 방은 목록에서 제외
+
+                const roomItem = document.createElement('div');
+                roomItem.classList.add('room-item');
+
+                const nameSpan = document.createElement('span');
+                nameSpan.classList.add('room-name');
+                nameSpan.innerText = "💬 " + roomName;
+                // 방 이름을 클릭하면 관리자도 그 방으로 바로 조인 가능
+                nameSpan.style.cursor = "pointer";
+                nameSpan.onclick = () => {
+                    currentRoom = roomName;
+                    localStorage.setItem('chat_roomname', currentRoom);
+                    loadMessages();
+                };
+
+                const delBtn = document.createElement('button');
+                delBtn.classList.add('room-delete-btn');
+                delBtn.innerText = "폭파";
+                delBtn.onclick = (e) => {
+                    e.stopPropagation(); // 클릭 이벤트 전파 방지
+                    if (confirm(`[${roomName}] 방을 폭파하고 모든 대화 기록을 삭제하시겠습니까?`)) {
+                        database.ref('rooms/' + roomName).remove(); // 서버에서 해당 방 데이터 완전 삭제
+                    }
+                };
+
+                roomItem.appendChild(nameSpan);
+                roomItem.appendChild(delBtn);
+                chatMessages.appendChild(roomItem);
+            });
         });
+    }
 
+    // 전송/방생성 공용 버튼 핸들러
+    function handleActionButton() {
+        const inputVal = messageInput.value.trim();
+        if (inputVal === '') return;
+
+        if (isAdminMode) {
+            // 관리자 모드일 때는 방을 새로 만듭니다.
+            // 데이터베이스 상에 빈 방을 흔적을 남기기 위해 가짜 데이터 하나를 넣어 개설합니다.
+            database.ref('rooms/' + inputVal).push({
+                sender: "시스템",
+                text: `✨ [${inputVal}] 방이 관리자에 의해 개설되었습니다.`,
+                timestamp: Date.now()
+            });
+            alert(`[${inputVal}] 방이 생성되었습니다.`);
+        } else {
+            // 일반 모드일 때는 대화를 전송합니다.
+            database.ref('rooms/' + currentRoom).push({
+                sender: myName,
+                text: inputVal,
+                timestamp: Date.now()
+            });
+        }
         messageInput.value = '';
     }
 
+    // 메시지 UI 뿌리기
     function appendMessage(sender, text, type, time) {
         const wrapper = document.createElement('div');
         wrapper.classList.add('message-wrapper', type);
@@ -159,37 +255,45 @@
         chatMessages.appendChild(wrapper);
     }
 
-    // 방 변경 기능
+    // 방 변경하기 버튼 눌렀을 때
     function changeRoom() {
-        const newRoom = prompt("이동할 새로운 방 이름을 입력하세요:", currentRoom);
-        if (newRoom && newRoom.trim() !== "") {
-            currentRoom = newRoom.trim();
+        const targetRoom = prompt("이동할 방 이름을 입력하세요 (관리자 모드는 admin 입력):", isAdminMode ? "" : currentRoom);
+        if (!targetRoom || targetRoom.trim() === "") return;
+
+        const cleanRoom = targetRoom.trim();
+
+        if (cleanRoom === "admin") {
+            const pass = prompt("관리자 비밀번호를 입력하세요:");
+            if (pass === ADMIN_PASSWORD) {
+                enterAdminMode();
+            } else {
+                alert("비밀번호가 올바르지 않습니다.");
+            }
+        } else {
+            currentRoom = cleanRoom;
             localStorage.setItem('chat_roomname', currentRoom);
-            document.getElementById('room-display').innerText = "💬 " + currentRoom;
-            loadMessages(); // 새로운 방의 메시지 로드
+            loadMessages();
         }
     }
 
-    // 이름 변경 기능
     function changeName() {
         const newName = prompt("변경할 이름을 입력하세요:", myName);
         if (newName && newName.trim() !== "") {
             myName = newName.trim();
             localStorage.setItem('chat_username', myName);
             document.getElementById('user-display').innerText = myName;
-            loadMessages(); // 내 이름 기준 전송/수신 UI 업데이트를 위해 리로드
+            if(!isAdminMode) loadMessages();
         }
     }
 
     function handleKeyPress(event) {
-        if (event.key === 'Enter') sendMessage();
+        if (event.key === 'Enter') handleActionButton();
     }
 
     function autoScroll() {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    // 실행 시작
     initChat();
 </script>
 </body>

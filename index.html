@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>실시간 분리형 팀 메신저 (관리자 기능 포함)</title>
+    <title>실시간 팀 메신저 (초간편 파일 전송)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
         body { display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f2f5; }
         .chat-container { width: 450px; height: 600px; background-color: white; border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; overflow: hidden; }
         .chat-header { background-color: #4f46e5; color: white; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
-        .chat-header.admin-mode { background-color: #dc2626; } /* 관리자 모드는 빨간색 헤더 */
+        .chat-header.admin-mode { background-color: #dc2626; }
         .header-top { display: flex; justify-content: space-between; align-items: center; }
         .header-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; background: rgba(255,255,255,0.15); padding: 6px 10px; border-radius: 6px; }
         .change-btn { background: rgba(255,255,255,0.3); border: none; color: white; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
@@ -26,16 +26,24 @@
         .message.received { background-color: #e2e8f0; color: #1e293b; border-bottom-left-radius: 2px; }
         .message-time { font-size: 0.65rem; color: #94a3b8; margin-top: 2px; }
         
-        /* 관리자용 방 관리 목록 스타일 */
+        /* 파일/이미지 첨부 스타일 */
+        .chat-img { max-width: 100%; border-radius: 8px; margin-top: 4px; cursor: pointer; max-height: 200px; object-fit: cover; }
+        .file-link { color: #4f46e5; text-decoration: underline; font-weight: bold; display: inline-block; margin-top: 4px; cursor: pointer; }
+        .message.sent .file-link { color: #ffff00; }
+
+        /* 관리자 스타일 */
         .admin-title { font-weight: bold; font-size: 1rem; color: #1e293b; margin-bottom: 10px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; }
-        .room-item { display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .room-item { display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px; }
         .room-name { font-weight: 600; color: #334155; font-size: 0.95rem; }
-        .room-delete-btn { background-color: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: bold; }
-        .room-delete-btn:hover { background-color: #b91c1c; }
+        .room-delete-btn { background-color: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
         
-        .chat-input-area { padding: 16px; background-color: white; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; }
+        /* 입력 영역 */
+        .chat-input-area { padding: 16px; background-color: white; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; align-items: center; }
         #message-input { flex: 1; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; }
-        #send-btn { background-color: #4f46e5; color: white; border: none; padding: 0 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .file-label { background-color: #e2e8f0; color: #475569; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 1.1rem; user-select: none; }
+        .file-label:hover { background-color: #cbd5e1; }
+        #file-input { display: none; }
+        #send-btn { background-color: #4f46e5; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
         #send-btn.admin-btn { background-color: #dc2626; }
     </style>
 </head>
@@ -54,6 +62,9 @@
     </div>
     <div class="chat-messages" id="chat-messages"></div>
     <div class="chat-input-area">
+        <label for="file-input" class="file-label" id="file-label">📎</label>
+        <input type="file" id="file-input" onchange="handleFileSelect(this)">
+        
         <input type="text" id="message-input" placeholder="메시지를 입력하세요..." onkeypress="handleKeyPress(event)">
         <button id="send-btn" onclick="handleActionButton()">전송</button>
     </div>
@@ -64,31 +75,22 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
 <script>
-    // 종창님의 Firebase 연결 정보
     const firebaseConfig = {
         apiKey: "AIzaSyDfACFo9nn2MaJusjlII9y6Wj6QIGuf65g",
-        authDomain: "my-team-chat-2712e.firebaseapp.com",
         databaseURL: "https://my-team-chat-2712e-default-rtdb.firebaseio.com",
-        projectId: "my-team-chat-2712e",
-        storageBucket: "my-team-chat-2712e.firebasestorage.app",
-        messagingSenderId: "929450247074",
-        appId: "1:929450247074:web:fda396aa756800456028fb"
+        projectId: "my-team-chat-2712e"
     };
 
-    // Firebase 초기화
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    // 관리자 비밀번호 설정
     const ADMIN_PASSWORD = "1234";
-
     let myName = localStorage.getItem('chat_username');
     let currentRoom = localStorage.getItem('chat_roomname');
     let messageListener = null;
     let roomsListener = null;
     let isAdminMode = false;
 
-    // 초기 실행 함수
     function initChat() {
         if (!myName) {
             myName = prompt("메신저에서 사용할 이름을 입력해주세요:") || "익명" + Math.floor(Math.random() * 1000);
@@ -101,7 +103,6 @@
             localStorage.setItem('chat_roomname', currentRoom);
         }
 
-        // 만약 기존에 관리자 모드로 종료했다면 복구, 아니면 일반 방 로드
         if (currentRoom === "시스템관리자") {
             enterAdminMode();
         } else {
@@ -114,59 +115,90 @@
     const messageInput = document.getElementById('message-input');
     const chatHeader = document.getElementById('chat-header');
     const sendBtn = document.getElementById('send-btn');
+    const fileLabel = document.getElementById('file-label');
 
-    // 일반 모드: 지정된 방의 메시지를 실시간으로 가져오기
     function loadMessages() {
         isAdminMode = false;
         chatHeader.classList.remove('admin-mode');
         sendBtn.classList.remove('admin-btn');
         sendBtn.innerText = "전송";
         messageInput.placeholder = "메시지를 입력하세요...";
+        fileLabel.style.display = "block";
 
         if (messageListener) database.ref('rooms/' + currentRoom).off();
         if (roomsListener) database.ref('rooms').off();
         
         chatMessages.innerHTML = '';
 
-        messageListener = database.ref('rooms/' + currentRoom).limitToLast(50);
+        messageListener = database.ref('rooms/' + currentRoom).limitToLast(30);
         messageListener.on('child_added', (snapshot) => {
             const data = snapshot.val();
-            if(!data || !data.sender) return; // 방 생성용 가짜 데이터 무시
+            if(!data || !data.sender) return;
             
             const isMe = data.sender === myName;
             const timeString = new Date(data.timestamp).toLocaleTimeString('ko-KR', {
                 hour: '2-digit', minute: '2-digit', hour12: true
             });
 
-            appendMessage(data.sender, data.text, isMe ? 'sent' : 'received', timeString);
+            appendMessage(data.sender, data.text, isMe ? 'sent' : 'received', timeString, data.fileData, data.fileType, data.fileName);
             autoScroll();
         });
     }
 
-    // 관리자 모드: 전체 방 목록을 불러오고 제어하기
+    // 파일을 안전하게 문자열(Base64)로 변환하여 DB에 바로 저장하는 함수
+    function handleFileSelect(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        // 무료 요금제 DB 제한을 고려하여 1MB 이하 파일만 권장합니다.
+        if (file.size > 1024 * 1024) {
+            alert("무료 버전 안정성을 위해 1MB 이하의 파일만 전송 가능합니다.");
+            input.value = "";
+            return;
+        }
+
+        fileLabel.innerText = "⏳";
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            const base64Data = e.target.result; // 변환된 파일 텍스트 데이터
+            
+            database.ref('rooms/' + currentRoom).push({
+                sender: myName,
+                text: `📎 파일 전송됨`,
+                fileName: file.name,
+                fileData: base64Data,
+                fileType: file.type,
+                timestamp: Date.now()
+            });
+            
+            fileLabel.innerText = "📎";
+            input.value = "";
+        };
+        
+        reader.readAsDataURL(file);
+    }
+
     function enterAdminMode() {
         isAdminMode = true;
         currentRoom = "시스템관리자";
         localStorage.setItem('chat_roomname', currentRoom);
 
-        // UI를 빨간색 관리자 테마로 변경
         chatHeader.classList.add('admin-mode');
         sendBtn.classList.add('admin-btn');
         document.getElementById('room-display').innerText = "🛠️ 관리자 대시보드";
         sendBtn.innerText = "방 생성";
         messageInput.placeholder = "생성할 새 방 이름을 입력하세요...";
+        fileLabel.style.display = "none";
 
         if (messageListener) database.ref('rooms/' + currentRoom).off();
         if (roomsListener) database.ref('rooms').off();
 
         chatMessages.innerHTML = '<div class="admin-title">📋 개설된 전체 채팅방 목록</div>';
 
-        // Firebase의 'rooms' 노드 전체를 감시하여 실시간으로 방 목록 렌더링
         roomsListener = database.ref('rooms');
         roomsListener.on('value', (snapshot) => {
-            // 타이틀 빼고 초기화
             chatMessages.innerHTML = '<div class="admin-title">📋 개설된 전체 채팅방 목록</div>';
-            
             const roomsData = snapshot.val();
             if (!roomsData) {
                 chatMessages.innerHTML += '<p style="text-align:center; color:#94a3b8; margin-top:20px;">개설된 방이 없습니다.</p>';
@@ -174,7 +206,7 @@
             }
 
             Object.keys(roomsData).forEach(roomName => {
-                if (roomName === "시스템관리자") return; // 관리자 방은 목록에서 제외
+                if (roomName === "시스템관리자") return;
 
                 const roomItem = document.createElement('div');
                 roomItem.classList.add('room-item');
@@ -182,7 +214,6 @@
                 const nameSpan = document.createElement('span');
                 nameSpan.classList.add('room-name');
                 nameSpan.innerText = "💬 " + roomName;
-                // 방 이름을 클릭하면 관리자도 그 방으로 바로 조인 가능
                 nameSpan.style.cursor = "pointer";
                 nameSpan.onclick = () => {
                     currentRoom = roomName;
@@ -194,9 +225,9 @@
                 delBtn.classList.add('room-delete-btn');
                 delBtn.innerText = "폭파";
                 delBtn.onclick = (e) => {
-                    e.stopPropagation(); // 클릭 이벤트 전파 방지
-                    if (confirm(`[${roomName}] 방을 폭파하고 모든 대화 기록을 삭제하시겠습니까?`)) {
-                        database.ref('rooms/' + roomName).remove(); // 서버에서 해당 방 데이터 완전 삭제
+                    e.stopPropagation();
+                    if (confirm(`[${roomName}] 방을 폭파하시겠습니까?`)) {
+                        database.ref('rooms/' + roomName).remove();
                     }
                 };
 
@@ -207,14 +238,11 @@
         });
     }
 
-    // 전송/방생성 공용 버튼 핸들러
     function handleActionButton() {
         const inputVal = messageInput.value.trim();
         if (inputVal === '') return;
 
         if (isAdminMode) {
-            // 관리자 모드일 때는 방을 새로 만듭니다.
-            // 데이터베이스 상에 빈 방을 흔적을 남기기 위해 가짜 데이터 하나를 넣어 개설합니다.
             database.ref('rooms/' + inputVal).push({
                 sender: "시스템",
                 text: `✨ [${inputVal}] 방이 관리자에 의해 개설되었습니다.`,
@@ -222,7 +250,6 @@
             });
             alert(`[${inputVal}] 방이 생성되었습니다.`);
         } else {
-            // 일반 모드일 때는 대화를 전송합니다.
             database.ref('rooms/' + currentRoom).push({
                 sender: myName,
                 text: inputVal,
@@ -232,8 +259,7 @@
         messageInput.value = '';
     }
 
-    // 메시지 UI 뿌리기
-    function appendMessage(sender, text, type, time) {
+    function appendMessage(sender, text, type, time, fileData, fileType, fileName) {
         const wrapper = document.createElement('div');
         wrapper.classList.add('message-wrapper', type);
 
@@ -243,7 +269,29 @@
 
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('message', type);
-        messageDiv.appendChild(document.createTextNode(text));
+
+        // 파일 데이터가 있으면 렌더링
+        if (fileData) {
+            if (fileType && fileType.startsWith('image/')) {
+                const img = document.createElement('img');
+                img.src = fileData;
+                img.classList.add('chat-img');
+                img.onclick = () => {
+                    const newWin = window.open();
+                    newWin.document.write(`<img src="${fileData}" style="max-width:100%;">`);
+                };
+                messageDiv.appendChild(img);
+            } else {
+                const link = document.createElement('a');
+                link.href = fileData;
+                link.download = fileName || "download";
+                link.classList.add('file-link');
+                link.innerText = `📁 ${fileName || '첨부파일 다운로드'}`;
+                messageDiv.appendChild(link);
+            }
+        } else {
+            messageDiv.appendChild(document.createTextNode(text));
+        }
 
         const timeSpan = document.createElement('span');
         timeSpan.classList.add('message-time');
@@ -255,7 +303,6 @@
         chatMessages.appendChild(wrapper);
     }
 
-    // 방 변경하기 버튼 눌렀을 때
     function changeRoom() {
         const targetRoom = prompt("이동할 방 이름을 입력하세요 (관리자 모드는 admin 입력):", isAdminMode ? "" : currentRoom);
         if (!targetRoom || targetRoom.trim() === "") return;

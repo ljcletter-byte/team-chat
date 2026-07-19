@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KakaoT-Style 메신저 Enterprise v14 - Secure Enhanced</title>
+    <title>KakaoT-Style 메신저 Enterprise v15 - Relationship Secure</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -53,20 +53,30 @@
             flex-direction: column;
             flex-shrink: 0;
         }
-        .sidebar-title-area { padding: 24px 20px 12px 20px; }
+        .sidebar-title-area { 
+            padding: 24px 20px 12px 20px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
         .sidebar-title-area h3 { font-size: 1.2rem; font-weight: 800; color: var(--text-main); }
+        .add-friend-icon { font-size: 1.1rem; color: var(--text-main); cursor: pointer; }
+        .add-friend-icon:hover { color: #000; }
         
         .my-profile-card { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border-color); position: relative;}
         .profile-avatar { width: 42px; height: 42px; background: #e2e8f0; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #475569; font-weight: bold; flex-shrink: 0; user-select: none;}
         .my-profile-info { flex: 1; min-width: 0; }
-        .my-profile-info h4 { font-size: 0.9rem; font-weight: 700; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .my-profile-info p { font-size: 0.75rem; color: var(--text-muted); cursor: pointer; margin-top: 2px; display: inline-block; }
-        .my-profile-info p:hover { text-decoration: underline; color: #000; }
+        .my-profile-info h4 { font-size: 0.88rem; font-weight: 700; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .uid-display { font-size: 0.68rem; color: #94a3b8; display: block; margin-top: 1px; cursor: pointer; }
+        .uid-display:hover { text-decoration: underline; color: #64748b; }
+        .profile-actions { margin-top: 4px; display: flex; gap: 8px; }
+        .profile-actions span { font-size: 0.72rem; color: var(--text-muted); cursor: pointer; }
+        .profile-actions span:hover { text-decoration: underline; color: #000; }
         
-        .logout-btn-text { font-size: 0.72rem; color: #ef4444; cursor: pointer; margin-left: 6px; font-weight: 600;}
-        .logout-btn-text:hover { text-decoration: underline; }
+        .logout-btn-text { color: #ef4444 !important; font-weight: 600; }
 
         .list-scroll-area { flex: 1; overflow-y: auto; padding: 10px 0; }
+        .section-divider { font-size: 0.75rem; font-weight: 700; color: #94a3b8; padding: 10px 20px 4px 20px; text-transform: uppercase; letter-spacing: 0.5px;}
         
         .list-item { display: flex; align-items: center; gap: 12px; padding: 12px 20px; cursor: pointer; transition: background 0.15s; }
         .list-item:hover { background-color: #f7f7f7; }
@@ -77,7 +87,7 @@
         .item-time { font-size: 0.7rem; color: var(--text-muted); flex-shrink: 0; }
         .item-preview { font-size: 0.8rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-        .empty-placeholder { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 0.85rem; line-height: 1.5; }
+        .empty-placeholder { text-align: center; padding: 30px 20px; color: var(--text-muted); font-size: 0.85rem; line-height: 1.5; }
 
         .main-content { flex: 1; display: flex; flex-direction: column; background-color: var(--kakao-chat-bg); position: relative; min-width: 0; }
         .view-panel { display: flex; flex-direction: column; width: 100%; height: 100%; }
@@ -116,6 +126,8 @@
 
         .invite-btn { background-color: #4caf50; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: bold; transition: background 0.15s; }
         .invite-btn:hover { background-color: #43a047; }
+        .accept-btn { background-color: #0084ff; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: bold; }
+        .accept-btn:hover { background-color: #0073e6; }
         .link-btn { background-color: #0084ff; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: bold; margin-left: 4px;}
         .explode-btn { background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: bold; flex-shrink: 0; }
 
@@ -165,13 +177,17 @@
     <div class="sub-sidebar">
         <div class="sidebar-title-area">
             <h3 id="sidebar-main-title">친구</h3>
+            <i class="fa-solid fa-user-plus add-friend-icon" id="add-friend-btn" onclick="searchAndAddFriend()" title="UID로 친구 추가"></i>
         </div>
         <div class="my-profile-card">
             <div class="profile-avatar" id="my-avatar-box">익</div>
             <div class="my-profile-info">
                 <h4 id="my-name-display">로딩 중..</h4>
-                <p onclick="changeMyName()">편집</p>
-                <span class="logout-btn-text" onclick="clearSessionLogout()">• 로그아웃</span>
+                <span class="uid-display" id="my-uid-display" onclick="copyMyUID()">내 UID 복사</span>
+                <div class="profile-actions">
+                    <span onclick="changeMyName()">편집</span>
+                    <span class="logout-btn-text" onclick="clearSessionLogout()">• 로그아웃</span>
+                </div>
             </div>
         </div>
         <div class="list-scroll-area" id="dynamic-list-container"></div>
@@ -233,7 +249,7 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    const DEFAULT_ADMIN_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"; // 1234
+    const DEFAULT_ADMIN_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"; 
 
     let myId = localStorage.getItem('chat_userid_v4') || "u_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
     localStorage.setItem('chat_userid_v4', myId);
@@ -243,11 +259,11 @@
 
     let currentRoomId = "";
     let currentRoomTitle = "";
-    let isAdminAuthenticated = false; // [보안강화] 메모리 상 보안 플래그 세션 처리
+    let isAdminAuthenticated = false; 
     
     let activeTab = "friends"; 
     let msgListener = null;
-    let friendsListener = null;
+    let relationshipListener = null;
     let roomsListener = null;
     let activeRoomCheckListener = null;
     
@@ -266,13 +282,19 @@
         return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 
+    function copyMyUID() {
+        navigator.clipboard.writeText(myId).then(() => {
+            alert("📋 내 고유 고유식별코드(UID)가 복사되었습니다. 상대방에게 공유하여 친구를 맺으세요!");
+        });
+    }
+
     async function initApplication() {
         document.getElementById('my-name-display').innerText = myName;
         document.getElementById('my-avatar-box').innerText = myName.substring(0, 1);
+        document.getElementById('my-uid-display').innerText = `ID: ${myId}`;
 
         database.ref(`kakao_style/users/${myId}`).set({ id: myId, name: myName, lastSeen: Date.now() });
 
-        // [보안강화] 백엔드 DB에 초기 관리자 해시 노드가 없으면 생성
         const adminHashSnap = await database.ref('kakao_style/system_config/admin_hash').once('value');
         if (!adminHashSnap.exists()) {
             await database.ref('kakao_style/system_config').set({ admin_hash: DEFAULT_ADMIN_HASH });
@@ -330,14 +352,14 @@
     }
 
     function switchTab(tabName) {
-        if (tabName !== 'admin') isAdminAuthenticated = false; // 탭 전환 시 보안 플래그 초기화
+        if (tabName !== 'admin') isAdminAuthenticated = false; 
         activeTab = tabName;
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
         const activeNavBtn = document.getElementById(`btn-tab-${tabName}`);
         if(activeNavBtn) activeNavBtn.classList.add('active');
         
         closeChatMobile();
-        if(friendsListener) friendsListener.off();
+        if(relationshipListener) relationshipListener.off();
         if(roomsListener) roomsListener.off();
         Object.keys(metaListeners).forEach(id => metaListeners[id].off());
         metaListeners = {};
@@ -346,20 +368,56 @@
         const container = document.getElementById('dynamic-list-container');
         container.innerHTML = '';
 
+        const addFriendBtn = document.getElementById('add-friend-btn');
         if(tabName === 'friends') {
             document.getElementById('sidebar-main-title').innerText = "친구";
+            if(addFriendBtn) addFriendBtn.style.display = 'block';
             loadFriendsTab(container);
         } else if(tabName === 'chats') {
             document.getElementById('sidebar-main-title').innerText = "채팅";
+            if(addFriendBtn) addFriendBtn.style.display = 'none';
             loadChatsTab(container);
         }
     }
 
+    // [보안 및 관계 설계 고도화] UID 기반 검색 및 추가 로직
+    async function searchAndAddFriend() {
+        const targetUid = prompt("추가하고자 하는 상대방의 고유 식별코드(UID)를 입력하세요:");
+        if(!targetUid || !targetUid.trim()) return;
+        
+        const cleanUid = targetUid.trim();
+        if(cleanUid === myId) return alert("본인은 친구로 추가할 수 없습니다.");
+
+        // 1. 유저 존재 여부 검증
+        const userSnap = await database.ref(`kakao_style/users/${cleanUid}`).once('value');
+        if(!userSnap.exists()) {
+            return alert("존재하지 않는 사용자 식별코드입니다. ID를 다시 확인해 주세요.");
+        }
+        
+        const targetUser = userSnap.val();
+
+        // 2. 이미 맺어진 관계 검증
+        const relationSnap = await database.ref(`kakao_style/friends_relations/${myId}/${cleanUid}`).once('value');
+        if(relationSnap.exists()) {
+            const relType = relationSnap.val().status;
+            if(relType === 'accepted') return alert("이미 친구 목록에 등록된 사용자입니다.");
+            if(relType === 'requested') return alert("이미 친구 요청을 발송했습니다. 상대방의 승인을 기다려주세요.");
+        }
+
+        // 3. 관계성 상호 매핑 (요청자: requested, 수신자: received)
+        const batch = {};
+        batch[`kakao_style/friends_relations/${myId}/${cleanUid}`] = { status: 'requested', name: targetUser.name };
+        batch[`kakao_style/friends_relations/${cleanUid}/${myId}`] = { status: 'received', name: myName };
+        
+        database.ref().update(batch).then(() => {
+            alert(`${targetUser.name}님에게 친구 요청을 발송했습니다! 상대방이 승인하면 목록에 표시됩니다.`);
+        });
+    }
+
+    // [관계 구조 개선] 관계성 노드를 실시간 추적하여 승인된 친구와 대기중인 요청 분리 바인딩
     function loadFriendsTab(container) {
-        friendsListener = database.ref('kakao_style/users');
-        friendsListener.on('value', (snapshot) => {
-            container.innerHTML = '';
-            
+        // 기본 광장방 항상 최상단 배치
+        const renderPublicRoom = () => {
             const publicItem = document.createElement('div');
             publicItem.className = `list-item ${currentRoomId === 'global_public_room' ? 'active' : ''}`;
             publicItem.innerHTML = `
@@ -371,35 +429,98 @@
             `;
             publicItem.onclick = () => joinChatRoom('global_public_room', '기본 광장 오픈채팅방');
             container.appendChild(publicItem);
+        };
 
-            const usersData = snapshot.val() || {};
-            const userKeys = Object.keys(usersData).filter(uid => uid !== myId);
+        relationshipListener = database.ref(`kakao_style/friends_relations/${myId}`);
+        relationshipListener.on('value', async (snapshot) => {
+            container.innerHTML = '';
+            renderPublicRoom();
 
-            userKeys.forEach(uid => {
-                const targetUser = usersData[uid];
+            const relations = snapshot.val() || {};
+            const targetIds = Object.keys(relations);
+
+            const receivedReqs = targetIds.filter(id => relations[id].status === 'received');
+            const acceptedFriends = targetIds.filter(id => relations[id].status === 'accepted');
+
+            // 1. 나에게 온 친구 승인 대기 목록 렌더링
+            if(receivedReqs.length > 0) {
+                const reqHeader = document.createElement('div');
+                reqHeader.className = 'section-divider';
+                reqHeader.innerText = `친구 요청 대기 (${receivedReqs.length})`;
+                container.appendChild(reqHeader);
+
+                receivedReqs.forEach(uid => {
+                    const reqItem = document.createElement('div');
+                    reqItem.className = 'list-item';
+                    reqItem.style.background = '#f8fafc';
+                    const safeName = escapeHtml(relations[uid].name);
+
+                    reqItem.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1;">
+                            <div class="profile-avatar" style="background:#cbd5e1; color:#fff;">?</div>
+                            <div class="item-body">
+                                <div class="item-name">${safeName}</div>
+                                <div class="item-preview" style="color:#0084ff;">나에게 친구 요청을 보냈습니다.</div>
+                            </div>
+                        </div>
+                        <button class="accept-btn" id="accept-btn-${uid}">승인</button>
+                    `;
+                    reqItem.querySelector(`#accept-btn-${uid}`).onclick = (e) => {
+                        e.stopPropagation();
+                        acceptFriendRequest(uid, relations[uid].name);
+                    };
+                    container.appendChild(reqItem);
+                });
+            }
+
+            // 2. 최종 승인 완료된 진짜 내 친구 목록 렌더링
+            const friendHeader = document.createElement('div');
+            friendHeader.className = 'section-divider';
+            friendHeader.innerText = `내 친구 (${acceptedFriends.length})`;
+            container.appendChild(friendHeader);
+
+            if(acceptedFriends.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'empty-placeholder';
+                empty.innerText = "등록된 친구가 없습니다.\n우측 상단의 아이콘을 눌러 친구를 추가해 보세요.";
+                container.appendChild(empty);
+                return;
+            }
+
+            acceptedFriends.forEach(uid => {
                 const item = document.createElement('div');
                 item.className = 'list-item';
-                item.style.justifyContent = 'space-between';
-                
-                const safeName = escapeHtml(targetUser.name);
+                const safeName = escapeHtml(relations[uid].name);
+
                 item.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1;">
                         <div class="profile-avatar">${safeName.substring(0, 1)}</div>
                         <div class="item-body">
                             <div class="item-name">${safeName}</div>
-                            <div class="item-preview">접속 중인 유저</div>
+                            <div class="item-preview">승인 완료된 대화 상대</div>
                         </div>
                     </div>
-                    <button class="invite-btn" id="invite-btn-${targetUser.id}">비밀방 생성</button>
+                    <button class="invite-btn" id="invite-btn-${uid}">비밀방 생성</button>
                 `;
                 
-                item.querySelector(`#invite-btn-${targetUser.id}`).onclick = (e) => {
+                item.querySelector(`#invite-btn-${uid}`).onclick = (e) => {
                     e.stopPropagation();
-                    createNewSecureRoom(targetUser.id, targetUser.name);
+                    createNewSecureRoom(uid, relations[uid].name);
                 };
-                
                 container.appendChild(item);
             });
+        });
+    }
+
+    // [관계 구조 개선] 친구 요청 승인 확정 처리 파이프라인
+    function acceptFriendRequest(targetUid, targetName) {
+        const batch = {};
+        // 양방향 모두 수락(accepted) 상태로 업데이트 단언
+        batch[`kakao_style/friends_relations/${myId}/${targetUid}/status`] = 'accepted';
+        batch[`kakao_style/friends_relations/${targetUid}/${myId}/status`] = 'accepted';
+
+        database.ref().update(batch).then(() => {
+            alert(`🎉 ${targetName}님과 친구가 되었습니다. 이제 비밀 대화방을 생성할 수 있습니다.`);
         });
     }
 
@@ -633,7 +754,7 @@
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.5); // 용량 압축 최적화(0.65 -> 0.5)
+                const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.5); 
                 const now = Date.now();
                 const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
                 
@@ -665,7 +786,6 @@
         html += `<div class="msg-bubble-wrap"><div class="bubble">`;
         
         if(fileData) {
-            // XSS 취약점 보완: 이미지 src 속성에 base64 데이터 명시적 바인딩 및 파일명 이스케이프 유무 검증
             html += `
                 <div class="img-card">
                     <img src="${fileData}" class="chat-img" style="max-width:100%; border-radius:6px;" onload="scrollChatBottom()" onclick="zoomImg('${fileData}')" alt="이미지">
@@ -705,18 +825,27 @@
         document.getElementById('my-name-display').innerText = myName;
         document.getElementById('my-avatar-box').innerText = myName.substring(0, 1);
         database.ref(`kakao_style/users/${myId}`).update({ name: myName });
+        
+        // 내 닉네임을 연동된 친구들의 관계 노드 명칭에도 갱신 (선택 사항이나 데이터 정합성을 위해 권장)
+        database.ref(`kakao_style/friends_relations`).once('value', (snap) => {
+            const allNodes = snap.val() || {};
+            const batch = {};
+            Object.keys(allNodes).forEach(userId => {
+                if(allNodes[userId] && allNodes[userId][myId]) {
+                    batch[`kakao_style/friends_relations/${userId}/${myId}/name`] = myName;
+                }
+            });
+            database.ref().update(batch);
+        });
+
         if(activeTab === 'friends') switchTab('friends');
     }
 
-    // [보안강화 - 전체 전면 리팩토링]
-    // 1. 단순 LocalStorage 조작 및 F12 변조 공격을 우회하기 위해 인증 요청 시 서버로부터 해시 검증값을 실시간 호출하도록 설계
     async function verifyAndOpenAdminMode() {
         const pass = prompt("최고 관리자 암호 입력:");
         if(!pass) return;
 
         const hashedInput = await computeSHA256(pass);
-
-        // [아키텍처 개선] 클라이언트 로컬 스토리지가 아닌 실시간 백엔드 노드 데이터를 원격 대조함
         const adminConfigSnap = await database.ref('kakao_style/system_config/admin_hash').once('value');
         const currentServerAdminHash = adminConfigSnap.exists() ? adminConfigSnap.val() : DEFAULT_ADMIN_HASH;
 
@@ -726,7 +855,6 @@
             return;
         }
 
-        // 인증 성공 시 메모리 상 플래그 부여 및 뷰 전환
         isAdminAuthenticated = true;
         activeTab = 'admin';
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -739,7 +867,6 @@
     }
 
     function loadAdminInfrastructure() {
-        // 보안 검증 플래그 누락 시 진입 원천 차단
         if (!isAdminAuthenticated) {
             alert("잘못된 접근입니다.");
             closeAdminMode();
@@ -760,7 +887,6 @@
         });
     }
 
-    // [보안강화] 비밀번호 변경 시에도 클라이언트 로컬이 아닌 Firebase DB 서버 전역 설정을 덮어씌움
     async function updateAdminPassword() {
         if (!isAdminAuthenticated) return alert("인증 세션이 만료되었습니다.");
         
@@ -774,7 +900,6 @@
 
         const newHashString = await computeSHA256(rawPassword);
         
-        // 백엔드 영구 데이터 레이어 업데이트
         database.ref('kakao_style/system_config').update({ admin_hash: newHashString })
         .then(() => {
             alert("🔒 [서버 동기화 완료] 전역 마스터 암호가 성공적으로 업데이트되었습니다.\n다음 진입 시점부터 본 암호가 적용됩니다.");
@@ -784,7 +909,6 @@
         .catch(err => alert("데이터베이스 쓰기 권한 오류 발생: " + err.message));
     }
 
-    // [보안강화] 비밀번호 서버 복구 기능
     function resetAdminPassword() {
         if (!isAdminAuthenticated) return alert("인증 세션이 만료되었습니다.");
         if (confirm("서버의 마스터 비밀번호를 초기 공장 상태('1234')로 완전히 리셋하시겠습니까?")) {
@@ -798,7 +922,7 @@
     }
 
     function closeAdminMode() {
-        isAdminAuthenticated = false; // 세션 만료화
+        isAdminAuthenticated = false; 
         document.getElementById('panel-admin-view').style.display = 'none';
         document.getElementById('panel-chat-view').style.display = 'flex';
         switchTab('friends');

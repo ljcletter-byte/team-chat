@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KakaoT-Style 메신저 v8 (승인프리)</title>
+    <title>KakaoT-Style 메신저 v9 (실시간 초대 기능)</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -100,7 +100,7 @@
         .bubble { padding: 10px 14px; border-radius: 12px; font-size: 0.88rem; line-height: 1.4; word-break: break-all; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         .msg-row.sent .bubble { background-color: var(--kakao-yellow); color: #000; border-top-right-radius: 0; }
         .msg-row.received .bubble { background-color: #ffffff; color: var(--text-main); border-top-left-radius: 0; }
-        .msg-time-stamp font-size: 0.65rem; color: #556677; flex-shrink: 0; margin-bottom: 2px; }
+        .msg-time-stamp { font-size: 0.65rem; color: #556677; flex-shrink: 0; margin-bottom: 2px; }
 
         .img-card { display: flex; flex-direction: column; gap: 4px; }
         .chat-img { max-width: 180px; max-height: 220px; border-radius: 8px; cursor: pointer; object-fit: cover; }
@@ -113,6 +113,9 @@
         .file-label { color: #555; width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
         #file-input { display: none; }
         #send-btn { background-color: var(--kakao-yellow); color: #3c1e1e; border: 1px solid #e2cb00; width: 55px; height: 40px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.85rem; flex-shrink: 0; }
+
+        .invite-btn { background-color: #4caf50; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: bold; transition: background 0.15s; }
+        .invite-btn:hover { background-color: #43a047; }
 
         .admin-header { background-color: #1e293b; color: white; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; }
         .admin-body { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; background-color: #f1f5f9; }
@@ -146,7 +149,6 @@
 </div>
 
 <div class="app-container">
-    <!-- 사이드 바 고정 노출 -->
     <div class="nav-bar">
         <div class="nav-item active" id="btn-tab-friends" onclick="switchTab('friends')"><i class="fa-solid fa-user"></i></div>
         <div class="nav-item" id="btn-tab-chats" onclick="switchTab('chats')"><i class="fa-solid fa-comment"></i></div>
@@ -237,7 +239,6 @@
         document.getElementById('my-name-display').innerText = myName;
         document.getElementById('my-avatar-box').innerText = myName.substring(0, 1);
 
-        // 상시 접속 상태 동기화
         database.ref(`kakao_style/users/${myId}`).set({ id: myId, name: myName, lastSeen: Date.now() });
         database.ref(`kakao_style/user_rooms/${myId}/global_public_room`).update({
             roomId: "global_public_room",
@@ -298,18 +299,67 @@
                 const targetUser = usersData[uid];
                 const item = document.createElement('div');
                 item.className = 'list-item';
+                item.style.justifyContent = 'space-between';
+                
                 const safeName = escapeHtml(targetUser.name);
                 item.innerHTML = `
-                    <div class="profile-avatar">${safeName.substring(0, 1)}</div>
-                    <div class="item-body">
-                        <div class="item-name">${safeName}</div>
-                        <div class="item-preview">클릭하여 1:1 메시지 보내기</div>
+                    <div style="display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1;">
+                        <div class="profile-avatar">${safeName.substring(0, 1)}</div>
+                        <div class="item-body">
+                            <div class="item-name">${safeName}</div>
+                            <div class="item-preview">접속 중인 유저</div>
+                        </div>
                     </div>
+                    <button class="invite-btn" onclick="event.stopPropagation(); inviteUserToChat('${targetUser.id}', '${safeName}')">
+                        초대하기
+                    </button>
                 `;
-                item.onclick = () => openPrivateChat(targetUser.id, targetUser.name);
                 container.appendChild(item);
             });
         });
+    }
+
+    function inviteUserToChat(targetUid, targetUname) {
+        const sortedPair = [myId, targetUid].sort();
+        const privateRoomId = `private_${sortedPair[0]}_and_${sortedPair[1]}`;
+        
+        const roomTitleForMe = `${targetUname}님과의 대화`;
+        const roomTitleForTarget = `${myName}님으로부터의 초대`;
+
+        // 1. 초대하는 유저의 룸 리스트 등록
+        database.ref(`kakao_style/user_rooms/${myId}/${privateRoomId}`).update({ 
+            roomId: privateRoomId, 
+            roomTitle: roomTitleForMe 
+        });
+        
+        // 2. 초대받는 유저의 룸 리스트 실시간 자동 주입
+        database.ref(`kakao_style/user_rooms/${targetUid}/${privateRoomId}`).update({ 
+            roomId: privateRoomId, 
+            roomTitle: roomTitleForTarget 
+        });
+
+        // 3. 방 개설 알림 시스템 메시지 전송
+        const now = Date.now();
+        const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
+        
+        database.ref(`kakao_style/rooms/${privateRoomId}/messages`).push({
+            senderId: "system",
+            senderName: "시스템",
+            text: `🔔 ${myName}님이 ${targetUname}님을 초대하여 안전 채널이 생성되었습니다.`,
+            time: timeString,
+            timestamp: now
+        });
+
+        database.ref(`kakao_style/rooms/${privateRoomId}/meta`).set({ 
+            lastMessage: "새로운 대화방이 개설되었습니다.", 
+            lastTime: timeString, 
+            timestamp: now 
+        });
+
+        alert(`${targetUname}님을 초대했습니다! '채팅' 탭으로 전환합니다.`);
+        
+        switchTab('chats');
+        joinChatRoom(privateRoomId, roomTitleForMe);
     }
 
     function loadChatsTab(container) {
@@ -364,15 +414,6 @@
             item.onclick = () => joinChatRoom(room.id, room.title);
             container.appendChild(item);
         });
-    }
-
-    function openPrivateChat(targetUid, targetUname) {
-        const sortedPair = [myId, targetUid].sort();
-        const privateRoomId = `private_${sortedPair[0]}_and_${sortedPair[1]}`;
-        database.ref(`kakao_style/user_rooms/${myId}/${privateRoomId}`).update({ roomId: privateRoomId, roomTitle: `${targetUname}님과의 대화` });
-        database.ref(`kakao_style/user_rooms/${targetUid}/${privateRoomId}`).update({ roomId: privateRoomId, roomTitle: `${myName}님과의 대화` });
-        switchTab('chats');
-        joinChatRoom(privateRoomId, `${targetUname}님과의 대화`);
     }
 
     function joinChatRoom(roomId, roomTitle) {

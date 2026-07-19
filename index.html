@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KakaoT-Style 메신저 Enterprise v15 - Relationship Secure</title>
+    <title>KakaoT-Style 메신저 Enterprise v16 - Complete Auth</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -21,6 +21,38 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Pretendard Variable", Pretendard, sans-serif; }
         body { display: flex; justify-content: center; align-items: center; height: 100vh; background: #eef2f5; }
         
+        /* [신설] 회원가입 및 로그인 통합 인증 레이어 */
+        .auth-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: #f5f6f7; z-index: 1000;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .auth-box {
+            width: 380px; background: #fff; padding: 40px 30px;
+            border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            text-align: center;
+        }
+        .auth-box h2 { font-size: 1.5rem; font-weight: 800; color: var(--text-main); margin-bottom: 8px; }
+        .auth-box p { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 24px; }
+        .auth-form-group { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+        .auth-input { 
+            width: 100%; padding: 12px 14px; border: 1px solid var(--border-color); 
+            border-radius: 6px; font-size: 0.9rem; outline: none; 
+        }
+        .auth-input:focus { border-color: #aaa; }
+        .auth-btn-group { display: flex; flex-direction: column; gap: 8px; }
+        .auth-primary-btn { 
+            width: 100%; padding: 12px; background-color: var(--kakao-yellow); 
+            border: 1px solid #e2cb00; border-radius: 6px; font-weight: bold; 
+            cursor: pointer; font-size: 0.9rem; color: #3c1e1e;
+        }
+        .auth-secondary-btn {
+            width: 100%; padding: 12px; background-color: #f1f5f9;
+            border: 1px solid var(--border-color); border-radius: 6px; font-weight: 600;
+            cursor: pointer; font-size: 0.85rem; color: #475569;
+        }
+
+        /* 메인 컨테이너 */
         .app-container { 
             width: 1000px; 
             height: 700px; 
@@ -143,7 +175,7 @@
         .admin-pw-btn { background-color: #1e293b; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer;}
         .admin-pw-btn:hover { background-color: #334155; }
 
-        #img-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; }
+        #img-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 1010; justify-content: center; align-items: center; }
         #img-modal img { max-width: 90%; max-height: 90%; border-radius: 8px; }
 
         @media (max-width: 768px) {
@@ -162,6 +194,23 @@
     </style>
 </head>
 <body>
+
+<!-- [신설] 사용자 로그인 및 회원가입 인증 화면 오버레이 -->
+<div id="auth-overlay-layer" class="auth-overlay">
+    <div class="auth-box">
+        <h2>KakaoT Messenger</h2>
+        <p>서비스 이용을 위해 아이디와 비밀번호를 입력하세요.</p>
+        <div class="auth-form-group">
+            <input type="text" id="auth-userid-input" class="auth-input" placeholder="계정 아이디 (영어/숫자)">
+            <input type="password" id="auth-password-input" class="auth-input" placeholder="비밀번호">
+            <input type="text" id="auth-username-input" class="auth-input" placeholder="사용할 닉네임 (회원가입 시에만 입력)" style="display: none;">
+        </div>
+        <div class="auth-btn-group">
+            <button id="auth-main-btn" class="auth-primary-btn" onclick="executeLoginWorkflow()">로그인</button>
+            <button id="auth-toggle-btn" class="auth-secondary-btn" onclick="toggleAuthMode(true)">신규 계정 가입하기</button>
+        </div>
+    </div>
+</div>
 
 <div id="img-modal" onclick="this.style.display='none'">
     <img id="modal-img" src="" alt="확대">
@@ -251,11 +300,9 @@
 
     const DEFAULT_ADMIN_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"; 
 
-    let myId = localStorage.getItem('chat_userid_v4') || "u_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
-    localStorage.setItem('chat_userid_v4', myId);
-
-    let myName = localStorage.getItem('chat_username_v4') || "유저_" + Math.floor(Math.random() * 9000 + 1000);
-    localStorage.setItem('chat_username_v4', myName);
+    let myId = localStorage.getItem('chat_userid_v4') || "";
+    let myName = localStorage.getItem('chat_username_v4') || "";
+    let isRegisterMode = false;
 
     let currentRoomId = "";
     let currentRoomTitle = "";
@@ -283,17 +330,107 @@
     }
 
     function copyMyUID() {
+        if(!myId) return;
         navigator.clipboard.writeText(myId).then(() => {
-            alert("📋 내 고유 고유식별코드(UID)가 복사되었습니다. 상대방에게 공유하여 친구를 맺으세요!");
+            alert("📋 내 고유식별코드(UID)가 복사되었습니다. 상대방에게 공유하여 친구를 맺으세요!");
         });
     }
 
+    // [신설] 인증 모드 토글 (로그인 <-> 회원가입)
+    function toggleAuthMode(toRegister) {
+        isRegisterMode = toRegister;
+        const nameInput = document.getElementById('auth-username-input');
+        const mainBtn = document.getElementById('auth-main-btn');
+        const toggleBtn = document.getElementById('auth-toggle-btn');
+        
+        if (toRegister) {
+            nameInput.style.display = 'block';
+            mainBtn.innerText = '회원가입 및 로그인';
+            toggleBtn.innerText = '이미 계정이 있으신가요? 로그인하기';
+            toggleBtn.setAttribute('onclick', 'toggleAuthMode(false)');
+        } else {
+            nameInput.style.display = 'none';
+            mainBtn.innerText = '로그인';
+            toggleBtn.innerText = '신규 계정 가입하기';
+            toggleBtn.setAttribute('onclick', 'toggleAuthMode(true)');
+        }
+    }
+
+    // [신설] 로그인 및 회원가입 핵심 인증 연동 로직
+    async function executeLoginWorkflow() {
+        const idInput = document.getElementById('auth-userid-input').value.trim();
+        const pwInput = document.getElementById('auth-password-input').value.trim();
+        const nameInput = document.getElementById('auth-username-input').value.trim();
+
+        if (!idInput || !pwInput) {
+            return alert("아이디와 비밀번호를 모두 입력해 주세요.");
+        }
+        
+        // 아이디 규칙 검증 (특수문자 제외)
+        const idRegex = /^[a-zA-Z0-9_\-]+$/;
+        if (!idRegex.test(idInput)) {
+            return alert("아이디는 영문, 숫자, 하이픈(-), 언더바(_)만 사용할 수 있습니다.");
+        }
+
+        const hashedPw = await computeSHA256(pwInput);
+        const userRef = database.ref(`kakao_style/users/${idInput}`);
+        const userSnap = await userRef.once('value');
+
+        if (isRegisterMode) {
+            // 회원가입 모드
+            if (userSnap.exists()) {
+                return alert("이미 존재하는 아이디입니다. 다른 아이디를 사용해 주세요.");
+            }
+            if (!nameInput) {
+                return alert("채팅방에서 표시될 닉네임을 입력해 주세요.");
+            }
+            
+            const userData = {
+                id: idInput,
+                name: nameInput,
+                passwordHash: hashedPw,
+                lastSeen: Date.now()
+            };
+            
+            await userRef.set(userData);
+            myId = idInput;
+            myName = nameInput;
+        } else {
+            // 로그인 모드
+            if (!userSnap.exists()) {
+                return alert("존재하지 않는 아이디입니다. 회원가입을 먼저 진행해 주세요.");
+            }
+            
+            const dbUser = userSnap.val();
+            if (dbUser.passwordHash !== hashedPw) {
+                return alert("비밀번호가 일치하지 않습니다. 다시 확인해 주세요.");
+            }
+            
+            myId = dbUser.id;
+            myName = dbUser.name;
+            await userRef.update({ lastSeen: Date.now() });
+        }
+
+        // 로컬 스토리지에 세션 저장 및 메인 앱 구동
+        localStorage.setItem('chat_userid_v4', myId);
+        localStorage.setItem('chat_username_v4', myName);
+        
+        document.getElementById('auth-overlay-layer').style.display = 'none';
+        initApplication();
+    }
+
     async function initApplication() {
+        // 세션 검증: 세션 데이터가 없으면 로그인 창 활성화 후 정지
+        if (!myId || !myName) {
+            document.getElementById('auth-overlay-layer').style.display = 'flex';
+            toggleAuthMode(false);
+            return;
+        }
+        
+        document.getElementById('auth-overlay-layer').style.display = 'none';
         document.getElementById('my-name-display').innerText = myName;
         document.getElementById('my-avatar-box').innerText = myName.substring(0, 1);
         document.getElementById('my-uid-display').innerText = `ID: ${myId}`;
-
-        database.ref(`kakao_style/users/${myId}`).set({ id: myId, name: myName, lastSeen: Date.now() });
 
         const adminHashSnap = await database.ref('kakao_style/system_config/admin_hash').once('value');
         if (!adminHashSnap.exists()) {
@@ -344,9 +481,10 @@
 
     function clearSessionLogout() {
         if(confirm("🔒 로그아웃하시겠습니까?")) {
-            database.ref(`kakao_style/users/${myId}`).remove();
             localStorage.removeItem('chat_userid_v4');
             localStorage.removeItem('chat_username_v4');
+            myId = "";
+            myName = "";
             window.location.reload();
         }
     }
@@ -380,15 +518,13 @@
         }
     }
 
-    // [보안 및 관계 설계 고도화] UID 기반 검색 및 추가 로직
     async function searchAndAddFriend() {
-        const targetUid = prompt("추가하고자 하는 상대방의 고유 식별코드(UID)를 입력하세요:");
+        const targetUid = prompt("추가하고자 하는 상대방의 고유 식별코드(UID/아이디)를 입력하세요:");
         if(!targetUid || !targetUid.trim()) return;
         
         const cleanUid = targetUid.trim();
         if(cleanUid === myId) return alert("본인은 친구로 추가할 수 없습니다.");
 
-        // 1. 유저 존재 여부 검증
         const userSnap = await database.ref(`kakao_style/users/${cleanUid}`).once('value');
         if(!userSnap.exists()) {
             return alert("존재하지 않는 사용자 식별코드입니다. ID를 다시 확인해 주세요.");
@@ -396,7 +532,6 @@
         
         const targetUser = userSnap.val();
 
-        // 2. 이미 맺어진 관계 검증
         const relationSnap = await database.ref(`kakao_style/friends_relations/${myId}/${cleanUid}`).once('value');
         if(relationSnap.exists()) {
             const relType = relationSnap.val().status;
@@ -404,7 +539,6 @@
             if(relType === 'requested') return alert("이미 친구 요청을 발송했습니다. 상대방의 승인을 기다려주세요.");
         }
 
-        // 3. 관계성 상호 매핑 (요청자: requested, 수신자: received)
         const batch = {};
         batch[`kakao_style/friends_relations/${myId}/${cleanUid}`] = { status: 'requested', name: targetUser.name };
         batch[`kakao_style/friends_relations/${cleanUid}/${myId}`] = { status: 'received', name: myName };
@@ -414,9 +548,7 @@
         });
     }
 
-    // [관계 구조 개선] 관계성 노드를 실시간 추적하여 승인된 친구와 대기중인 요청 분리 바인딩
     function loadFriendsTab(container) {
-        // 기본 광장방 항상 최상단 배치
         const renderPublicRoom = () => {
             const publicItem = document.createElement('div');
             publicItem.className = `list-item ${currentRoomId === 'global_public_room' ? 'active' : ''}`;
@@ -442,7 +574,6 @@
             const receivedReqs = targetIds.filter(id => relations[id].status === 'received');
             const acceptedFriends = targetIds.filter(id => relations[id].status === 'accepted');
 
-            // 1. 나에게 온 친구 승인 대기 목록 렌더링
             if(receivedReqs.length > 0) {
                 const reqHeader = document.createElement('div');
                 reqHeader.className = 'section-divider';
@@ -473,7 +604,6 @@
                 });
             }
 
-            // 2. 최종 승인 완료된 진짜 내 친구 목록 렌더링
             const friendHeader = document.createElement('div');
             friendHeader.className = 'section-divider';
             friendHeader.innerText = `내 친구 (${acceptedFriends.length})`;
@@ -512,10 +642,8 @@
         });
     }
 
-    // [관계 구조 개선] 친구 요청 승인 확정 처리 파이프라인
     function acceptFriendRequest(targetUid, targetName) {
         const batch = {};
-        // 양방향 모두 수락(accepted) 상태로 업데이트 단언
         batch[`kakao_style/friends_relations/${myId}/${targetUid}/status`] = 'accepted';
         batch[`kakao_style/friends_relations/${targetUid}/${myId}/status`] = 'accepted';
 
@@ -826,7 +954,6 @@
         document.getElementById('my-avatar-box').innerText = myName.substring(0, 1);
         database.ref(`kakao_style/users/${myId}`).update({ name: myName });
         
-        // 내 닉네임을 연동된 친구들의 관계 노드 명칭에도 갱신 (선택 사항이나 데이터 정합성을 위해 권장)
         database.ref(`kakao_style/friends_relations`).once('value', (snap) => {
             const allNodes = snap.val() || {};
             const batch = {};

@@ -1,385 +1,126 @@
+<!-- index.html의 전체 코드를 아래 내용으로 갱신하세요 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>스마트 하이브리드 팀 메신저</title>
+    <title>Next-Gen 팀 메신저</title>
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-        body { display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f2f5; }
-        .chat-container { width: 450px; height: 600px; background-color: white; border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; overflow: hidden; }
-        .chat-header { background-color: #1e1b4b; color: white; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
-        .header-top { display: flex; justify-content: space-between; align-items: center; }
-        .header-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 6px 10px; border-radius: 6px; }
-        .change-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
-        .change-btn:hover { background: rgba(255,255,255,0.4); }
-        .chat-messages { flex: 1; padding: 16px; overflow-y: auto; background-color: #f8fafc; display: flex; flex-direction: column; gap: 12px; }
+        :root { --primary: #4f46e5; --bg-main: #f8fafc; --text-main: #0f172a; --border-color: #e2e8f0; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Pretendard", sans-serif; }
+        body { display: flex; justify-content: center; align-items: center; height: 100vh; background: #e2e8f0; }
+        .chat-container { width: 440px; height: 680px; background: white; border-radius: 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow: hidden; position: relative; }
         
-        .message-wrapper { display: flex; flex-direction: column; max-width: 75%; }
+        /* 헤더/메시지 스타일 (이전과 동일) */
+        .chat-header { background: var(--text-main); color: white; padding: 20px; }
+        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; background: var(--bg-main); display: flex; flex-direction: column; gap: 14px; }
+        .message-wrapper { display: flex; flex-direction: column; max-width: 80%; }
         .message-wrapper.sent { align-self: flex-end; align-items: flex-end; }
         .message-wrapper.received { align-self: flex-start; align-items: flex-start; }
-        .message-sender { font-size: 0.75rem; font-weight: bold; margin-bottom: 4px; color: #64748b; }
-        .message { padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; word-break: break-all; }
-        .message.sent { background-color: #1e1b4b; color: white; border-bottom-right-radius: 2px; }
-        .message.received { background-color: #e2e8f0; color: #1e293b; border-bottom-left-radius: 2px; }
-        .message-time { font-size: 0.65rem; color: #94a3b8; margin-top: 2px; }
+        .message { padding: 12px 16px; border-radius: 16px; font-size: 0.9rem; border: 1px solid var(--border-color); }
+        .message.sent { background: var(--primary); color: white; border-bottom-right-radius: 4px; }
+        .message.received { background: white; border-bottom-left-radius: 4px; }
         
-        /* 서버 업로드 이미지 스타일 */
-        .chat-img { max-width: 100%; border-radius: 8px; margin-top: 4px; cursor: pointer; max-height: 180px; object-fit: cover; }
-        
-        /* P2P 박스 디자인 */
-        .p2p-box { background: #f1f5f9; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 8px; margin-top: 4px; text-align: center; }
-        .message.sent .p2p-box { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3); }
-        .p2p-btn { background: #10b981; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold; margin-top: 4px; display: inline-block; text-decoration: none; }
-        .progress-bar { width: 100%; background: #e2e8f0; height: 6px; border-radius: 3px; margin-top: 4px; overflow: hidden; display: none; }
-        .progress-fill { height: 100%; background: #10b981; width: 0%; }
+        /* 이미지 UI 개선 */
+        .img-msg-container { display: flex; flex-direction: column; gap: 8px; }
+        .chat-img { max-width: 200px; border-radius: 10px; cursor: pointer; transition: transform 0.2s; }
+        .chat-img:hover { transform: scale(1.02); }
+        .download-btn { display: inline-block; background: #e2e8f0; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; text-decoration: none; color: #475569; font-weight: 600; text-align: center; }
+        .download-btn:hover { background: #cbd5e1; }
 
-        .chat-input-area { padding: 16px; background-color: white; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; align-items: center; }
-        #message-input { flex: 1; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; }
-        .file-label { background-color: #e2e8f0; color: #475569; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 1.1rem; user-select: none; }
-        #file-input { display: none; }
-        #send-btn { background-color: #1e1b4b; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        /* 이미지 뷰어 모달 */
+        #img-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); z-index: 100; justify-content: center; align-items: center; }
+        #img-modal img { max-width: 90%; max-height: 90%; border-radius: 8px; }
         
-        .status-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
-        .status-badge.online { background: #10b981; color: white; }
-        .status-badge.offline { background: #94a3b8; color: white; }
+        /* 입력창 및 기타 디자인 (이전과 동일) */
+        .chat-input-area { padding: 16px; border-top: 1px solid #e2e8f0; display: flex; gap: 10px; align-items: center; background: white; }
+        #message-input { flex: 1; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; outline: none; }
+        #send-btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 12px; cursor: pointer; }
     </style>
 </head>
 <body>
 
+<!-- 이미지 크게 보기 모달 -->
+<div id="img-modal" onclick="this.style.display='none'">
+    <img id="modal-img" src="" alt="확대">
+</div>
+
 <div class="chat-container">
     <div class="chat-header">
-        <div class="header-top">
-            <h2 id="room-display">🚪 방 로딩 중...</h2>
-            <span id="p2p-status" class="status-badge offline">대용량 P2P 대기</span>
-        </div>
-        <div class="header-bottom">
-            <span>내 이름: <b id="user-display"></b></span>
-            <button class="change-btn" onclick="changeRoom()">방 변경</button>
-        </div>
+        <h2 id="room-title">💬 채팅방</h2>
     </div>
     <div class="chat-messages" id="chat-messages"></div>
     <div class="chat-input-area">
-        <label for="file-input" class="file-label" id="file-label">📎</label>
-        <input type="file" id="file-input" onchange="handleSmartFileSelect(this)">
-        
-        <input type="text" id="message-input" placeholder="메시지를 입력하세요..." onkeypress="handleKeyPress(event)">
+        <input type="file" id="file-input" style="display:none" onchange="handleFile(this)">
+        <button onclick="document.getElementById('file-input').click()" style="border:none; background:none; cursor:pointer;">📎</button>
+        <input type="text" id="message-input" placeholder="메시지 입력..." onkeypress="if(event.key==='Enter') sendMessage()">
         <button id="send-btn" onclick="sendMessage()">전송</button>
     </div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-
 <script>
+    // [Firebase 설정은 기존과 동일]
     const firebaseConfig = {
         apiKey: "AIzaSyDfACFo9nn2MaJusjlII9y6Wj6QIGuf65g",
         databaseURL: "https://my-team-chat-2712e-default-rtdb.firebaseio.com",
         projectId: "my-team-chat-2712e"
     };
-
     firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
-
-    let myName = localStorage.getItem('chat_username') || "사용자_" + Math.floor(Math.random() * 1000);
-    localStorage.setItem('chat_username', myName);
-    let currentRoom = localStorage.getItem('chat_roomname') || "기본방";
-    localStorage.setItem('chat_roomname', currentRoom);
-
-    document.getElementById('user-display').innerText = myName;
-    document.getElementById('room-display').innerText = "💬 " + currentRoom;
-
-    const chatMessages = document.getElementById('chat-messages');
-    const messageInput = document.getElementById('message-input');
-    const p2pStatus = document.getElementById('p2p-status');
-    const fileLabel = document.getElementById('file-label');
-
-    // WebRTC 변수
-    let peerConnection;
-    let dataChannel;
-    const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-    let receivedChunks = [];
-    let incomingFileInfo = null;
-
-    function initMessenger() {
-        // 서버 일반 메시지 및 5MB 이하 이미지 실시간 수신
-        database.ref(`hybrid_rooms/${currentRoom}/messages`).limitToLast(40).on('child_added', (snapshot) => {
-            const data = snapshot.val();
-            if(data.sender === myName && !data.isServerFile) return; // 내가 보낸 건 실시간 UI 추가 방지 (중복 방지)
-            appendMessage(data.sender, data.text, data.sender === myName ? 'sent' : 'received', data.time, data.fileData, data.fileType);
-        });
-
-        // P2P 연결 신호 감시
-        database.ref(`hybrid_rooms/${currentRoom}/signal`).on('value', async (snapshot) => {
-            const signal = snapshot.val();
-            if (!signal || signal.sender === myName) return;
-
-            if (signal.type === 'offer') {
-                await handleOffer(signal.sdp);
-            } else if (signal.type === 'answer') {
-                await handleAnswer(signal.sdp);
-            } else if (signal.type === 'candidate' && peerConnection) {
-                await peerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
-            }
-        });
-        
-        setupPeer();
+    const db = firebase.database();
+    
+    // [기능 로직]
+    const myName = localStorage.getItem('chat_username') || "익명";
+    const currentRoom = localStorage.getItem('chat_roomname') || "기본방";
+    
+    function sendMessage() {
+        const input = document.getElementById('message-input');
+        if(!input.value.trim()) return;
+        db.ref(`messages/${currentRoom}`).push({ sender: myName, text: input.value, time: new Date().toLocaleTimeString() });
+        input.value = '';
     }
 
-    // ⚡ 스마트 파일 처리 제어 타워
-    function handleSmartFileSelect(input) {
+    function handleFile(input) {
         const file = input.files[0];
-        if (!file) return;
-
-        const limit5MB = 5 * 1024 * 1024; // 5메가바이트 기준 계산
-
-        if (file.size <= limit5MB) {
-            // 안심형 스마트 분기: 5MB 이하이므로 구글 DB를 통해 카톡식 상시 전송
-            uploadToServerDB(file, input);
-        } else {
-            // 대용량 분기: 5MB 초과하므로 다이렉트 고속 P2P 전송 실행
-            startP2PFileTransfer(file, input);
-        }
-    }
-
-    // [루트 A] 5MB 이하: 서버 베이스 업로드 (상대방이 꺼져있어도 전송 가능)
-    function uploadToServerDB(file, input) {
-        fileLabel.innerText = "⏳";
+        if(!file) return;
         const reader = new FileReader();
-        
-        reader.onload = function(e) {
-            const base64Data = e.target.result;
-            const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
-            
-            database.ref(`hybrid_rooms/${currentRoom}/messages`).push({
-                sender: myName,
-                text: `📎 이미지 파일`,
-                fileData: base64Data,
-                fileType: file.type,
-                time: timeString,
-                isServerFile: true
+        reader.onload = (e) => {
+            db.ref(`messages/${currentRoom}`).push({ 
+                sender: myName, fileData: e.target.result, fileName: file.name, time: new Date().toLocaleTimeString() 
             });
-            
-            fileLabel.innerText = "📎";
-            input.value = "";
         };
         reader.readAsDataURL(file);
     }
 
-    // [루트 B] 5MB 이상: 실시간 보안 P2P Direct 전송
-    async function startP2PFileTransfer(file, input) {
-        if (!dataChannel || dataChannel.readyState !== 'open') {
-            alert("5MB 초과 대용량 파일은 P2P 채널로 안전하게 직접 전송합니다.\n상대방과 다이렉트 보안 통로를 먼저 연결하오니 잠시 후 파일을 다시 선택해 주세요!");
-            await connectP2P();
-            input.value = "";
-            return;
-        }
-
-        const fileId = Date.now();
-        appendP2PBox(file.name, file.size, 'sent', fileId);
-
-        dataChannel.send(JSON.stringify({
-            type: 'file-start', id: fileId, name: file.name, size: file.size
-        }));
-
-        const chunkSize = 16384;
-        let offset = 0;
-
-        const sliceAndSend = () => {
-            if (offset >= file.size) {
-                dataChannel.send(JSON.stringify({ type: 'file-end', id: fileId }));
-                const progress = document.getElementById(`progress-${fileId}`);
-                if(progress) progress.style.display = 'none';
-                return;
-            }
-
-            const slice = file.slice(offset, offset + chunkSize);
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                dataChannel.send(e.target.result);
-                offset += chunkSize;
-                
-                const percent = Math.min(100, (offset / file.size) * 100);
-                const fill = document.getElementById(`fill-${fileId}`);
-                if(fill) fill.style.width = percent + '%';
-                
-                if (dataChannel.bufferedAmount > 16000000) {
-                    setTimeout(sliceAndSend, 50);
-                } else {
-                    sliceAndSend();
-                }
-            };
-            reader.readAsArrayBuffer(slice);
-        };
-
-        sliceAndSend();
-        input.value = "";
-    }
-
-    // WebRTC 시그널링 기본 로직
-    function setupPeer() {
-        peerConnection = new RTCPeerConnection(rtcConfig);
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                database.ref(`hybrid_rooms/${currentRoom}/signal`).set({
-                    type: 'candidate', sender: myName, candidate: event.json()
-                });
-            }
-        };
-        peerConnection.ondatachannel = (event) => {
-            dataChannel = event.channel;
-            setupDataChannelEvents();
-        };
-    }
-
-    function setupDataChannelEvents() {
-        dataChannel.binaryType = 'arraybuffer';
-        dataChannel.onopen = () => {
-            p2pStatus.innerText = "대용량 P2P 연결됨";
-            p2pStatus.className = "status-badge online";
-        };
-        dataChannel.onclose = () => {
-            p2pStatus.innerText = "대용량 P2P 대기";
-            p2pStatus.className = "status-badge offline";
-        };
-        dataChannel.onmessage = (event) => {
-            if (typeof event.data === 'string') {
-                const info = JSON.parse(event.data);
-                if (info.type === 'file-start') {
-                    incomingFileInfo = info;
-                    receivedChunks = [];
-                    appendP2PBox(info.name, info.size, 'received');
-                } else if (info.type === 'file-end') {
-                    const blob = new Blob(receivedChunks);
-                    const url = URL.createObjectURL(blob);
-                    const btn = document.getElementById(`p2p-btn-${incomingFileInfo.id}`);
-                    if(btn) {
-                        btn.href = url;
-                        btn.download = incomingFileInfo.name;
-                        btn.innerText = "💾 대용량 다운로드";
-                        btn.style.background = "#10b981";
-                    }
-                    document.getElementById(`progress-${incomingFileInfo.id}`).style.display = 'none';
-                }
-            } else {
-                receivedChunks.push(event.data);
-                const progressFill = document.getElementById(`fill-${incomingFileInfo.id}`);
-                if(progressFill) {
-                    const currentSize = receivedChunks.reduce((acc, chunk) => acc + chunk.byteLength, 0);
-                    const percent = Math.min(100, (currentSize / incomingFileInfo.size) * 100);
-                    progressFill.style.width = percent + '%';
-                }
-            }
-        };
-    }
-
-    async function connectP2P() {
-        dataChannel = peerConnection.createDataChannel("fileTransfer");
-        setupDataChannelEvents();
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        database.ref(`hybrid_rooms/${currentRoom}/signal`).set({ type: 'offer', sender: myName, sdp: offer.sdp });
-    }
-
-    async function handleOffer(sdp) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: sdp }));
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        database.ref(`hybrid_rooms/${currentRoom}/signal`).set({ type: 'answer', sender: myName, sdp: answer.sdp });
-    }
-
-    async function handleAnswer(sdp) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: sdp }));
-    }
-
-    // 일반 텍스트 전송
-    function sendMessage() {
-        const text = messageInput.value.trim();
-        if (text === '') return;
-
-        const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
-        database.ref(`hybrid_rooms/${currentRoom}/messages`).push({
-            sender: myName, text: text, time: timeString
-        });
-
-        appendMessage(myName, text, 'sent', timeString);
-        messageInput.value = '';
-    }
-
-    // 렌더링 화면 구현 부
-    function appendMessage(sender, text, type, time, fileData, fileType) {
-        const wrapper = document.createElement('div');
-        wrapper.classList.add('message-wrapper', type);
-        
-        let messageContent = document.createTextNode(text);
-        if (fileData) {
-            if (fileType && fileType.startsWith('image/')) {
-                const img = document.createElement('img');
-                img.src = fileData;
-                img.classList.add('chat-img');
-                img.onclick = () => {
-                    const newWin = window.open();
-                    newWin.document.write(`<img src="${fileData}" style="max-width:100%;">`);
-                };
-                messageContent = img;
-            } else {
-                const link = document.createElement('a');
-                link.href = fileData;
-                link.download = "첨부파일";
-                link.style.color = type === 'sent' ? '#ffff00' : '#4f46e5';
-                link.innerText = "📁 다운로드 (5MB 이하)";
-                messageContent = link;
-            }
-        }
-
+    db.ref(`messages/${currentRoom}`).on('child_added', (snap) => {
+        const d = snap.val();
         const msgDiv = document.createElement('div');
-        msgDiv.classList.add('message', type);
-        msgDiv.appendChild(messageContent);
-
-        wrapper.innerHTML = `<span class="message-sender">${sender}</span>`;
-        wrapper.appendChild(msgDiv);
-        wrapper.innerHTML += `<span class="message-time">${time}</span>`;
+        msgDiv.className = `message-wrapper ${d.sender === myName ? 'sent' : 'received'}`;
         
-        chatMessages.appendChild(wrapper);
-        autoScroll();
-    }
-
-    function appendP2PBox(name, size, type, id = Date.now()) {
-        if(!incomingFileInfo) incomingFileInfo = { id: id };
-        const targetId = type === 'sent' ? id : incomingFileInfo.id;
-        const sizeMB = (size / (1024 * 1024)).toFixed(2);
-        const wrapper = document.createElement('div');
-        wrapper.classList.add('message-wrapper', type);
-        
-        wrapper.innerHTML = `
-            <span class="message-sender">${type === 'sent' ? myName : '상대방'}</span>
-            <div class="message ${type}" style="width: 250px;">
-                <div class="p2p-box">
-                    <p style="font-size:0.8rem; font-weight:bold; color:#1e293b; text-align:left; word-break:break-all;">⚡ 대용량: ${name}</p>
-                    <p style="font-size:0.7rem; color:#64748b; text-align:left;">용량: ${sizeMB} MB</p>
-                    <div class="progress-bar" id="progress-${targetId}" style="display:block;"><div class="progress-fill" id="fill-${targetId}"></div></div>
-                    <a class="p2p-btn" id="p2p-btn-${targetId}" style="${type==='sent'?'background:#64748b; pointer-events:none;':''}">
-                        ${type === 'sent' ? '⏳ P2P 전송 중' : '⏳ 연결 대기'}
-                    </a>
-                </div>
-            </div>
-        `;
-        chatMessages.appendChild(wrapper);
-        autoScroll();
-    }
-
-    function changeRoom() {
-        const target = prompt("이동할 방 이름을 입력하세요:", currentRoom);
-        if(target && target.trim() !== "") {
-            localStorage.setItem('chat_roomname', target.trim());
-            location.reload();
+        let content = `<div class="message ${d.sender === myName ? 'sent' : 'received'}">`;
+        if(d.fileData) {
+            content += `
+                <div class="img-msg-container">
+                    <img src="${d.fileData}" class="chat-img" onclick="showModal('${d.fileData}')">
+                    <a href="${d.fileData}" download="${d.fileName || 'image.png'}" class="download-btn">💾 다운로드</a>
+                </div>`;
+        } else {
+            content += d.text;
         }
+        content += `</div>`;
+        msgDiv.innerHTML = content;
+        document.getElementById('chat-messages').appendChild(msgDiv);
+        document.getElementById('chat-messages').scrollTop = 99999;
+    });
+
+    function showModal(src) {
+        document.getElementById('modal-img').src = src;
+        document.getElementById('img-modal').style.display = 'flex';
     }
-
-    function handleKeyPress(event) { if (event.key === 'Enter') sendMessage(); }
-    function autoScroll() { chatMessages.scrollTop = chatMessages.scrollHeight; }
-
-    initMessenger();
 </script>
 </body>
 </html>

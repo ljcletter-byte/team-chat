@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KakaoT-Style 메신저 Enterprise v10 - Security Hardened</title>
+    <title>KakaoT-Style 메신저 Enterprise v11 - Secure Invitation</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -116,6 +116,7 @@
 
         .invite-btn { background-color: #4caf50; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: bold; transition: background 0.15s; }
         .invite-btn:hover { background-color: #43a047; }
+        .link-btn { background-color: #0084ff; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: bold; margin-left: 4px;}
 
         .admin-header { background-color: #1e293b; color: white; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; }
         .admin-body { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; background-color: #f1f5f9; }
@@ -212,8 +213,7 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    // [보안 보완] "1234"의 SHA-256 일방향 암호화 해시값 (메모리 평문 무단 탈취 원천 방어)
-    const ADMIN_PASS_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4";
+    const ADMIN_PASS_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"; // "1234"
 
     let myId = localStorage.getItem('chat_userid_v4') || "u_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
     localStorage.setItem('chat_userid_v4', myId);
@@ -221,8 +221,8 @@
     let myName = localStorage.getItem('chat_username_v4') || "유저_" + Math.floor(Math.random() * 9000 + 1000);
     localStorage.setItem('chat_username_v4', myName);
 
-    let currentRoomId = localStorage.getItem('chat_roomid_v4') || "global_public_room";
-    let currentRoomTitle = localStorage.getItem('chat_roomtitle_v4') || "기본 광장 오픈채팅방";
+    let currentRoomId = "";
+    let currentRoomTitle = "";
     
     let activeTab = "friends"; 
     let msgListener = null;
@@ -232,7 +232,6 @@
     let metaListeners = {};
     let roomMetaCache = {};
 
-    // Web Crypto API를 활용한 가벼운 해시 계산 유틸리티 함수
     async function computeSHA256(message) {
         const msgBuffer = new TextEncoder().encode(message);                    
         const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
@@ -245,29 +244,56 @@
         return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 
-    function initApplication() {
+    async function initApplication() {
         document.getElementById('my-name-display').innerText = myName;
         document.getElementById('my-avatar-box').innerText = myName.substring(0, 1);
 
         database.ref(`kakao_style/users/${myId}`).set({ id: myId, name: myName, lastSeen: Date.now() });
+
+        // URL 뒤에 ?room=방ID 가 있는지 파싱 (카톡/문자 초대장 감지)
+        const urlParams = new URLSearchParams(window.location.search);
+        const invitedRoomId = urlParams.get('room');
+
+        if (invitedRoomId) {
+            // 외부 초대 링크로 접속한 경우
+            alert("💌 초대 링크를 통해 대화방에 연결 중입니다. 보안 비밀번호를 검증합니다.");
+            const targetRoomMeta = await database.ref(`kakao_style/rooms/${invitedRoomId}/meta`).once('value');
+            
+            if (targetRoomMeta.exists()) {
+                const roomInfo = targetRoomMeta.val();
+                const userPass = prompt("이 대화방의 비밀번호를 입력하세요:");
+                
+                if (userPass) {
+                    const hashedUserPass = await computeSHA256(userPass);
+                    if (hashedUserPass === roomInfo.passwordHash) {
+                        // 비밀번호 일치 시, 내 목록에 대화방 추가 후 바로 입장
+                        await database.ref(`kakao_style/user_rooms/${myId}/${invitedRoomId}`).set({
+                            roomId: invitedRoomId,
+                            roomTitle: roomInfo.title
+                        });
+                        window.history.replaceState({}, document.title, window.location.pathname); // URL 깔끔하게 청소
+                        switchTab('chats');
+                        joinChatRoom(invitedRoomId, roomInfo.title);
+                        return;
+                    } else {
+                        alert("보안 오류: 비밀번호가 일치하지 않습니다. 광장방으로 이동합니다.");
+                    }
+                }
+            } else {
+                alert("존재하지 않거나 파괴된 대화방 링크입니다.");
+            }
+        }
+
+        // 일반 접속 시 기본 광장 오픈방 진입
         database.ref(`kakao_style/user_rooms/${myId}/global_public_room`).update({
             roomId: "global_public_room",
             roomTitle: "기본 광장 오픈채팅방"
         });
-
+        
         switchTab(activeTab); 
         if (window.innerWidth > 768) {
-            joinChatRoom(currentRoomId, currentRoomTitle);
+            joinChatRoom("global_public_room", "기본 광장 오픈채팅방");
         }
-    }
-
-    function clearAllListeners() {
-        if(friendsListener) { friendsListener.off(); friendsListener = null; }
-        if(roomsListener) { roomsListener.off(); roomsListener = null; }
-        Object.keys(metaListeners).forEach(id => {
-            if(metaListeners[id]) metaListeners[id].off();
-        });
-        metaListeners = {};
     }
 
     function switchTab(tabName) {
@@ -277,7 +303,10 @@
         if(activeNavBtn) activeNavBtn.classList.add('active');
         
         closeChatMobile();
-        clearAllListeners();
+        if(friendsListener) friendsListener.off();
+        if(roomsListener) roomsListener.off();
+        Object.keys(metaListeners).forEach(id => metaListeners[id].off());
+        metaListeners = {};
         roomMetaCache = {};
 
         const container = document.getElementById('dynamic-list-container');
@@ -327,14 +356,12 @@
                             <div class="item-preview">접속 중인 유저</div>
                         </div>
                     </div>
-                    <button class="invite-btn" id="invite-btn-${targetUser.id}">
-                        초대하기
-                    </button>
+                    <button class="invite-btn" id="invite-btn-${targetUser.id}">비밀방 생성</button>
                 `;
                 
                 item.querySelector(`#invite-btn-${targetUser.id}`).onclick = (e) => {
                     e.stopPropagation();
-                    inviteUserToChat(targetUser.id, targetUser.name);
+                    createNewSecureRoom(targetUser.id, targetUser.name);
                 };
                 
                 container.appendChild(item);
@@ -342,54 +369,37 @@
         });
     }
 
-    function inviteUserToChat(targetUid, targetUname) {
-        if (!targetUid || targetUid === myId) return;
+    // [핵심 변경] 카톡/문자 초대를 위한 보안 비밀번호 방 생성 시스템
+    async function createNewSecureRoom(targetUid, targetUname) {
+        const roomPass = prompt("이 방에 적용할 암호화 비밀번호를 설정하세요:");
+        if (!roomPass || !roomPass.trim()) return alert("비밀번호는 필수입니다.");
 
-        const sortedPair = [myId, targetUid].sort();
-        const privateRoomId = `private_${sortedPair[0]}_and_${sortedPair[1]}`;
-        
-        const roomTitleForMe = `${targetUname}님과의 대화`;
-        const roomTitleForTarget = `${myName}님으로부터의 초대`;
+        const hashedRoomPass = await computeSHA256(roomPass.trim());
+        const secureRoomId = "room_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+        const roomTitle = `${targetUname}님과의 보안 대화방`;
 
         const now = Date.now();
         const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-        const atomicUpdates = {};
-        
-        atomicUpdates[`kakao_style/user_rooms/${myId}/${privateRoomId}`] = {
-            roomId: privateRoomId,
-            roomTitle: roomTitleForMe
-        };
-        
-        atomicUpdates[`kakao_style/user_rooms/${targetUid}/${privateRoomId}`] = {
-            roomId: privateRoomId,
-            roomTitle: roomTitleForTarget
-        };
-
-        atomicUpdates[`kakao_style/rooms/${privateRoomId}/meta`] = {
-            lastMessage: "새로운 대화방이 개설되었습니다.",
+        const batch = {};
+        // 내 목록에 방 배정
+        batch[`kakao_style/user_rooms/${myId}/${secureRoomId}`] = { roomId: secureRoomId, roomTitle: roomTitle };
+        // 방 메타 데이터에 타이틀 및 SHA-256 해시 비밀번호 박아두기
+        batch[`kakao_style/rooms/${secureRoomId}/meta`] = {
+            title: roomTitle,
+            lastMessage: "보안 채널이 생성되었습니다.",
             lastTime: timeString,
-            timestamp: now
+            timestamp: now,
+            passwordHash: hashedRoomPass
         };
 
-        database.ref().update(atomicUpdates)
-            .then(() => {
-                database.ref(`kakao_style/rooms/${privateRoomId}/messages`).push({
-                    senderId: "system",
-                    senderName: "시스템",
-                    text: `🔔 ${myName}님이 ${targetUname}님을 초대하여 채널이 생성되었습니다.`,
-                    time: timeString,
-                    timestamp: now
-                });
-
-                alert(`${targetUname}님을 초대했습니다! 바로 대화방으로 진입합니다.`);
-                switchTab('chats');
-                joinChatRoom(privateRoomId, roomTitleForMe);
-            })
-            .catch(err => {
-                console.error("Atomic Session Create Failure:", err);
-                alert("초대 처리 중 일시적인 서버 오류가 발생했습니다.");
+        database.ref().update(batch).then(() => {
+            database.ref(`kakao_style/rooms/${secureRoomId}/messages`).push({
+                senderId: "system", senderName: "시스템", text: `🔒 비밀번호 보안방이 정상 생성되었습니다.`, time: timeString, timestamp: now
             });
+            switchTab('chats');
+            joinChatRoom(secureRoomId, roomTitle);
+        });
     }
 
     function loadChatsTab(container) {
@@ -432,17 +442,41 @@
             const safeTime = escapeHtml(room.meta.lastTime);
 
             item.innerHTML = `
-                <div class="profile-avatar" style="background:#bcccd9;"><i class="fa-regular fa-comment"></i></div>
-                <div class="item-body">
-                    <div class="item-header-line">
-                        <span class="item-name">${safeTitle}</span>
-                        <span class="item-time">${safeTime}</span>
+                <div style="display:flex; align-items:center; gap:12px; flex:1; min-width:0;">
+                    <div class="profile-avatar" style="background:#bcccd9;"><i class="fa-regular fa-comment"></i></div>
+                    <div class="item-body">
+                        <div class="item-header-line">
+                            <span class="item-name">${safeTitle}</span>
+                            <span class="item-time">${safeTime}</span>
+                        </div>
+                        <div class="item-preview">${safeMsg}</div>
                     </div>
-                    <div class="item-preview">${safeMsg}</div>
                 </div>
+                ${room.id !== 'global_public_room' ? `<button class="link-btn" id="link-btn-${room.id}"><i class="fa-solid fa-share-nodes"></i> 초대장</button>` : ''}
             `;
+            
             item.onclick = () => joinChatRoom(room.id, room.title);
+            
+            const lBtn = item.querySelector(`#link-btn-${room.id}`);
+            if(lBtn) {
+                lBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    copyInvitationLink(room.id);
+                };
+            }
             container.appendChild(item);
+        });
+    }
+
+    // 카톡/문자용 외부 외부 공유 링크 복사기
+    function copyInvitationLink(roomId) {
+        // 현재 브라우저 주소 기반 뒤에 ?room=방id를 붙인 초대 URL 제작
+        const inviteUrl = window.location.origin + window.location.pathname + "?room=" + roomId;
+        
+        navigator.clipboard.writeText(inviteUrl).then(() => {
+            alert("📋 카톡/문자용 초대 링크가 복사되었습니다!\n원하는 대화창에 '붙여넣기(Ctrl+V)'해서 친구에게 보내세요.\n\n(※ 방금 설정한 비밀번호도 함께 알려주셔야 친구가 입장할 수 있습니다.)");
+        }).catch(() => {
+            prompt("아래 초대 링크를 수동 복사하세요:", inviteUrl);
         });
     }
 
@@ -450,8 +484,6 @@
         if(msgListener) msgListener.off();
         currentRoomId = roomId;
         currentRoomTitle = roomTitle;
-        localStorage.setItem('chat_roomid_v4', roomId);
-        localStorage.setItem('chat_roomtitle_v4', roomTitle);
 
         document.getElementById('active-room-title').innerText = roomTitle;
         const msgBox = document.getElementById('chat-messages-box');
@@ -473,23 +505,23 @@
     function sendKakaoMsg() {
         const input = document.getElementById('message-input');
         const val = input.value.trim();
-        if(!val) return;
+        if(!val || !currentRoomId) return;
 
         const now = Date.now();
         const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
         const msgPayload = { senderId: myId, senderName: myName, text: val, time: timeString, timestamp: now };
         
         database.ref(`kakao_style/rooms/${currentRoomId}/messages`).push(msgPayload);
-        database.ref(`kakao_style/rooms/${currentRoomId}/meta`).set({ lastMessage: val, lastTime: timeString, timestamp: now });
+        
+        // 메타 업데이트 시 패스워드가 날아가지 않도록 필요한 필드만 조심히 update 처리
+        database.ref(`kakao_style/rooms/${currentRoomId}/meta`).update({ lastMessage: val, lastTime: timeString, timestamp: now });
         input.value = '';
     }
 
-    // [보안 보완] 클라이언트 파일 위변조 방어 강화 파이프라인
     function uploadPhotoPipeline(input) {
         const file = input.files[0];
-        if(!file) return;
+        if(!file || !currentRoomId) return;
 
-        // 1차 필터링: 프론트엔드 MIME 검증 강제화
         if (!file.type.startsWith('image/')) {
             alert("보안 정책상 오직 이미지 파일 포맷만 업로드가 가능합니다.");
             input.value = '';
@@ -504,7 +536,6 @@
             const img = new Image();
             img.src = e.target.result;
             
-            // 2차 필터링: 가짜 이미지 확장자 구조를 가졌거나 손상된 스크립트 인젝션 차단
             img.onerror = () => {
                 alert("보안 위험 요소가 발견되었거나 비정상적인 이미지 객체입니다.");
                 label.innerHTML = `<i class="fa-regular fa-plus-square"></i>`;
@@ -527,16 +558,14 @@
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                // 3차 정화: Canvas 픽셀 재드로잉으로 원본 파일 바이너리에 은닉된 다형성 악성 악성코드 무력화
                 const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.65);
-
                 const now = Date.now();
                 const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
                 
                 database.ref(`kakao_style/rooms/${currentRoomId}/messages`).push({
                     senderId: myId, senderName: myName, text: "📎 사진 전송", fileData: compressedDataUrl, fileName: file.name, time: timeString, timestamp: now
                 });
-                database.ref(`kakao_style/rooms/${currentRoomId}/meta`).set({ lastMessage: "📎 사진을 공유했습니다.", lastTime: timeString, timestamp: now });
+                database.ref(`kakao_style/rooms/${currentRoomId}/meta`).update({ lastMessage: "📎 사진을 공유했습니다.", lastTime: timeString, timestamp: now });
                 
                 label.innerHTML = `<i class="fa-regular fa-plus-square"></i>`;
                 input.value = '';
@@ -603,12 +632,10 @@
         if(activeTab === 'friends') switchTab('friends');
     }
 
-    // [보안 보완] 비동기 SHA-256 구조를 연동한 어드민 검증 프로세스
     async function openAdminMode() {
         const pass = prompt("관리자 암호 입력:");
         if(!pass) return;
 
-        // 입력받은 비밀번호를 해싱하여 결과 비교
         const hashedInput = await computeSHA256(pass);
         if(hashedInput !== ADMIN_PASS_HASH) {
             alert("보안 위반: 권한이 일치하지 않습니다.");

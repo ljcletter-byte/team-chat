@@ -103,7 +103,7 @@
         .message.received { background-color: var(--chat-bg); color: var(--text-main); border-bottom-left-radius: 4px; border: 1px solid var(--border-color); }
         .message-time { font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; }
         
-        /* 📸 이미지 및 다운로드 디자인 */
+        /* 이미지 및 다운로드 디자인 */
         .img-msg-container { display: flex; flex-direction: column; gap: 6px; padding: 2px; }
         .chat-img { max-width: 200px; border-radius: 10px; cursor: pointer; transition: transform 0.2s; }
         .chat-img:hover { transform: scale(1.02); }
@@ -120,7 +120,7 @@
         #img-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; cursor: zoom-out; }
         #img-modal img { max-width: 90%; max-height: 90%; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
         
-        /* 🛠️ 관리자 대시보드 전용 스타일 */
+        /* 관리자 대시보드 전용 스타일 */
         .admin-title { font-weight: bold; font-size: 1rem; color: #1e293b; margin-bottom: 10px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; }
         .room-item { display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 8px; width: 100%; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .room-name { font-weight: 600; color: #334155; font-size: 0.95rem; cursor: pointer; }
@@ -163,7 +163,7 @@
     <div class="chat-messages" id="chat-messages"></div>
     
     <div class="chat-input-area">
-        <label Lifor="file-input" class="file-label" id="file-label" onclick="document.getElementById('file-input').click()"><i class="fa-solid fa-paperclip"></i></label>
+        <label for="file-input" class="file-label" id="file-label" onclick="document.getElementById('file-input').click()"><i class="fa-solid fa-paperclip"></i></label>
         <input type="file" id="file-input" onchange="handleFileSelect(this)">
         
         <input type="text" id="message-input" placeholder="메시지를 입력하세요..." onkeypress="if(event.key==='Enter') handleActionButton()">
@@ -221,10 +221,12 @@
         messageInput.placeholder = "메시지를 입력하세요...";
         fileLabel.style.display = "flex";
 
-        if(msgListener) database.ref(`rooms_v2/${currentRoom}`).off();
-        if(roomsListener) database.ref('rooms_v2').off();
+        // [핵심 수정] 변수가 바뀌기 전, 기존에 켜져있던 리스너 객체를 다이렉트로 완벽하게 종료시킵니다.
+        if(msgListener) msgListener.off();
+        if(roomsListener) roomsListener.off();
         chatMessages.innerHTML = '';
 
+        // 새로운 대화방 리스너 바인딩 및 저장
         msgListener = database.ref(`rooms_v2/${currentRoom}`).limitToLast(50);
         msgListener.on('child_added', (snapshot) => {
             const data = snapshot.val();
@@ -246,8 +248,9 @@
         messageInput.placeholder = "생성할 새 대화방 이름을 입력하세요...";
         fileLabel.style.display = "none";
 
-        if(msgListener) database.ref(`rooms_v2/${currentRoom}`).off();
-        if(roomsListener) database.ref('rooms_v2').off();
+        // [핵심 수정] 관리자 모드로 전환 시에도 이전 채팅방의 리스너를 확실히 제거합니다.
+        if(msgListener) msgListener.off();
+        if(roomsListener) roomsListener.off();
         chatMessages.innerHTML = '<div class="admin-title">📋 개설된 전체 채팅방 목록</div>';
 
         roomsListener = database.ref('rooms_v2');
@@ -292,13 +295,11 @@
         if(!val) return;
 
         if(isAdminMode) {
-            // 관리자 모드일 때는 방 개설
             database.ref(`rooms_v2/${val}`).push({
                 sender: "시스템", text: `✨ [${val}] 방이 개설되었습니다.`, time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
             });
             alert(`[${val}] 방이 생성되었습니다.`);
         } else {
-            // 일반 모드일 때는 대화 전송
             const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
             database.ref(`rooms_v2/${currentRoom}`).push({ sender: myName, text: val, time: timeString });
         }
@@ -323,7 +324,7 @@
         reader.readAsDataURL(file);
     }
 
-    // 화면에 말풍선 그리기 (사진 다운로드 기능 탑재)
+    // 화면에 말풍선 그리기
     function appendMessage(sender, text, type, time, fileData, fileName) {
         const wrapper = document.createElement('div');
         wrapper.classList.add('message-wrapper', type);

@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KakaoT-Style 엔터프라이즈 메신저</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KakaoT-Style 엔터프라이즈 하이브리드 메신저</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -29,6 +29,7 @@
             box-shadow: 0 20px 40px rgba(0,0,0,0.1);
             display: flex; 
             overflow: hidden; 
+            transition: all 0.3s ease;
         }
 
         /* 1단 내비게이션 바 */
@@ -79,11 +80,13 @@
         .empty-placeholder { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 0.85rem; line-height: 1.5; }
 
         /* 3단 메인 대화 영역 */
-        .main-chat { flex: 1; display: flex; flex-direction: column; background-color: var(--kakao-chat-bg); position: relative; }
+        .main-content { flex: 1; display: flex; flex-direction: column; background-color: var(--kakao-chat-bg); position: relative; min-width: 0; }
         .view-panel { display: flex; flex-direction: column; width: 100%; height: 100%; }
 
-        .chat-header { background-color: rgba(255,255,255,0.9); backdrop-filter: blur(5px); padding: 18px 24px; border-bottom: 1px solid rgba(0,0,0,0.05); }
-        .chat-header h2 { font-size: 1rem; font-weight: 700; color: var(--text-main); }
+        .chat-header { background-color: rgba(255,255,255,0.9); backdrop-filter: blur(5px); padding: 18px 24px; border-bottom: 1px solid rgba(0,0,0,0.05); display: flex; align-items: center; gap: 12px; }
+        .chat-header h2 { font-size: 1rem; font-weight: 700; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .back-btn { display: none; background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-main); padding-right: 4px; }
 
         .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
         .msg-row { display: flex; gap: 8px; max-width: 85%; }
@@ -105,28 +108,42 @@
         .msg-time-stamp { font-size: 0.65rem; color: #556677; flex-shrink: 0; margin-bottom: 2px; }
 
         .img-card { display: flex; flex-direction: column; gap: 4px; }
-        .chat-img { max-width: 200px; max-height: 250px; border-radius: 8px; cursor: pointer; object-fit: cover; }
+        .chat-img { max-width: 180px; max-height: 220px; border-radius: 8px; cursor: pointer; object-fit: cover; }
         .download-link { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; text-decoration: none; color: #334155; font-weight: bold; background: rgba(0,0,0,0.05); padding: 4px 8px; border-radius: 4px; width: fit-content; }
 
         .chat-input-area { padding: 16px 20px; background-color: #fff; display: flex; gap: 12px; align-items: center; }
-        #message-input { flex: 1; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 8px; outline: none; font-size: 0.9rem; background-color: #f9f9f9; }
+        #message-input { flex: 1; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 8px; outline: none; font-size: 0.9rem; background-color: #f9f9f9; min-width: 0; }
         #message-input:focus { border-color: #bcccd9; background-color: #fff; }
         
-        .file-label { color: #555; width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+        .file-label { color: #555; width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
         #file-input { display: none; }
-        #send-btn { background-color: var(--kakao-yellow); color: #3c1e1e; border: 1px solid #e2cb00; width: 55px; height: 40px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.85rem; }
-        #send-btn:hover { background-color: #edd300; }
+        #send-btn { background-color: var(--kakao-yellow); color: #3c1e1e; border: 1px solid #e2cb00; width: 55px; height: 40px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.85rem; flex-shrink: 0; }
 
         /* 관리자 모드 기판 */
         .admin-header { background-color: #1e293b; color: white; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; }
         .admin-body { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; background-color: #f1f5f9; }
         .admin-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); }
-        .admin-card h4 { font-size: 0.95rem; margin-bottom: 12px; color: var(--text-main); }
         .admin-room-list { display: flex; flex-direction: column; gap: 8px; }
         .admin-room-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border-color); }
+        .explode-btn { background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: bold; }
 
-        #img-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; cursor: zoom-out; }
+        #img-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 100; justify-content: center; align-items: center; }
         #img-modal img { max-width: 90%; max-height: 90%; border-radius: 8px; }
+
+        /* 모바일 최적화 미디어 쿼리 */
+        @media (max-width: 768px) {
+            body { background: #fff; }
+            .app-container { width: 100vw; height: 100vh; border-radius: 0; box-shadow: none; }
+            .main-content { display: none !important; }
+            .nav-bar { width: 65px; padding: 16px 0; }
+            .sub-sidebar { flex: 1; width: auto; border-right: none; }
+            .app-container.chat-open .nav-bar { display: none !important; }
+            .app-container.chat-open .sub-sidebar { display: none !important; }
+            .app-container.chat-open .main-content { display: flex !important; width: 100% !important; }
+            .back-btn { display: block !important; }
+            .chat-header { padding: 14px 16px; }
+            .chat-input-area { padding: 10px 14px; }
+        }
     </style>
 </head>
 <body>
@@ -136,14 +153,12 @@
 </div>
 
 <div class="app-container">
-    <!-- [1단] 내비게이션 -->
     <div class="nav-bar">
         <div class="nav-item active" id="btn-tab-friends" onclick="switchTab('friends')"><i class="fa-solid fa-user"></i></div>
         <div class="nav-item" id="btn-tab-chats" onclick="switchTab('chats')"><i class="fa-solid fa-comment"></i></div>
         <div class="nav-item" id="btn-tab-admin" onclick="openAdminMode()"><i class="fa-solid fa-gear"></i></div>
     </div>
 
-    <!-- [2단] 사이드바 서브 패널 -->
     <div class="sub-sidebar">
         <div class="sidebar-title-area">
             <h3 id="sidebar-main-title">친구</h3>
@@ -158,17 +173,16 @@
         <div class="list-scroll-area" id="dynamic-list-container"></div>
     </div>
 
-    <!-- [3단] 메인 액션 영역 -->
-    <div class="main-content" style="flex: 1; display: flex; flex-direction: column;">
-        
+    <div class="main-content">
         <div id="panel-chat-view" class="view-panel">
             <div class="chat-header">
+                <button class="back-btn" onclick="closeChatMobile()"><i class="fa-solid fa-chevron-left"></i></button>
                 <h2 id="active-room-title">대화방을 선택해 주세요</h2>
             </div>
             <div class="chat-messages" id="chat-messages-box"></div>
             <div class="chat-input-area">
                 <label for="file-input" class="file-label"><i class="fa-regular fa-plus-square"></i></label>
-                <input type="file" id="file-input" onchange="uploadPhoto(this)">
+                <input type="file" id="file-input" accept="image/*" onchange="uploadPhoto(this)">
                 <input type="text" id="message-input" placeholder="메시지를 입력하세요..." onkeypress="if(event.key==='Enter') sendKakaoMsg()">
                 <button id="send-btn" onclick="sendKakaoMsg()">전송</button>
             </div>
@@ -186,7 +200,6 @@
                 </div>
             </div>
         </div>
-
     </div>
 </div>
 
@@ -202,16 +215,14 @@
 
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
-    const ADMIN_PASS = "1234";
+    const ADMIN_PASS = "1234"; // ⚠️ 주의: 상용화 시 서버 측 Firebase Auth 또는 Cloud Functions로 인증해야 함
 
-    // 💡 [전문가 개선] 유저 고유 ID(UID) 아키텍처 도입으로 이름 변경 시 연동 차단 버그 제거
     let myId = localStorage.getItem('chat_userid_v4') || "u_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
     localStorage.setItem('chat_userid_v4', myId);
 
     let myName = localStorage.getItem('chat_username_v4') || "유저_" + Math.floor(Math.random() * 9000 + 1000);
     localStorage.setItem('chat_username_v4', myName);
 
-    // 전역 기지 상태 관리 메모리 바인딩
     let currentRoomId = localStorage.getItem('chat_roomid_v4') || "global_public_room";
     let currentRoomTitle = localStorage.getItem('chat_roomtitle_v4') || "기본 광장 오픈채팅방";
     
@@ -220,25 +231,35 @@
     let friendsListener = null;
     let roomsListener = null;
     
-    // 💡 [메모리 누수 차단 리스트] 하위 실시간 변동 리스너 트래킹 맵
     let metaListeners = {};
     let roomMetaCache = {};
+
+    // 💡 [전문가 개선] XSS 공격 방어용 전용 문자열 이스케이프 함수 설계
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/&/g, "&amp;")
+                  .replace(/</g, "&lt;")
+                  .replace(/>/g, "&gt;")
+                  .replace(/"/g, "&quot;")
+                  .replace(/'/g, "&#039;");
+    }
 
     function initApplication() {
         document.getElementById('my-name-display').innerText = myName;
         document.getElementById('my-avatar-box').innerText = myName.substring(0, 1);
 
-        // 내 정보를 고유 식별자(UID) 하위에 매핑 등록
         database.ref(`kakao_style/users/${myId}`).set({ id: myId, name: myName, lastSeen: Date.now() });
         
-        // 내 개인 소속 룸에 기본 단체방 강제 포지셔닝
         database.ref(`kakao_style/user_rooms/${myId}/global_public_room`).update({
             roomId: "global_public_room",
             roomTitle: "기본 광장 오픈채팅방"
         });
 
         switchTab(activeTab); 
-        joinChatRoom(currentRoomId, currentRoomTitle);
+        
+        if (window.innerWidth > 768) {
+            joinChatRoom(currentRoomId, currentRoomTitle);
+        }
     }
 
     function switchTab(tabName) {
@@ -246,7 +267,8 @@
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
         document.getElementById(`btn-tab-${tabName}`).classList.add('active');
         
-        // 💡 [좀비 리스너 예방] 이전 동적 바인딩 리스너 메모리 전격 해제
+        closeChatMobile();
+
         if(friendsListener) friendsListener.off();
         if(roomsListener) roomsListener.off();
         Object.keys(metaListeners).forEach(id => metaListeners[id].off());
@@ -270,7 +292,6 @@
         friendsListener.on('value', (snapshot) => {
             container.innerHTML = '';
             
-            // 공용 오픈채팅방 헤더 바인딩
             const publicItem = document.createElement('div');
             publicItem.className = `list-item ${currentRoomId === 'global_public_room' ? 'active' : ''}`;
             publicItem.innerHTML = `
@@ -298,10 +319,13 @@
                 const targetUser = usersData[uid];
                 const item = document.createElement('div');
                 item.className = 'list-item';
+                
+                // 유저 이름도 악성 입력을 대비해 안전하게 인코딩 처리
+                const safeName = escapeHtml(targetUser.name);
                 item.innerHTML = `
-                    <div class="profile-avatar">${targetUser.name.substring(0, 1)}</div>
+                    <div class="profile-avatar">${safeName.substring(0, 1)}</div>
                     <div class="item-body">
-                        <div class="item-name">${targetUser.name}</div>
+                        <div class="item-name">${safeName}</div>
                         <div class="item-preview">클릭하여 1:1 메시지 보내기</div>
                     </div>
                 `;
@@ -311,7 +335,6 @@
         });
     }
 
-    // 💡 [전문가 구현] 카카오톡식 실시간 락(Lock) 구조 + 최신 메시지 순 정렬 알고리즘 탑재
     function loadChatsTab(container) {
         roomsListener = database.ref(`kakao_style/user_rooms/${myId}`);
         roomsListener.on('value', (snapshot) => {
@@ -326,7 +349,6 @@
             roomIds.forEach(rId => {
                 if(!metaListeners[rId]) {
                     metaListeners[rId] = database.ref(`kakao_style/rooms/${rId}/meta`);
-                    // 각 방의 메시지 갱신 시 캐시 업데이트 후 소팅 렌더링 호출 (실시간 리액티브 반응)
                     metaListeners[rId].on('value', (metaSnap) => {
                         const mData = metaSnap.val();
                         roomMetaCache[rId] = mData || { lastMessage: "대화 기록 없음", lastTime: "", timestamp: 0 };
@@ -340,7 +362,6 @@
     function renderSortedChats(container, myRooms) {
         container.innerHTML = '';
         
-        // 💡 [정렬 알고리즘] 카톡 인터페이스 표준 규격에 맞게 타임스탬프 역순(최신 대화순) 정렬
         const sortedList = Object.keys(myRooms).map(rId => ({
             id: rId,
             title: myRooms[rId].roomTitle,
@@ -350,14 +371,19 @@
         sortedList.forEach(room => {
             const item = document.createElement('div');
             item.className = `list-item ${currentRoomId === room.id ? 'active' : ''}`;
+            
+            const safeTitle = escapeHtml(room.title);
+            const safeMsg = escapeHtml(room.meta.lastMessage);
+            const safeTime = escapeHtml(room.meta.lastTime);
+
             item.innerHTML = `
                 <div class="profile-avatar" style="background:#bcccd9;"><i class="fa-regular fa-comment"></i></div>
                 <div class="item-body">
                     <div class="item-header-line">
-                        <span class="item-name">${room.title}</span>
-                        <span class="item-time">${room.meta.lastTime}</span>
+                        <span class="item-name">${safeTitle}</span>
+                        <span class="item-time">${safeTime}</span>
                     </div>
-                    <div class="item-preview">${room.meta.lastMessage}</div>
+                    <div class="item-preview">${safeMsg}</div>
                 </div>
             `;
             item.onclick = () => joinChatRoom(room.id, room.title);
@@ -366,7 +392,6 @@
     }
 
     function openPrivateChat(targetUid, targetUname) {
-        // UID 정렬 조합으로 중복 없는 고유 1:1 세션 룸 ID 취득
         const sortedPair = [myId, targetUid].sort();
         const privateRoomId = `private_${sortedPair[0]}_and_${sortedPair[1]}`;
 
@@ -389,7 +414,8 @@
         const msgBox = document.getElementById('chat-messages-box');
         msgBox.innerHTML = '';
 
-        // 활성화된 방 하이라이트 CSS 즉각 동기화 처리
+        document.querySelector('.app-container').classList.add('chat-open');
+
         document.querySelectorAll('.list-item').forEach(el => {
             const elTitle = el.querySelector('.item-name')?.innerText;
             if(elTitle === roomTitle) el.classList.add('active');
@@ -404,6 +430,11 @@
         });
     }
 
+    function closeChatMobile() {
+        document.querySelector('.app-container').classList.remove('chat-open');
+        document.querySelectorAll('.list-item').forEach(el => el.classList.remove('active'));
+    }
+
     function sendKakaoMsg() {
         const input = document.getElementById('message-input');
         const val = input.value.trim();
@@ -411,11 +442,9 @@
 
         const now = Date.now();
         const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
-        
         const msgPayload = { senderId: myId, senderName: myName, text: val, time: timeString, timestamp: now };
         
         database.ref(`kakao_style/rooms/${currentRoomId}/messages`).push(msgPayload);
-        // 💡 [구조 최적화] 요약본 기록 시 역순 소팅을 위한 고정 타임스탬프 동시 트랜잭션 주입
         database.ref(`kakao_style/rooms/${currentRoomId}/meta`).set({ lastMessage: val, lastTime: timeString, timestamp: now });
 
         input.value = '';
@@ -424,6 +453,13 @@
     function uploadPhoto(input) {
         const file = input.files[0];
         if(!file) return;
+
+        // 💡 [전문가 개선] 데이터베이스 폭파 및 모바일 기기 프리징을 막기 위한 용량 허들 도입
+        if (file.size > 1.5 * 1024 * 1024) { 
+            alert("서버 성능 유지를 위해 1.5MB 이하의 이미지만 전송할 수 있습니다.\n(실제 제품 론칭 시에는 Firebase Storage 서버 연동을 권장합니다.)");
+            input.value = '';
+            return;
+        }
 
         const label = document.querySelector('.file-label');
         label.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
@@ -449,27 +485,33 @@
         const row = document.createElement('div');
         row.className = `msg-row ${type}`;
 
-        let initials = senderName.substring(0, 1);
+        // 💡 [보안 강화] 화면에 출력되는 문자열들을 전면 보안 필터링 가동
+        const safeName = escapeHtml(senderName);
+        const safeText = escapeHtml(text);
+        const safeTime = escapeHtml(time);
+
+        let initials = safeName.substring(0, 1);
         let html = `<div class="profile-avatar">${initials}</div>`;
         html += `<div class="msg-container">`;
         if(type === 'received') {
-            html += `<span class="msg-username">${senderName}</span>`;
+            html += `<span class="msg-username">${safeName}</span>`;
         }
         html += `<div class="msg-bubble-wrap">`;
         html += `<div class="bubble">`;
         
         if(fileData) {
+            // 이미지 데이터는 이스케이프하면 깨지므로 Base64 규격만 삽입하되 다운로드 파일명 등은 필터링
             html += `
                 <div class="img-card">
                     <img src="${fileData}" class="chat-img" onload="scrollChatBottom()" onclick="zoomImg('${fileData}')" alt="이미지">
-                    <a href="${fileData}" download="${fileName || 'download.png'}" class="download-link"><i class="fa-solid fa-download"></i> 다운로드</a>
+                    <a href="${fileData}" download="${escapeHtml(fileName) || 'download.png'}" class="download-link"><i class="fa-solid fa-download"></i> 다운로드</a>
                 </div>`;
         } else {
-            html += text;
+            html += safeText;
         }
         
         html += `</div>`;
-        html += `<span class="msg-time-stamp">${time}</span>`;
+        html += `<span class="msg-time-stamp">${safeTime}</span>`;
         html += `</div></div>`;
 
         row.innerHTML = html;
@@ -495,7 +537,6 @@
             document.getElementById('my-name-display').innerText = myName;
             document.getElementById('my-avatar-box').innerText = myName.substring(0, 1);
             
-            // 고유 식별자 내부의 메타 닉네임 정보만 깔끔하게 동기화 (기존 대화방 파괴 없음)
             database.ref(`kakao_style/users/${myId}`).update({ name: myName });
             if(activeTab === 'friends') switchTab('friends');
         }
@@ -523,7 +564,7 @@
                 const item = document.createElement('div');
                 item.className = 'admin-room-item';
                 item.innerHTML = `
-                    <span><i class="fa-solid fa-link"></i> UID: <b>${id}</b></span>
+                    <span><i class="fa-solid fa-link"></i> UID: <b>${escapeHtml(id)}</b></span>
                     <button class="explode-btn" onclick="systemExplodeRoom('${id}')">세션 파괴</button>
                 `;
                 box.appendChild(item);

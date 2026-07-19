@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Web Messenger</title>
     <!-- Pretendard 원격 폰트 및 FontAwesome 아이콘 -->
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
@@ -39,7 +39,10 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
+            height: 100dvh; /* 모바일 주소창 자동 대응 높이 */
             overflow: hidden;
+            position: fixed; /* 모바일 스크롤 튕김 현상 방지 */
+            width: 100%;
         }
 
         #app {
@@ -53,13 +56,16 @@
             display: flex;
             flex-direction: column;
             border-radius: 12px;
+            overflow: hidden;
         }
 
         @media (max-width: 480px) {
             #app {
                 max-width: 100%;
                 height: 100vh;
+                height: 100dvh; /* 모바일 화면 꽉 채우기 */
                 max-height: 100vh;
+                max-height: 100dvh;
                 border-radius: 0;
             }
         }
@@ -92,6 +98,7 @@
             font-weight: 700;
             color: var(--text-main);
             z-index: 10;
+            flex-shrink: 0;
         }
 
         .header .header-icons i {
@@ -108,6 +115,7 @@
             flex-direction: column;
             justify-content: center;
             padding: 40px 30px;
+            overflow-y: auto;
         }
 
         .auth-title {
@@ -181,9 +189,10 @@
             flex: 1;
             overflow-y: auto;
             background-color: var(--bg-color);
+            -webkit-overflow-scrolling: touch;
         }
 
-        /* 하단 네비게이션 바 */
+        /* 하단 네비게이션 바 (모바일 가려짐 방지 개선) */
         .nav-bar {
             height: 65px;
             background-color: var(--card-bg);
@@ -192,6 +201,9 @@
             justify-content: space-around;
             align-items: center;
             z-index: 10;
+            flex-shrink: 0;
+            padding-bottom: env(safe-area-inset-bottom); /* 아이폰 하단 제스처바 보호 */
+            box-sizing: content-box; 
         }
 
         .nav-item {
@@ -275,7 +287,7 @@
 
         /* 채팅방 화면 전용 */
         #chat-room-screen {
-            background-color: #A9BDCE; /* 카카오톡 스타일 배경색 */
+            background-color: #A9BDCE; 
         }
 
         #chat-room-screen .header {
@@ -289,6 +301,7 @@
             padding: 15px;
             display: flex;
             flex-direction: column;
+            -webkit-overflow-scrolling: touch;
         }
 
         .msg-container {
@@ -350,13 +363,15 @@
             display: block;
         }
 
-        /* 채팅 입력창 */
+        /* 채팅 입력창 (모바일 여백 확보) */
         .chat-input-area {
             padding: 10px 15px;
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
             background-color: var(--card-bg);
             display: flex;
             align-items: center;
             border-top: 1px solid var(--border-color);
+            flex-shrink: 0;
         }
 
         .chat-input-area input[type="text"] {
@@ -440,7 +455,6 @@
             display: inline-block;
         }
 
-        /* 유령 요소 숨김용 */
         .hidden { display: none !important; }
     </style>
 </head>
@@ -485,22 +499,16 @@
         </div>
     </div>
 
-    <!-- 3. 메인 서비스 스크린 (하단 탭 구조 내장) -->
+    <!-- 3. 메인 서비스 스크린 -->
     <div id="main-screen" class="screen">
-        <!-- 메인 상단 헤더 -->
         <div class="header">
             <span id="main-title">친구</span>
-            <div class="header-icons" id="main-header-icons">
-                <!-- 동적으로 아이콘 변경 예정 -->
-            </div>
+            <div class="header-icons" id="main-header-icons"></div>
         </div>
 
-        <!-- 각 탭별 컨텐츠 바디 -->
-        <div class="main-content" id="tab-content">
-            <!-- 자바스크립트가 여기에 탭별 DOM을 빌드 및 스위칭합니다 -->
-        </div>
+        <div class="main-content" id="tab-content"></div>
 
-        <!-- 하단 탭 바 -->
+        <!-- 하단 탭 바 (수정됨) -->
         <div class="nav-bar">
             <div class="nav-item active" onclick="switchTab('friends')" id="nav-friends">
                 <i class="fa-solid fa-user"></i>친구
@@ -523,9 +531,7 @@
             </div>
         </div>
         
-        <div class="message-area" id="msg-box">
-            <!-- 대화 메시지 동적 삽입 -->
-        </div>
+        <div class="message-area" id="msg-box"></div>
 
         <div class="chat-input-area">
             <label for="chat-file" class="chat-file-label" id="file-label">
@@ -545,22 +551,19 @@
     // [중요] 본인의 Firebase 연동 설정 정보를 입력하세요.
     // ==========================================
     const firebaseConfig = {
-        apiKey: "AIzaSyDfACFo9nn2MaJusjlII9y6Wj6QIGuf65g",
-        databaseURL: "https://my-team-chat-2712e-default-rtdb.firebaseio.com",
-        projectId: "my-team-chat-2712e"
+        apiKey: "YOUR_API_KEY_HERE",
+        databaseURL: "YOUR_DATABASE_URL_HERE",
+        projectId: "YOUR_PROJECT_ID_HERE"
     };
     
-    // Firebase 초기화
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    // 전역 상태 변수
-    let currentUser = null;       // 로그인한 사용자 개체 {uid, id, name}
-    let currentTab = 'friends';   // 현재 탭 활성화 상태
-    let currentRoomId = null;     // 현재 입장 중인 채팅방 고유 코드
-    let chatActiveListener = null;// 채팅방 리스너 해제용 포인터
+    let currentUser = null;       
+    let currentTab = 'friends';   
+    let currentRoomId = null;     
+    let chatActiveListener = null;
 
-    // 비밀번호 안전 강화를 위한 SHA-256 단방향 해시 함수
     async function sha256(message) {
         const msgBuffer = new TextEncoder().encode(message);
         const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
@@ -568,15 +571,11 @@
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    // 화면 전환 (로그인 <-> 회원가입 <-> 메인 등)
     function switchScreen(screenId) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         document.getElementById(screenId).classList.add('active');
     }
 
-    // ==========================================
-    // [회원가입 및 로그인 처리 로직]
-    // ==========================================
     async function handleRegister() {
         const id = document.getElementById('reg-id').value.trim();
         const name = document.getElementById('reg-name').value.trim();
@@ -609,11 +608,9 @@
         const hashedPassword = await sha256(pw);
 
         if(id === 'admin-ljc') {
-            // 최고관리자 전용 계정 로그인 검증 개설
             const adminSnap = await database.ref('admin_meta').once('value');
             let systemHash = "";
             if(!adminSnap.exists()) {
-                // 초기 마스터 비밀번호 세팅 (초기 암호: admin1234)
                 systemHash = await sha256("admin1234");
                 await database.ref('admin_meta').set({ master: systemHash });
             } else {
@@ -622,7 +619,6 @@
 
             if(hashedPassword === systemHash) {
                 currentUser = { id: 'admin-ljc', name: '👑 최고관리자' };
-                // 가입 목록에 정보 누락 방지 처리
                 await database.ref('users/admin-ljc').update({ id: 'admin-ljc', name: '👑 최고관리자' });
                 alert('최고 관리자 계정으로 로그인하였습니다.');
                 enterMainSystem();
@@ -632,7 +628,6 @@
             return;
         }
 
-        // 일반 회원 검증
         const snap = await database.ref('users/' + id).once('value');
         if(!snap.exists() || snap.val().password !== hashedPassword) {
             return alert('아이디 또는 비밀번호를 잘못 입력하셨습니다.');
@@ -647,9 +642,6 @@
         switchTab('friends');
     }
 
-    // ==========================================
-    // [메인 탭 컨트롤 및 네비게이션]
-    // ==========================================
     function switchTab(tabName) {
         currentTab = tabName;
         document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
@@ -661,7 +653,6 @@
 
         if(tabName === 'friends') {
             titleEl.textContent = '친구';
-            // 관리자가 아닐 때만 친구 추가 버튼 제공
             if(currentUser.id !== 'admin-ljc') {
                 iconContainer.innerHTML = `<i class="fa-solid fa-user-plus" onclick="promptAddFriend()"></i>`;
             }
@@ -675,14 +666,10 @@
         }
     }
 
-    // ==========================================
-    // 💡 [방법 2 적용] 친구 탭 바인딩 로직 수정
-    // ==========================================
     function loadFriendsTab() {
         const container = document.getElementById('tab-content');
         container.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-sub);">로드 중...</div>';
 
-        // 🌟 분기점: 최고 관리자 계정(admin-ljc)일 때 전체 회원 자동 동기화 🌟
         if (currentUser.id === 'admin-ljc') {
             database.ref('users').on('value', (snapshot) => {
                 if (currentTab !== 'friends') return;
@@ -691,7 +678,6 @@
                 let count = 0;
                 snapshot.forEach((child) => {
                     const user = child.val();
-                    // 본인은 친구 목록에서 제외
                     if (user.id === currentUser.id) return;
 
                     count++;
@@ -712,10 +698,9 @@
                     container.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-sub);">가입된 일반 회원이 없습니다.</div>';
                 }
             });
-            return; // 관리자 전용 로직 완료 후 조기 탈출
+            return;
         }
 
-        // --- 이하 일반 회원 기존의 상호 친구 리스트 처리 로직 ---
         database.ref('friends/' + currentUser.id).on('value', async (snapshot) => {
             if(currentTab !== 'friends') return;
             container.innerHTML = '';
@@ -755,7 +740,6 @@
         });
     }
 
-    // 일반 유저 친구 추가 팝업 처리
     async function promptAddFriend() {
         const targetId = prompt('추가할 친구의 아이디를 정확히 입력해 주세요:');
         if(!targetId) return;
@@ -764,15 +748,11 @@
         const targetSnap = await database.ref('users/' + targetId).once('value');
         if(!targetSnap.exists()) return alert('존재하지 않는 사용자 아이디입니다.');
 
-        // 상대방에게 수락 대기 형태로 바로 데이터 저장 구조 생성
         await database.ref(`friends/${currentUser.id}/${targetId}`).set({ status: 'accepted' });
         await database.ref(`friends/${targetId}/${currentUser.id}`).set({ status: 'accepted' });
         alert(`${targetSnap.val().name}님과 친구가 완료되었습니다!`);
     }
 
-    // ==========================================
-    // [채팅 목록 및 대화 프로세스]
-    // ==========================================
     function loadChatsTab() {
         const container = document.getElementById('tab-content');
         container.innerHTML = '';
@@ -809,11 +789,9 @@
     }
 
     async function startChatWith(targetId, targetName) {
-        // 단대단 대방 룸 해시 코드 획득 알고리즘 (순서 정렬 병합 복합 연산)
         const sortedIds = [currentUser.id, targetId].sort();
         const combinedRoomId = 'room_' + sortedIds[0] + '_' + sortedIds[1];
 
-        // 대화 생성 트래킹 정보 갱신
         await database.ref(`user_rooms/${currentUser.id}/${combinedRoomId}`).update({ roomTitle: targetName });
         await database.ref(`user_rooms/${targetId}/${combinedRoomId}`).update({ roomTitle: currentUser.name });
 
@@ -828,7 +806,6 @@
         const msgBox = document.getElementById('msg-box');
         msgBox.innerHTML = '';
 
-        // 기존 바인딩 리스너 정리
         if(chatActiveListener) database.ref('rooms/' + currentRoomId).off('value', chatActiveListener);
 
         chatActiveListener = database.ref('rooms/' + currentRoomId).on('value', (snapshot) => {
@@ -889,8 +866,6 @@
 
         await database.ref('rooms/' + currentRoomId).push(msgData);
         
-        // 멀티캐스팅 목록 메타 정보 실시간 동기화
-        const roomRef = 'rooms/' + currentRoomId;
         database.ref('user_rooms').once('value', snapshot => {
             snapshot.forEach(userSnap => {
                 if(userSnap.hasChild(currentRoomId)) {
@@ -905,7 +880,6 @@
         input.value = '';
     }
 
-    // 캔버스를 활용한 클라이언트 사이드 고속 대용량 이미지 리사이징 압축 모듈
     function handleImageUpload(input) {
         if(!input.files || !input.files[0]) return;
         const file = input.files[0];
@@ -932,7 +906,6 @@
                 canvas.height = height;
                 canvas.getContext('2d').drawImage(img, 0, 0, width, height);
 
-                // 고강도 최적화 압축 (JPEG, 퀄리티 0.5스펙 하향 조절을 통해 Firebase 용량 점유 방지)
                 const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
 
                 const msgData = {
@@ -964,9 +937,6 @@
         reader.readAsDataURL(file);
     }
 
-    // ==========================================
-    // [설정 탭 및 관리자 인프라 패널 제어]
-    // ==========================================
     function loadSettingsTab() {
         const container = document.getElementById('tab-content');
         container.innerHTML = `
@@ -1037,7 +1007,6 @@
             </div>
         `;
 
-        // 가입 회원 목록 로딩 구문
         database.ref('users').once('value', (snapshot) => {
             const listEl = document.getElementById('admin-user-list');
             listEl.innerHTML = '';
@@ -1069,7 +1038,6 @@
         if(userId === 'admin-ljc') return alert('최고 관리자 계정은 삭제할 수 없습니다.');
         if(!confirm(`[경고] 정말로 ${userId} 유저를 강제 퇴장 및 삭제 처리하시겠습니까?`)) return;
 
-        // 원자적 연산 삭제 일괄 처리 (사용자 정보, 친구 매핑 테이블 초기화)
         await database.ref('users/' + userId).remove();
         await database.ref('friends/' + userId).remove();
         await database.ref('user_rooms/' + userId).remove();

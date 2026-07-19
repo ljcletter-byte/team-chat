@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KakaoT-Style 메신저 Enterprise v16 - Complete Auth</title>
+    <title>KakaoT-Style 메신저 Enterprise v17 - Private Only</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -21,7 +21,7 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Pretendard Variable", Pretendard, sans-serif; }
         body { display: flex; justify-content: center; align-items: center; height: 100vh; background: #eef2f5; }
         
-        /* [신설] 회원가입 및 로그인 통합 인증 레이어 */
+        /* 회원가입 및 로그인 통합 인증 레이어 */
         .auth-overlay {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background-color: #f5f6f7; z-index: 1000;
@@ -195,7 +195,7 @@
 </head>
 <body>
 
-<!-- [신설] 사용자 로그인 및 회원가입 인증 화면 오버레이 -->
+<!-- 사용자 로그인 및 회원가입 인증 화면 오버레이 -->
 <div id="auth-overlay-layer" class="auth-overlay">
     <div class="auth-box">
         <h2>KakaoT Messenger</h2>
@@ -336,7 +336,6 @@
         });
     }
 
-    // [신설] 인증 모드 토글 (로그인 <-> 회원가입)
     function toggleAuthMode(toRegister) {
         isRegisterMode = toRegister;
         const nameInput = document.getElementById('auth-username-input');
@@ -356,7 +355,6 @@
         }
     }
 
-    // [신설] 로그인 및 회원가입 핵심 인증 연동 로직
     async function executeLoginWorkflow() {
         const idInput = document.getElementById('auth-userid-input').value.trim();
         const pwInput = document.getElementById('auth-password-input').value.trim();
@@ -366,7 +364,6 @@
             return alert("아이디와 비밀번호를 모두 입력해 주세요.");
         }
         
-        // 아이디 규칙 검증 (특수문자 제외)
         const idRegex = /^[a-zA-Z0-9_\-]+$/;
         if (!idRegex.test(idInput)) {
             return alert("아이디는 영문, 숫자, 하이픈(-), 언더바(_)만 사용할 수 있습니다.");
@@ -377,7 +374,6 @@
         const userSnap = await userRef.once('value');
 
         if (isRegisterMode) {
-            // 회원가입 모드
             if (userSnap.exists()) {
                 return alert("이미 존재하는 아이디입니다. 다른 아이디를 사용해 주세요.");
             }
@@ -396,7 +392,6 @@
             myId = idInput;
             myName = nameInput;
         } else {
-            // 로그인 모드
             if (!userSnap.exists()) {
                 return alert("존재하지 않는 아이디입니다. 회원가입을 먼저 진행해 주세요.");
             }
@@ -411,7 +406,6 @@
             await userRef.update({ lastSeen: Date.now() });
         }
 
-        // 로컬 스토리지에 세션 저장 및 메인 앱 구동
         localStorage.setItem('chat_userid_v4', myId);
         localStorage.setItem('chat_username_v4', myName);
         
@@ -420,7 +414,6 @@
     }
 
     async function initApplication() {
-        // 세션 검증: 세션 데이터가 없으면 로그인 창 활성화 후 정지
         if (!myId || !myName) {
             document.getElementById('auth-overlay-layer').style.display = 'flex';
             toggleAuthMode(false);
@@ -460,23 +453,15 @@
                         joinChatRoom(invitedRoomId, roomInfo.title);
                         return;
                     } else {
-                        alert("보안 오류: 비밀번호가 일치하지 않습니다. 광장방으로 이동합니다.");
+                        alert("보안 오류: 비밀번호가 일치하지 않습니다.");
                     }
                 }
             } else {
                 alert("존재하지 않거나 파괴된 대화방 링크입니다.");
             }
         }
-
-        database.ref(`kakao_style/user_rooms/${myId}/global_public_room`).update({
-            roomId: "global_public_room",
-            roomTitle: "기본 광장 오픈채팅방"
-        });
         
         switchTab(activeTab); 
-        if (window.innerWidth > 768) {
-            joinChatRoom("global_public_room", "기본 광장 오픈채팅방");
-        }
     }
 
     function clearSessionLogout() {
@@ -549,24 +534,9 @@
     }
 
     function loadFriendsTab(container) {
-        const renderPublicRoom = () => {
-            const publicItem = document.createElement('div');
-            publicItem.className = `list-item ${currentRoomId === 'global_public_room' ? 'active' : ''}`;
-            publicItem.innerHTML = `
-                <div class="profile-avatar" style="background:#ffeb3b;"><i class="fa-solid fa-comments"></i></div>
-                <div class="item-body">
-                    <div class="item-name">기본 광장 오픈채팅방</div>
-                    <div class="item-preview">누구나 참여 가능한 전체 공개 스페이스</div>
-                </div>
-            `;
-            publicItem.onclick = () => joinChatRoom('global_public_room', '기본 광장 오픈채팅방');
-            container.appendChild(publicItem);
-        };
-
         relationshipListener = database.ref(`kakao_style/friends_relations/${myId}`);
         relationshipListener.on('value', async (snapshot) => {
             container.innerHTML = '';
-            renderPublicRoom();
 
             const relations = snapshot.val() || {};
             const targetIds = Object.keys(relations);
@@ -715,6 +685,11 @@
             meta: roomMetaCache[rId] || { lastMessage: "대화 기록 없음", lastTime: "", timestamp: 0 }
         })).sort((a, b) => b.meta.timestamp - a.meta.timestamp);
 
+        if(sortedList.length === 0) {
+            container.innerHTML = '<div class="empty-placeholder">참여 중인 대화방이 없습니다.</div>';
+            return;
+        }
+
         sortedList.forEach(room => {
             const item = document.createElement('div');
             item.className = `list-item ${currentRoomId === room.id ? 'active' : ''}`;
@@ -733,7 +708,7 @@
                         <div class="item-preview">${safeMsg}</div>
                     </div>
                 </div>
-                ${room.id !== 'global_public_room' ? `<button class="link-btn" id="link-btn-${room.id}"><i class="fa-solid fa-share-nodes"></i> 초대장</button>` : ''}
+                <button class="link-btn" id="link-btn-${room.id}"><i class="fa-solid fa-share-nodes"></i> 초대장</button>
             `;
             
             item.onclick = () => joinChatRoom(room.id, room.title);
@@ -777,11 +752,11 @@
         activeRoomCheckListener.on('value', (snapshot) => {
             const meta = snapshot.val();
             
-            if (!snapshot.exists() && roomId !== 'global_public_room') {
+            if (!snapshot.exists()) {
                 database.ref(`kakao_style/user_rooms/${myId}/${roomId}`).remove();
                 alert("🚨 대화방이 존재하지 않거나 강퇴되었습니다.");
                 currentRoomId = "";
-                joinChatRoom('global_public_room', '기본 광장 오픈채팅방');
+                document.getElementById('active-room-title').innerText = "대화방을 선택해 주세요";
                 if (activeTab === 'chats') switchTab('chats');
                 return;
             }
@@ -800,7 +775,7 @@
     }
 
     function explodeActiveRoom() {
-        if (!currentRoomId || currentRoomId === 'global_public_room') return;
+        if (!currentRoomId) return;
         
         if (confirm("🚨 정말로 이 채팅방을 파괴하겠습니까?")) {
             const targetExplodeId = currentRoomId;

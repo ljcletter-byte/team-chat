@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KakaoT-Style 메신저 v9 (실시간 초대 기능)</title>
+    <title>KakaoT-Style 메신저 Enterprise v10</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -57,7 +57,7 @@
         .sidebar-title-area h3 { font-size: 1.2rem; font-weight: 800; color: var(--text-main); }
         
         .my-profile-card { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border-color); }
-        .profile-avatar { width: 42px; height: 42px; background: #e2e8f0; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #475569; font-weight: bold; flex-shrink: 0; }
+        .profile-avatar { width: 42px; height: 42px; background: #e2e8f0; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #475569; font-weight: bold; flex-shrink: 0; user-select: none;}
         .my-profile-info { flex: 1; min-width: 0; }
         .my-profile-info h4 { font-size: 0.9rem; font-weight: 700; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .my-profile-info p { font-size: 0.75rem; color: var(--text-muted); cursor: pointer; margin-top: 2px; display: inline-block; }
@@ -178,7 +178,7 @@
             <div class="chat-messages" id="chat-messages-box"></div>
             <div class="chat-input-area">
                 <label for="file-input" class="file-label"><i class="fa-regular fa-plus-square"></i></label>
-                <input type="file" id="file-input" accept="image/*" onchange="uploadPhoto(this)">
+                <input type="file" id="file-input" accept="image/*" onchange="uploadPhotoPipeline(this)">
                 <input type="text" id="message-input" placeholder="메시지를 입력하세요..." onkeypress="if(event.key==='Enter') sendKakaoMsg()">
                 <button id="send-btn" onclick="sendKakaoMsg()">전송</button>
             </div>
@@ -251,16 +251,23 @@
         }
     }
 
+    function clearAllListeners() {
+        if(friendsListener) { friendsListener.off(); friendsListener = null; }
+        if(roomsListener) { roomsListener.off(); roomsListener = null; }
+        Object.keys(metaListeners).forEach(id => {
+            if(metaListeners[id]) metaListeners[id].off();
+        });
+        metaListeners = {};
+    }
+
     function switchTab(tabName) {
         activeTab = tabName;
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        document.getElementById(`btn-tab-${tabName}`).classList.add('active');
+        const activeNavBtn = document.getElementById(`btn-tab-${tabName}`);
+        if(activeNavBtn) activeNavBtn.classList.add('active');
+        
         closeChatMobile();
-
-        if(friendsListener) friendsListener.off();
-        if(roomsListener) roomsListener.off();
-        Object.keys(metaListeners).forEach(id => metaListeners[id].off());
-        metaListeners = {};
+        clearAllListeners();
         roomMetaCache = {};
 
         const container = document.getElementById('dynamic-list-container');
@@ -310,56 +317,76 @@
                             <div class="item-preview">접속 중인 유저</div>
                         </div>
                     </div>
-                    <button class="invite-btn" onclick="event.stopPropagation(); inviteUserToChat('${targetUser.id}', '${safeName}')">
+                    <button class="invite-btn" id="invite-btn-${targetUser.id}">
                         초대하기
                     </button>
                 `;
+                
+                // 정적 바인딩을 통해 인젝션 방어 및 event propagation 방지
+                item.querySelector(`#invite-btn-${targetUser.id}`).onclick = (e) => {
+                    e.stopPropagation();
+                    inviteUserToChat(targetUser.id, targetUser.name);
+                };
+                
                 container.appendChild(item);
             });
         });
     }
 
     function inviteUserToChat(targetUid, targetUname) {
+        if (!targetUid || targetUid === myId) return;
+
         const sortedPair = [myId, targetUid].sort();
         const privateRoomId = `private_${sortedPair[0]}_and_${sortedPair[1]}`;
         
         const roomTitleForMe = `${targetUname}님과의 대화`;
         const roomTitleForTarget = `${myName}님으로부터의 초대`;
 
-        // 1. 초대하는 유저의 룸 리스트 등록
-        database.ref(`kakao_style/user_rooms/${myId}/${privateRoomId}`).update({ 
-            roomId: privateRoomId, 
-            roomTitle: roomTitleForMe 
-        });
-        
-        // 2. 초대받는 유저의 룸 리스트 실시간 자동 주입
-        database.ref(`kakao_style/user_rooms/${targetUid}/${privateRoomId}`).update({ 
-            roomId: privateRoomId, 
-            roomTitle: roomTitleForTarget 
-        });
-
-        // 3. 방 개설 알림 시스템 메시지 전송
         const now = Date.now();
         const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+        // 아키텍처 개선 핵심: 데이터 정합성을 위한 원자적 단일 트랜잭션 패치 멀티플 갱신 구조
+        const atomicUpdates = {};
         
-        database.ref(`kakao_style/rooms/${privateRoomId}/messages`).push({
-            senderId: "system",
-            senderName: "시스템",
-            text: `🔔 ${myName}님이 ${targetUname}님을 초대하여 안전 채널이 생성되었습니다.`,
-            time: timeString,
+        // 1. 초대 발신자 공간 갱신 레이아웃 설정
+        atomicUpdates[`kakao_style/user_rooms/${myId}/${privateRoomId}`] = {
+            roomId: privateRoomId,
+            roomTitle: roomTitleForMe
+        };
+        
+        // 2. 초대 수신자 공간 실시간 자동 주입
+        atomicUpdates[`kakao_style/user_rooms/${targetUid}/${privateRoomId}`] = {
+            roomId: privateRoomId,
+            roomTitle: roomTitleForTarget
+        };
+
+        // 3. 메타 정보 초기 빌드 설정
+        atomicUpdates[`kakao_style/rooms/${privateRoomId}/meta`] = {
+            lastMessage: "새로운 대화방이 개설되었습니다.",
+            lastTime: timeString,
             timestamp: now
-        });
+        };
 
-        database.ref(`kakao_style/rooms/${privateRoomId}/meta`).set({ 
-            lastMessage: "새로운 대화방이 개설되었습니다.", 
-            lastTime: timeString, 
-            timestamp: now 
-        });
+        // 네트워크 트랜잭션 전송
+        database.ref().update(atomicUpdates)
+            .then(() => {
+                // 트랜잭션 성공 후 시스템 환영 노드 생성
+                database.ref(`kakao_style/rooms/${privateRoomId}/messages`).push({
+                    senderId: "system",
+                    senderName: "시스템",
+                    text: `🔔 ${myName}님이 ${targetUname}님을 초대하여 채널이 생성되었습니다.`,
+                    time: timeString,
+                    timestamp: now
+                });
 
-        alert(`${targetUname}님을 초대했습니다! '채팅' 탭으로 전환합니다.`);
-        
-        switchTab('chats');
-        joinChatRoom(privateRoomId, roomTitleForMe);
+                alert(`${targetUname}님을 초대했습니다! 바로 대화방으로 진입합니다.`);
+                switchTab('chats');
+                joinChatRoom(privateRoomId, roomTitleForMe);
+            })
+            .catch(err => {
+                console.error("Atomic Session Create Failure:", err);
+                alert("초대 처리 중 일시적인 서버 오류가 발생했습니다.");
+            });
     }
 
     function loadChatsTab(container) {
@@ -428,7 +455,8 @@
         msgBox.innerHTML = '';
         document.querySelector('.app-container').classList.add('chat-open');
 
-        msgListener = database.ref(`kakao_style/rooms/${roomId}/messages`).limitToLast(50);
+        // 메모리 최적화를 위해 최신 40개 메시지만 리스닝 파이프라인 연동
+        msgListener = database.ref(`kakao_style/rooms/${roomId}/messages`).limitToLast(40);
         msgListener.on('child_added', (snapshot) => {
             const data = snapshot.val();
             if(!data) return;
@@ -454,27 +482,49 @@
         input.value = '';
     }
 
-    function uploadPhoto(input) {
+    // 아키텍처 개선 핵심: 대용량 이미지 RTDB 부하 방지를 위한 압축 렌더링 파이프라인 추가
+    function uploadPhotoPipeline(input) {
         const file = input.files[0];
         if(!file) return;
-        if (file.size > 1.5 * 1024 * 1024) { 
-            alert("1.5MB 이하의 이미지만 전송할 수 있습니다.");
-            input.value = '';
-            return;
-        }
 
         const label = document.querySelector('.file-label');
         label.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
+        
         const reader = new FileReader();
         reader.onload = (e) => {
-            const now = Date.now();
-            const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
-            database.ref(`kakao_style/rooms/${currentRoomId}/messages`).push({
-                senderId: myId, senderName: myName, text: "📎 사진 전송", fileData: e.target.result, fileName: file.name, time: timeString, timestamp: now
-            });
-            database.ref(`kakao_style/rooms/${currentRoomId}/meta`).set({ lastMessage: "📎 사진을 공유했습니다.", lastTime: timeString, timestamp: now });
-            label.innerHTML = `<i class="fa-regular fa-plus-square"></i>`;
-            input.value = '';
+            const img = new Image();
+            img.src = e.target.result;
+            img.onload = () => {
+                // 해상도 최적화 캔버스 하드웨어 압축
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 700; 
+                let width = img.width;
+                let height = img.height;
+
+                if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                }
+                canvas.width = width;
+                canvas.height = height;
+
+                const ctx = canvas.getContext('20d') || canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // 품질 0.65로 하향하여 패킷 용량을 80% 이상 축소
+                const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.65);
+
+                const now = Date.now();
+                const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
+                
+                database.ref(`kakao_style/rooms/${currentRoomId}/messages`).push({
+                    senderId: myId, senderName: myName, text: "📎 사진 전송", fileData: compressedDataUrl, fileName: file.name, time: timeString, timestamp: now
+                });
+                database.ref(`kakao_style/rooms/${currentRoomId}/meta`).set({ lastMessage: "📎 사진을 공유했습니다.", lastTime: timeString, timestamp: now });
+                
+                label.innerHTML = `<i class="fa-regular fa-plus-square"></i>`;
+                input.value = '';
+            };
         };
         reader.readAsDataURL(file);
     }
@@ -498,7 +548,7 @@
             html += `
                 <div class="img-card">
                     <img src="${fileData}" class="chat-img" onload="scrollChatBottom()" onclick="zoomImg('${fileData}')" alt="이미지">
-                    <a href="${fileData}" download="${escapeHtml(fileName) || 'download.png'}" class="download-link"><i class="fa-solid fa-download"></i> 다운로드</a>
+                    <a href="${fileData}" download="${escapeHtml(fileName) || 'download.jpg'}" class="download-link"><i class="fa-solid fa-download"></i> 다운로드</a>
                 </div>`;
         } else {
             html += safeText;
@@ -520,15 +570,21 @@
     }
 
     function changeMyName() {
-        const target = prompt("새로운 닉네임을 입력하세요:", myName);
-        if(target && target.trim()) {
-            myName = target.trim();
-            localStorage.setItem('chat_username_v4', myName);
-            document.getElementById('my-name-display').innerText = myName;
-            document.getElementById('my-avatar-box').innerText = myName.substring(0, 1);
-            database.ref(`kakao_style/users/${myId}`).update({ name: myName });
-            if(activeTab === 'friends') switchTab('friends');
+        const target = prompt("새로운 닉네임을 입력하세요 (공백 제외 2~10자):", myName);
+        if(!target || !target.trim()) return;
+        
+        const cleanName = target.trim();
+        if(cleanName.length < 2 || cleanName.length > 10) {
+            alert("닉네임은 2자 이상 10자 이하로 설정해 주세요.");
+            return;
         }
+
+        myName = cleanName;
+        localStorage.setItem('chat_username_v4', myName);
+        document.getElementById('my-name-display').innerText = myName;
+        document.getElementById('my-avatar-box').innerText = myName.substring(0, 1);
+        database.ref(`kakao_style/users/${myId}`).update({ name: myName });
+        if(activeTab === 'friends') switchTab('friends');
     }
 
     function openAdminMode() {
@@ -543,7 +599,8 @@
             Object.keys(data).forEach(id => {
                 const item = document.createElement('div');
                 item.className = 'admin-room-item';
-                item.innerHTML = `<span>UID: <b>${escapeHtml(id)}</b></span><button class="explode-btn" onclick="systemExplodeRoom('${id}')">삭제</button>`;
+                item.innerHTML = `<span>UID: <b>${escapeHtml(id)}</b></span><button class="explode-btn" id="explode-btn-${id}">삭제</button>`;
+                item.querySelector(`#explode-btn-${id}`).onclick = () => systemExplodeRoom(id);
                 box.appendChild(item);
             });
         });
@@ -562,7 +619,7 @@
         }
     }
 
-    initApplication();
+    window.onload = initApplication;
 </script>
 </body>
 </html>

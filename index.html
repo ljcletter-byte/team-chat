@@ -3,74 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>실시간 팀 메신저 (초간편 파일 전송)</title>
+    <title>보안 특화 실시간 P2P 팀 메신저</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
         body { display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f2f5; }
         .chat-container { width: 450px; height: 600px; background-color: white; border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; overflow: hidden; }
-        .chat-header { background-color: #4f46e5; color: white; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
-        .chat-header.admin-mode { background-color: #dc2626; }
+        .chat-header { background-color: #0f172a; color: white; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
         .header-top { display: flex; justify-content: space-between; align-items: center; }
-        .header-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; background: rgba(255,255,255,0.15); padding: 6px 10px; border-radius: 6px; }
-        .change-btn { background: rgba(255,255,255,0.3); border: none; color: white; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
-        .change-btn:hover { background: rgba(255,255,255,0.5); }
+        .header-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 6px 10px; border-radius: 6px; }
+        .change-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
+        .change-btn:hover { background: rgba(255,255,255,0.4); }
         .chat-messages { flex: 1; padding: 16px; overflow-y: auto; background-color: #f8fafc; display: flex; flex-direction: column; gap: 12px; }
         
-        /* 메시지 스타일 */
         .message-wrapper { display: flex; flex-direction: column; max-width: 75%; }
         .message-wrapper.sent { align-self: flex-end; align-items: flex-end; }
         .message-wrapper.received { align-self: flex-start; align-items: flex-start; }
         .message-sender { font-size: 0.75rem; font-weight: bold; margin-bottom: 4px; color: #64748b; }
         .message { padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; word-break: break-all; }
-        .message.sent { background-color: #4f46e5; color: white; border-bottom-right-radius: 2px; }
+        .message.sent { background-color: #0f172a; color: white; border-bottom-right-radius: 2px; }
         .message.received { background-color: #e2e8f0; color: #1e293b; border-bottom-left-radius: 2px; }
         .message-time { font-size: 0.65rem; color: #94a3b8; margin-top: 2px; }
         
-        /* 파일/이미지 첨부 스타일 */
-        .chat-img { max-width: 100%; border-radius: 8px; margin-top: 4px; cursor: pointer; max-height: 200px; object-fit: cover; }
-        .file-link { color: #4f46e5; text-decoration: underline; font-weight: bold; display: inline-block; margin-top: 4px; cursor: pointer; }
-        .message.sent .file-link { color: #ffff00; }
+        /* P2P 파일 전송 디자인 */
+        .p2p-box { background: #f1f5f9; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 8px; margin-top: 4px; text-align: center; }
+        .message.sent .p2p-box { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3); }
+        .p2p-btn { background: #10b981; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold; margin-top: 4px; display: inline-block; text-decoration: none; }
+        .progress-bar { width: 100%; background: #e2e8f0; height: 6px; border-radius: 3px; margin-top: 4px; overflow: hidden; display: none; }
+        .progress-fill { height: 100%; background: #10b981; width: 0%; }
 
-        /* 관리자 스타일 */
-        .admin-title { font-weight: bold; font-size: 1rem; color: #1e293b; margin-bottom: 10px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; }
-        .room-item { display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px; }
-        .room-name { font-weight: 600; color: #334155; font-size: 0.95rem; }
-        .room-delete-btn { background-color: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
-        
-        /* 입력 영역 */
         .chat-input-area { padding: 16px; background-color: white; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; align-items: center; }
         #message-input { flex: 1; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; }
         .file-label { background-color: #e2e8f0; color: #475569; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 1.1rem; user-select: none; }
-        .file-label:hover { background-color: #cbd5e1; }
         #file-input { display: none; }
-        #send-btn { background-color: #4f46e5; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-        #send-btn.admin-btn { background-color: #dc2626; }
+        #send-btn { background-color: #0f172a; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        
+        .status-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+        .status-badge.online { background: #10b981; color: white; }
+        .status-badge.offline { background: #94a3b8; color: white; }
     </style>
 </head>
 <body>
 
 <div class="chat-container">
-    <div class="chat-header" id="chat-header">
+    <div class="chat-header">
         <div class="header-top">
             <h2 id="room-display">🚪 방 로딩 중...</h2>
-            <button class="change-btn" onclick="changeRoom()">방 변경</button>
+            <span id="p2p-status" class="status-badge offline">다이렉트 대기중</span>
         </div>
         <div class="header-bottom">
             <span>내 이름: <b id="user-display"></b></span>
-            <button class="change-btn" onclick="changeName()">이름 변경</button>
+            <button class="change-btn" onclick="changeRoom()">방 변경</button>
         </div>
     </div>
     <div class="chat-messages" id="chat-messages"></div>
     <div class="chat-input-area">
-        <label for="file-input" class="file-label" id="file-label">📎</label>
-        <input type="file" id="file-input" onchange="handleFileSelect(this)">
+        <label for="file-input" class="file-label">📎</label>
+        <input type="file" id="file-input" onchange="startP2PFileTransfer(this)">
         
         <input type="text" id="message-input" placeholder="메시지를 입력하세요..." onkeypress="handleKeyPress(event)">
-        <button id="send-btn" onclick="handleActionButton()">전송</button>
+        <button id="send-btn" onclick="sendMessage()">전송</button>
     </div>
 </div>
 
-<!-- Firebase SDK 로드 -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
@@ -84,264 +78,269 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    const ADMIN_PASSWORD = "1234";
-    let myName = localStorage.getItem('chat_username');
-    let currentRoom = localStorage.getItem('chat_roomname');
-    let messageListener = null;
-    let roomsListener = null;
-    let isAdminMode = false;
+    let myName = localStorage.getItem('chat_username') || "사용자_" + Math.floor(Math.random() * 1000);
+    localStorage.setItem('chat_username', myName);
+    let currentRoom = localStorage.getItem('chat_roomname') || "기본방";
+    localStorage.setItem('chat_roomname', currentRoom);
 
-    function initChat() {
-        if (!myName) {
-            myName = prompt("메신저에서 사용할 이름을 입력해주세요:") || "익명" + Math.floor(Math.random() * 1000);
-            localStorage.setItem('chat_username', myName);
-        }
-        document.getElementById('user-display').innerText = myName;
-
-        if (!currentRoom) {
-            currentRoom = "기본방";
-            localStorage.setItem('chat_roomname', currentRoom);
-        }
-
-        if (currentRoom === "시스템관리자") {
-            enterAdminMode();
-        } else {
-            document.getElementById('room-display').innerText = "💬 " + currentRoom;
-            loadMessages();
-        }
-    }
+    document.getElementById('user-display').innerText = myName;
+    document.getElementById('room-display').innerText = "💬 " + currentRoom;
 
     const chatMessages = document.getElementById('chat-messages');
     const messageInput = document.getElementById('message-input');
-    const chatHeader = document.getElementById('chat-header');
-    const sendBtn = document.getElementById('send-btn');
-    const fileLabel = document.getElementById('file-label');
+    const p2pStatus = document.getElementById('p2p-status');
 
-    function loadMessages() {
-        isAdminMode = false;
-        chatHeader.classList.remove('admin-mode');
-        sendBtn.classList.remove('admin-btn');
-        sendBtn.innerText = "전송";
-        messageInput.placeholder = "메시지를 입력하세요...";
-        fileLabel.style.display = "block";
+    // WebRTC P2P 핵심 변수들
+    let peerConnection;
+    let dataChannel;
+    const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }; // 구글 무료 연결 매칭 서버
 
-        if (messageListener) database.ref('rooms/' + currentRoom).off();
-        if (roomsListener) database.ref('rooms').off();
-        
-        chatMessages.innerHTML = '';
-
-        messageListener = database.ref('rooms/' + currentRoom).limitToLast(30);
-        messageListener.on('child_added', (snapshot) => {
+    // 1. 메시지 실시간 수신 및 WebRTC 시그널링 채널 개설
+    function initMessenger() {
+        // 일반 텍스트 대화 수신
+        database.ref(`p2p_rooms/${currentRoom}/messages`).limitToLast(30).on('child_added', (snapshot) => {
             const data = snapshot.val();
-            if(!data || !data.sender) return;
-            
-            const isMe = data.sender === myName;
-            const timeString = new Date(data.timestamp).toLocaleTimeString('ko-KR', {
-                hour: '2-digit', minute: '2-digit', hour12: true
-            });
+            if(data.sender === myName) return;
+            appendMessage(data.sender, data.text, 'received', data.time);
+        });
 
-            appendMessage(data.sender, data.text, isMe ? 'sent' : 'received', timeString, data.fileData, data.fileType, data.fileName);
-            autoScroll();
+        // WebRTC 연결 신호 감시
+        database.ref(`p2p_rooms/${currentRoom}/signal`).on('value', async (snapshot) => {
+            const signal = snapshot.val();
+            if (!signal || signal.sender === myName) return;
+
+            if (signal.type === 'offer') {
+                await handleOffer(signal.sdp);
+            } else if (signal.type === 'answer') {
+                await handleAnswer(signal.sdp);
+            } else if (signal.type === 'candidate' && peerConnection) {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
+            }
+        });
+        
+        setupPeer();
+    }
+
+    // WebRTC 객체 초기 생성 및 이벤트 설정
+    function setupPeer() {
+        peerConnection = new RTCPeerConnection(rtcConfig);
+
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                database.ref(`p2p_rooms/${currentRoom}/signal`).set({
+                    type: 'candidate', sender: myName, candidate: event.json()
+                });
+            }
+        };
+
+        // 상대방이 파일을 보내기 위해 채널을 열었을 때 감지
+        peerConnection.ondatachannel = (event) => {
+            dataChannel = event.channel;
+            setupDataChannelEvents();
+        };
+    }
+
+    // 데이터 채널(파일 통로) 이벤트 셋업
+    let receivedChunks = [];
+    let incomingFileInfo = null;
+
+    function setupDataChannelEvents() {
+        dataChannel.binaryType = 'arraybuffer';
+        
+        dataChannel.onopen = () => {
+            p2pStatus.innerText = "다이렉트 연결됨";
+            p2pStatus.className = "status-badge online";
+        };
+        
+        dataChannel.onclose = () => {
+            p2pStatus.innerText = "다이렉트 대기중";
+            p2pStatus.className = "status-badge offline";
+        };
+
+        dataChannel.onmessage = (event) => {
+            // 텍스트 메시지면 파일 정보 메타데이터임
+            if (typeof event.data === 'string') {
+                const info = JSON.parse(event.data);
+                if (info.type === 'file-start') {
+                    incomingFileInfo = info;
+                    receivedChunks = [];
+                    appendP2PBox(info.name, info.size, 'received');
+                } else if (info.type === 'file-end') {
+                    // 전송이 끝나면 바이너리 조각들을 합쳐서 다운로드 파일로 변환
+                    const blob = new Blob(receivedChunks);
+                    const url = URL.createObjectURL(blob);
+                    
+                    const btn = document.getElementById(`p2p-btn-${incomingFileInfo.id}`);
+                    if(btn) {
+                        btn.href = url;
+                        btn.download = incomingFileInfo.name;
+                        btn.innerText = "💾 다운로드";
+                        btn.style.background = "#4f46e5";
+                    }
+                    const progress = document.getElementById(`progress-${incomingFileInfo.id}`);
+                    if(progress) progress.style.display = 'none';
+                }
+            } else {
+                // 바이너리 데이터(파일 내용물 조각) 수신
+                receivedChunks.push(event.data);
+                
+                // 프로그레스 바 실시간 업데이트
+                const progressFill = document.getElementById(`fill-${incomingFileInfo.id}`);
+                if(progressFill) {
+                    const currentSize = receivedChunks.reduce((acc, chunk) => acc + chunk.byteLength, 0);
+                    const percent = Math.min(100, (currentSize / incomingFileInfo.size) * 100);
+                    progressFill.style.width = percent + '%';
+                }
+            }
+        };
+    }
+
+    // 내가 먼저 다이렉트 연결 신청하기 (Offer 생성)
+    async function connectP2P() {
+        dataChannel = peerConnection.createDataChannel("fileTransfer");
+        setupDataChannelEvents();
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        
+        database.ref(`p2p_rooms/${currentRoom}/signal`).set({
+            type: 'offer', sender: myName, sdp: offer.sdp
         });
     }
 
-    // 파일을 안전하게 문자열(Base64)로 변환하여 DB에 바로 저장하는 함수
-    function handleFileSelect(input) {
+    async function handleOffer(sdp) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: sdp }));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        
+        database.ref(`p2p_rooms/${currentRoom}/signal`).set({
+            type: 'answer', sender: myName, sdp: answer.sdp
+        });
+    }
+
+    async function handleAnswer(sdp) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: sdp }));
+    }
+
+    // 2. 다이렉트 파일 전송 실행 (카톡 전송 버튼 역할)
+    async function startP2PFileTransfer(input) {
         const file = input.files[0];
         if (!file) return;
 
-        // 무료 요금제 DB 제한을 고려하여 1MB 이하 파일만 권장합니다.
-        if (file.size > 1024 * 1024) {
-            alert("무료 버전 안정성을 위해 1MB 이하의 파일만 전송 가능합니다.");
-            input.value = "";
+        // 상대방과 다이렉트 연결이 수립되지 않았다면 시도
+        if (!dataChannel || dataChannel.readyState !== 'open') {
+            alert("상대방과 다이렉트 망을 연결합니다. 연결이 완료(초록색 불)되면 파일을 다시 선택해 주세요!");
+            await connectP2P();
             return;
         }
 
-        fileLabel.innerText = "⏳";
-        const reader = new FileReader();
-        
-        reader.onload = function(e) {
-            const base64Data = e.target.result; // 변환된 파일 텍스트 데이터
-            
-            database.ref('rooms/' + currentRoom).push({
-                sender: myName,
-                text: `📎 파일 전송됨`,
-                fileName: file.name,
-                fileData: base64Data,
-                fileType: file.type,
-                timestamp: Date.now()
-            });
-            
-            fileLabel.innerText = "📎";
-            input.value = "";
-        };
-        
-        reader.readAsDataURL(file);
-    }
+        const fileId = Date.now();
+        appendP2PBox(file.name, file.size, 'sent', fileId);
 
-    function enterAdminMode() {
-        isAdminMode = true;
-        currentRoom = "시스템관리자";
-        localStorage.setItem('chat_roomname', currentRoom);
+        // 1) 메타데이터 전송
+        dataChannel.send(JSON.stringify({
+            type: 'file-start', id: fileId, name: file.name, size: file.size
+        }));
 
-        chatHeader.classList.add('admin-mode');
-        sendBtn.classList.add('admin-btn');
-        document.getElementById('room-display').innerText = "🛠️ 관리자 대시보드";
-        sendBtn.innerText = "방 생성";
-        messageInput.placeholder = "생성할 새 방 이름을 입력하세요...";
-        fileLabel.style.display = "none";
+        // 2) 파일을 잘게 쪼개서 P2P 대역폭으로 연속 전송 (Chunking)
+        const chunkSize = 16384; // 16KB씩 쪼갬
+        let offset = 0;
 
-        if (messageListener) database.ref('rooms/' + currentRoom).off();
-        if (roomsListener) database.ref('rooms').off();
-
-        chatMessages.innerHTML = '<div class="admin-title">📋 개설된 전체 채팅방 목록</div>';
-
-        roomsListener = database.ref('rooms');
-        roomsListener.on('value', (snapshot) => {
-            chatMessages.innerHTML = '<div class="admin-title">📋 개설된 전체 채팅방 목록</div>';
-            const roomsData = snapshot.val();
-            if (!roomsData) {
-                chatMessages.innerHTML += '<p style="text-align:center; color:#94a3b8; margin-top:20px;">개설된 방이 없습니다.</p>';
+        const sliceAndSend = () => {
+            if (offset >= file.size) {
+                // 전송 끝 신호
+                dataChannel.send(JSON.stringify({ type: 'file-end', id: fileId }));
+                const progress = document.getElementById(`progress-${fileId}`);
+                if(progress) progress.style.display = 'none';
                 return;
             }
 
-            Object.keys(roomsData).forEach(roomName => {
-                if (roomName === "시스템관리자") return;
+            const slice = file.slice(offset, offset + chunkSize);
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                dataChannel.send(e.target.result);
+                offset += chunkSize;
+                
+                // 내 화면 프로그레스 바 업데이트
+                const percent = Math.min(100, (offset / file.size) * 100);
+                const fill = document.getElementById(`fill-${fileId}`);
+                if(fill) fill.style.width = percent + '%';
+                
+                // 버퍼가 가득 차지 않도록 조절하며 연속 호출
+                if (dataChannel.bufferedAmount > 16000000) {
+                    setTimeout(sliceAndSend, 100);
+                } else {
+                    sliceAndSend();
+                }
+            };
+            reader.readAsArrayBuffer(slice);
+        };
 
-                const roomItem = document.createElement('div');
-                roomItem.classList.add('room-item');
-
-                const nameSpan = document.createElement('span');
-                nameSpan.classList.add('room-name');
-                nameSpan.innerText = "💬 " + roomName;
-                nameSpan.style.cursor = "pointer";
-                nameSpan.onclick = () => {
-                    currentRoom = roomName;
-                    localStorage.setItem('chat_roomname', currentRoom);
-                    loadMessages();
-                };
-
-                const delBtn = document.createElement('button');
-                delBtn.classList.add('room-delete-btn');
-                delBtn.innerText = "폭파";
-                delBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    if (confirm(`[${roomName}] 방을 폭파하시겠습니까?`)) {
-                        database.ref('rooms/' + roomName).remove();
-                    }
-                };
-
-                roomItem.appendChild(nameSpan);
-                roomItem.appendChild(delBtn);
-                chatMessages.appendChild(roomItem);
-            });
-        });
+        sliceAndSend();
+        input.value = "";
     }
 
-    function handleActionButton() {
-        const inputVal = messageInput.value.trim();
-        if (inputVal === '') return;
+    // 일반 텍스트 전송
+    function sendMessage() {
+        const text = messageInput.value.trim();
+        if (text === '') return;
 
-        if (isAdminMode) {
-            database.ref('rooms/' + inputVal).push({
-                sender: "시스템",
-                text: `✨ [${inputVal}] 방이 관리자에 의해 개설되었습니다.`,
-                timestamp: Date.now()
-            });
-            alert(`[${inputVal}] 방이 생성되었습니다.`);
-        } else {
-            database.ref('rooms/' + currentRoom).push({
-                sender: myName,
-                text: inputVal,
-                timestamp: Date.now()
-            });
-        }
+        const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
+        
+        database.ref(`p2p_rooms/${currentRoom}/messages`).push({
+            sender: myName, text: text, time: timeString
+        });
+
+        appendMessage(myName, text, 'sent', timeString);
         messageInput.value = '';
     }
 
-    function appendMessage(sender, text, type, time, fileData, fileType, fileName) {
+    // UI 보조 함수들
+    function appendMessage(sender, text, type, time) {
         const wrapper = document.createElement('div');
         wrapper.classList.add('message-wrapper', type);
-
-        const senderSpan = document.createElement('span');
-        senderSpan.classList.add('message-sender');
-        senderSpan.innerText = sender;
-
-        const messageDiv = document.createElement('div');
-        messageDiv.classList.add('message', type);
-
-        // 파일 데이터가 있으면 렌더링
-        if (fileData) {
-            if (fileType && fileType.startsWith('image/')) {
-                const img = document.createElement('img');
-                img.src = fileData;
-                img.classList.add('chat-img');
-                img.onclick = () => {
-                    const newWin = window.open();
-                    newWin.document.write(`<img src="${fileData}" style="max-width:100%;">`);
-                };
-                messageDiv.appendChild(img);
-            } else {
-                const link = document.createElement('a');
-                link.href = fileData;
-                link.download = fileName || "download";
-                link.classList.add('file-link');
-                link.innerText = `📁 ${fileName || '첨부파일 다운로드'}`;
-                messageDiv.appendChild(link);
-            }
-        } else {
-            messageDiv.appendChild(document.createTextNode(text));
-        }
-
-        const timeSpan = document.createElement('span');
-        timeSpan.classList.add('message-time');
-        timeSpan.innerText = time;
-
-        wrapper.appendChild(senderSpan);
-        wrapper.appendChild(messageDiv);
-        wrapper.appendChild(timeSpan);
+        wrapper.innerHTML = `<span class="message-sender">${sender}</span><div class="message ${type}">${text}</div><span class="message-time">${time}</span>`;
         chatMessages.appendChild(wrapper);
+        autoScroll();
+    }
+
+    function appendP2PBox(name, size, type, id = Date.now()) {
+        if(!incomingFileInfo) incomingFileInfo = { id: id };
+        const targetId = type === 'sent' ? id : incomingFileInfo.id;
+        
+        const sizeMB = (size / (1024 * 1024)).toFixed(2);
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('message-wrapper', type);
+        
+        wrapper.innerHTML = `
+            <span class="message-sender">${type === 'sent' ? myName : '상대방'}</span>
+            <div class="message ${type}" style="width: 250px;">
+                <div class="p2p-box">
+                    <p style="font-size:0.8rem; font-weight:bold; color:#1e293b; text-align:left; word-break:break-all;">📎 ${name}</p>
+                    <p style="font-size:0.7rem; color:#64748b; text-align:left;">용량: ${sizeMB} MB</p>
+                    <div class="progress-bar" id="progress-${targetId}" style="display:block;"><div class="progress-fill" id="fill-${targetId}"></div></div>
+                    <a class="p2p-btn" id="p2p-btn-${targetId}" style="${type==='sent'?'background:#64748b; pointer-events:none;':''}">
+                        ${type === 'sent' ? '⏳ 전송 중' : '⏳ 대기 중'}
+                    </a>
+                </div>
+            </div>
+        `;
+        chatMessages.appendChild(wrapper);
+        autoScroll();
     }
 
     function changeRoom() {
-        const targetRoom = prompt("이동할 방 이름을 입력하세요 (관리자 모드는 admin 입력):", isAdminMode ? "" : currentRoom);
-        if (!targetRoom || targetRoom.trim() === "") return;
-
-        const cleanRoom = targetRoom.trim();
-
-        if (cleanRoom === "admin") {
-            const pass = prompt("관리자 비밀번호를 입력하세요:");
-            if (pass === ADMIN_PASSWORD) {
-                enterAdminMode();
-            } else {
-                alert("비밀번호가 올바르지 않습니다.");
-            }
-        } else {
-            currentRoom = cleanRoom;
-            localStorage.setItem('chat_roomname', currentRoom);
-            loadMessages();
+        const target = prompt("이동할 방 이름을 입력하세요:", currentRoom);
+        if(target && target.trim() !== "") {
+            localStorage.setItem('chat_roomname', target.trim());
+            location.reload();
         }
     }
 
-    function changeName() {
-        const newName = prompt("변경할 이름을 입력하세요:", myName);
-        if (newName && newName.trim() !== "") {
-            myName = newName.trim();
-            localStorage.setItem('chat_username', myName);
-            document.getElementById('user-display').innerText = myName;
-            if(!isAdminMode) loadMessages();
-        }
-    }
+    function handleKeyPress(event) { if (event.key === 'Enter') sendMessage(); }
+    function autoScroll() { chatMessages.scrollTop = chatMessages.scrollHeight; }
 
-    function handleKeyPress(event) {
-        if (event.key === 'Enter') handleActionButton();
-    }
-
-    function autoScroll() {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    initChat();
+    initMessenger();
 </script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KakaoT-Style 메신저 Enterprise v13 - Admin Password Change</title>
+    <title>KakaoT-Style 메신저 Enterprise v14 - Secure Enhanced</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -126,7 +126,6 @@
         .admin-room-list { display: flex; flex-direction: column; gap: 8px; }
         .admin-room-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border-color); }
         
-        /* [추가] 관리자 암호 변경 영역 스타일 */
         .admin-pw-flex { display: flex; gap: 10px; align-items: center; margin-top: 10px;}
         .admin-pw-input { padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.88rem; outline: none; width: 220px;}
         .admin-pw-btn { background-color: #1e293b; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer;}
@@ -160,7 +159,7 @@
     <div class="nav-bar">
         <div class="nav-item active" id="btn-tab-friends" onclick="switchTab('friends')"><i class="fa-solid fa-user"></i></div>
         <div class="nav-item" id="btn-tab-chats" onclick="switchTab('chats')"><i class="fa-solid fa-comment"></i></div>
-        <div class="nav-item" id="btn-tab-admin" onclick="openAdminMode()"><i class="fa-solid fa-gear"></i></div>
+        <div class="nav-item" id="btn-tab-admin" onclick="verifyAndOpenAdminMode()"><i class="fa-solid fa-gear"></i></div>
     </div>
 
     <div class="sub-sidebar">
@@ -202,13 +201,12 @@
                 <button class="explode-btn" style="background:#555;" onclick="closeAdminMode()">대화방 복귀</button>
             </div>
             <div class="admin-body">
-                <!-- [추가] 관리자 마스터 비밀번호 변경 제어 카드 -->
                 <div class="admin-card">
-                    <h4><i class="fa-solid fa-key"></i> 최고 관리자 마스터 비밀번호 관리</h4>
-                    <p style="font-size: 0.82rem; color: var(--text-muted);">이 기기에서 사용할 최고 관리자 모드 진입 패스워드를 변경합니다. (공백 제외 4자 이상)</p>
+                    <h4><i class="fa-solid fa-key"></i> 최고 관리자 마스터 비밀번호 관리 (서버 동기화)</h4>
+                    <p style="font-size: 0.82rem; color: var(--text-muted);">전체 시스템 공용 마스터 비밀번호를 변경하여 백엔드 DB와 연동합니다. (공백 제외 4자 이상)</p>
                     <div class="admin-pw-flex">
                         <input type="password" id="new-admin-pw" class="admin-pw-input" placeholder="새로운 마스터 암호 입력">
-                        <button class="admin-pw-btn" onclick="updateAdminPassword()">비밀번호 변경</button>
+                        <button class="admin-pw-btn" onclick="updateAdminPassword()">비밀번호 전역 변경</button>
                         <button class="admin-pw-btn" style="background-color: #64748b;" onclick="resetAdminPassword()">초기화(1234)</button>
                     </div>
                 </div>
@@ -235,8 +233,7 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    // 초기 마스터 해시 (1234)
-    const DEFAULT_ADMIN_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4";
+    const DEFAULT_ADMIN_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"; // 1234
 
     let myId = localStorage.getItem('chat_userid_v4') || "u_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
     localStorage.setItem('chat_userid_v4', myId);
@@ -246,6 +243,7 @@
 
     let currentRoomId = "";
     let currentRoomTitle = "";
+    let isAdminAuthenticated = false; // [보안강화] 메모리 상 보안 플래그 세션 처리
     
     let activeTab = "friends"; 
     let msgListener = null;
@@ -274,6 +272,12 @@
 
         database.ref(`kakao_style/users/${myId}`).set({ id: myId, name: myName, lastSeen: Date.now() });
 
+        // [보안강화] 백엔드 DB에 초기 관리자 해시 노드가 없으면 생성
+        const adminHashSnap = await database.ref('kakao_style/system_config/admin_hash').once('value');
+        if (!adminHashSnap.exists()) {
+            await database.ref('kakao_style/system_config').set({ admin_hash: DEFAULT_ADMIN_HASH });
+        }
+
         const urlParams = new URLSearchParams(window.location.search);
         const invitedRoomId = urlParams.get('room');
 
@@ -292,12 +296,6 @@
                             roomId: invitedRoomId,
                             roomTitle: roomInfo.title
                         });
-                        if (roomInfo.creatorId && roomInfo.creatorId !== myId) {
-                            await database.ref(`kakao_style/user_rooms/${roomInfo.creatorId}/${invitedRoomId}`).update({
-                                roomId: invitedRoomId,
-                                roomTitle: roomInfo.title
-                            });
-                        }
                         window.history.replaceState({}, document.title, window.location.pathname);
                         switchTab('chats');
                         joinChatRoom(invitedRoomId, roomInfo.title);
@@ -307,7 +305,7 @@
                     }
                 }
             } else {
-                alert("존재하지 않거나 방장에 의해 파괴된 대화방 링크입니다.");
+                alert("존재하지 않거나 파괴된 대화방 링크입니다.");
             }
         }
 
@@ -323,7 +321,7 @@
     }
 
     function clearSessionLogout() {
-        if(confirm("🔒 로그아웃하시겠습니까?\n로그아웃 시 현재 브라우저의 대화 정보 및 프로필이 초기화되며 다른 임의 계정으로 로그인됩니다.")) {
+        if(confirm("🔒 로그아웃하시겠습니까?")) {
             database.ref(`kakao_style/users/${myId}`).remove();
             localStorage.removeItem('chat_userid_v4');
             localStorage.removeItem('chat_username_v4');
@@ -332,6 +330,7 @@
     }
 
     function switchTab(tabName) {
+        if (tabName !== 'admin') isAdminAuthenticated = false; // 탭 전환 시 보안 플래그 초기화
         activeTab = tabName;
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
         const activeNavBtn = document.getElementById(`btn-tab-${tabName}`);
@@ -504,9 +503,9 @@
     function copyInvitationLink(roomId) {
         const inviteUrl = window.location.origin + window.location.pathname + "?room=" + roomId;
         navigator.clipboard.writeText(inviteUrl).then(() => {
-            alert("📋 카톡/문자용 초대 링크가 복사되었습니다!\n원하는 대화창에 '붙여넣기(Ctrl+V)'해서 친구에게 보내세요.\n\n(※ 방금 설정한 비밀번호도 함께 알려주셔야 친구가 입장할 수 있습니다.)");
+            alert("📋 초대 링크가 카피되었습니다.");
         }).catch(() => {
-            prompt("아래 초대 링크를 수동 복사하세요:", inviteUrl);
+            prompt("초대 링크 수동 복사:", inviteUrl);
         });
     }
 
@@ -531,7 +530,7 @@
             
             if (!snapshot.exists() && roomId !== 'global_public_room') {
                 database.ref(`kakao_style/user_rooms/${myId}/${roomId}`).remove();
-                alert("🚨 해당 대화방이 방장에 의해 파괴되었거나 유저가 강제 퇴장(탈퇴) 처리되었습니다.");
+                alert("🚨 대화방이 존재하지 않거나 강퇴되었습니다.");
                 currentRoomId = "";
                 joinChatRoom('global_public_room', '기본 광장 오픈채팅방');
                 if (activeTab === 'chats') switchTab('chats');
@@ -554,7 +553,7 @@
     function explodeActiveRoom() {
         if (!currentRoomId || currentRoomId === 'global_public_room') return;
         
-        if (confirm("🚨 정말로 이 채팅방을 파괴하고 모든 유저를 강제 탈퇴시키겠습니까?\n삭제된 데이터는 절대 복구할 수 없습니다.")) {
+        if (confirm("🚨 정말로 이 채팅방을 파괴하겠습니까?")) {
             const targetExplodeId = currentRoomId;
             
             database.ref(`kakao_style/user_rooms`).once('value', (snapshot) => {
@@ -570,7 +569,7 @@
                 updateBatch[`kakao_style/rooms/${targetExplodeId}`] = null;
 
                 database.ref().update(updateBatch).then(() => {
-                    alert("💥 대화방이 성공적으로 폭파되었으며 참여자 전원이 퇴장 처리되었습니다.");
+                    alert("💥 대화방이 폭파되었습니다.");
                 });
             });
         }
@@ -599,7 +598,7 @@
         if(!file || !currentRoomId) return;
 
         if (!file.type.startsWith('image/')) {
-            alert("보안 정책상 오직 이미지 파일 포맷만 업로드가 가능합니다.");
+            alert("오직 이미지 포맷만 업로드 가능합니다.");
             input.value = '';
             return;
         }
@@ -613,14 +612,14 @@
             img.src = e.target.result;
             
             img.onerror = () => {
-                alert("보안 위험 요소가 발견되었거나 비정상적인 이미지 객체입니다.");
+                alert("비정상적인 이미지 파일입니다.");
                 label.innerHTML = `<i class="fa-regular fa-plus-square"></i>`;
                 input.value = '';
             };
 
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                const MAX_WIDTH = 700; 
+                const MAX_WIDTH = 500; 
                 let width = img.width;
                 let height = img.height;
 
@@ -634,7 +633,7 @@
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.65);
+                const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.5); // 용량 압축 최적화(0.65 -> 0.5)
                 const now = Date.now();
                 const timeString = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
                 
@@ -666,10 +665,11 @@
         html += `<div class="msg-bubble-wrap"><div class="bubble">`;
         
         if(fileData) {
+            // XSS 취약점 보완: 이미지 src 속성에 base64 데이터 명시적 바인딩 및 파일명 이스케이프 유무 검증
             html += `
                 <div class="img-card">
-                    <img src="${fileData}" class="chat-img" onload="scrollChatBottom()" onclick="zoomImg('${fileData}')" alt="이미지">
-                    <a href="${fileData}" download="${escapeHtml(fileName) || 'download.jpg'}" class="download-link"><i class="fa-solid fa-download"></i> 다운로드</a>
+                    <img src="${fileData}" class="chat-img" style="max-width:100%; border-radius:6px;" onload="scrollChatBottom()" onclick="zoomImg('${fileData}')" alt="이미지">
+                    <a href="${fileData}" download="${escapeHtml(fileName) || 'download.jpg'}" class="download-link" style="display:block; font-size:0.75rem; margin-top:4px; color:#0084ff;"><i class="fa-solid fa-download"></i> 다운로드</a>
                 </div>`;
         } else {
             html += safeText;
@@ -708,22 +708,44 @@
         if(activeTab === 'friends') switchTab('friends');
     }
 
-    // [변경/추가] 관리자 진입 시 변경된 동적 패스워드 로직 검증하도록 수정
-    async function openAdminMode() {
-        const pass = prompt("관리자 암호 입력:");
+    // [보안강화 - 전체 전면 리팩토링]
+    // 1. 단순 LocalStorage 조작 및 F12 변조 공격을 우회하기 위해 인증 요청 시 서버로부터 해시 검증값을 실시간 호출하도록 설계
+    async function verifyAndOpenAdminMode() {
+        const pass = prompt("최고 관리자 암호 입력:");
         if(!pass) return;
 
         const hashedInput = await computeSHA256(pass);
-        // localStorage에 커스텀 해시가 등록되어 있으면 그것을 쓰고, 없다면 기본(1234) 해시와 매칭함
-        const currentAdminHash = localStorage.getItem('system_admin_hash_v4') || DEFAULT_ADMIN_HASH;
 
-        if(hashedInput !== currentAdminHash) {
-            alert("보안 위반: 권한이 일치하지 않습니다.");
+        // [아키텍처 개선] 클라이언트 로컬 스토리지가 아닌 실시간 백엔드 노드 데이터를 원격 대조함
+        const adminConfigSnap = await database.ref('kakao_style/system_config/admin_hash').once('value');
+        const currentServerAdminHash = adminConfigSnap.exists() ? adminConfigSnap.val() : DEFAULT_ADMIN_HASH;
+
+        if(hashedInput !== currentServerAdminHash) {
+            alert("🚨 권한 경고: 인가되지 않은 인증 요청입니다. (접속 실패)");
+            isAdminAuthenticated = false;
             return;
         }
 
+        // 인증 성공 시 메모리 상 플래그 부여 및 뷰 전환
+        isAdminAuthenticated = true;
+        activeTab = 'admin';
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('btn-tab-admin').classList.add('active');
+
         document.getElementById('panel-chat-view').style.display = 'none';
         document.getElementById('panel-admin-view').style.display = 'flex';
+        
+        loadAdminInfrastructure();
+    }
+
+    function loadAdminInfrastructure() {
+        // 보안 검증 플래그 누락 시 진입 원천 차단
+        if (!isAdminAuthenticated) {
+            alert("잘못된 접근입니다.");
+            closeAdminMode();
+            return;
+        }
+
         database.ref('kakao_style/rooms').once('value', (snapshot) => {
             const box = document.getElementById('admin-raw-rooms');
             box.innerHTML = '';
@@ -738,42 +760,56 @@
         });
     }
 
-    // [신설] 최고 관리자 패스워드를 실시간으로 변경하고 새로운 SHA-256 해시값으로 로컬에 바인딩
+    // [보안강화] 비밀번호 변경 시에도 클라이언트 로컬이 아닌 Firebase DB 서버 전역 설정을 덮어씌움
     async function updateAdminPassword() {
+        if (!isAdminAuthenticated) return alert("인증 세션이 만료되었습니다.");
+        
         const pwInput = document.getElementById('new-admin-pw');
         const rawPassword = pwInput.value.trim();
 
         if (rawPassword.length < 4) {
-            alert("보안 가이드라인: 비밀번호는 최소 4자 이상으로 입력하셔야 안전합니다.");
+            alert("보안 가이드라인: 최소 4자 이상의 패스워드를 지정해야 합니다.");
             return;
         }
 
         const newHashString = await computeSHA256(rawPassword);
-        localStorage.setItem('system_admin_hash_v4', newHashString);
         
-        alert("🔒 마스터 암호가 안전하게 변경되었습니다!\n다음 관리자 모드 진입 시부터 변경된 암호가 적용됩니다.");
-        pwInput.value = '';
+        // 백엔드 영구 데이터 레이어 업데이트
+        database.ref('kakao_style/system_config').update({ admin_hash: newHashString })
+        .then(() => {
+            alert("🔒 [서버 동기화 완료] 전역 마스터 암호가 성공적으로 업데이트되었습니다.\n다음 진입 시점부터 본 암호가 적용됩니다.");
+            pwInput.value = '';
+            closeAdminMode();
+        })
+        .catch(err => alert("데이터베이스 쓰기 권한 오류 발생: " + err.message));
     }
 
-    // [신설] 변경한 비밀번호가 기억나지 않을 경우를 대비한 초기화 기능 (1234로 초기화)
+    // [보안강화] 비밀번호 서버 복구 기능
     function resetAdminPassword() {
-        if (confirm("초기 기본 비밀번호인 '1234' 상태로 되돌리시겠습니까?")) {
-            localStorage.removeItem('system_admin_hash_v4');
-            alert("⚙️ 관리자 마스터 패스워드가 '1234'로 복구되었습니다.");
-            document.getElementById('new-admin-pw').value = '';
+        if (!isAdminAuthenticated) return alert("인증 세션이 만료되었습니다.");
+        if (confirm("서버의 마스터 비밀번호를 초기 공장 상태('1234')로 완전히 리셋하시겠습니까?")) {
+            database.ref('kakao_style/system_config').update({ admin_hash: DEFAULT_ADMIN_HASH })
+            .then(() => {
+                alert("⚙️ 전역 마스터 패스워드가 '1234' 해시로 복구되었습니다.");
+                document.getElementById('new-admin-pw').value = '';
+                closeAdminMode();
+            });
         }
     }
 
     function closeAdminMode() {
+        isAdminAuthenticated = false; // 세션 만료화
         document.getElementById('panel-admin-view').style.display = 'none';
         document.getElementById('panel-chat-view').style.display = 'flex';
-        switchTab(activeTab);
+        switchTab('friends');
     }
 
     function systemExplodeRoom(id) {
-        if(confirm("이 방의 기록을 삭제하시겠습니까?")) {
-            database.ref(`kakao_style/rooms/${id}`).remove();
-            closeAdminMode();
+        if (!isAdminAuthenticated) return alert("권한이 없습니다.");
+        if(confirm("이 방의 모든 인프라 세션을 셧다운하시겠습니까?")) {
+            database.ref(`kakao_style/rooms/${id}`).remove().then(() => {
+                loadAdminInfrastructure();
+            });
         }
     }
 

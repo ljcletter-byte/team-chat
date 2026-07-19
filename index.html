@@ -3,18 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>실시간 팀 메신저</title>
+    <title>실시간 분리형 팀 메신저</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
         body { display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f2f5; }
         .chat-container { width: 450px; height: 600px; background-color: white; border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; overflow: hidden; }
-        .chat-header { background-color: #4f46e5; color: white; padding: 16px; display: flex; justify-content: space-between; align-items: center; }
+        .chat-header { background-color: #4f46e5; color: white; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; }
+        .header-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; background: rgba(255,255,255,0.15); padding: 6px 10px; border-radius: 6px; }
+        .change-btn { background: rgba(255,255,255,0.3); border: none; color: white; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
+        .change-btn:hover { background: rgba(255,255,255,0.5); }
         .chat-messages { flex: 1; padding: 16px; overflow-y: auto; background-color: #f8fafc; display: flex; flex-direction: column; gap: 12px; }
-        .message { max-width: 75%; padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; word-break: break-all; }
-        .message.sent { background-color: #4f46e5; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
-        .message.received { background-color: #e2e8f0; color: #1e293b; align-self: flex-start; border-bottom-left-radius: 2px; }
-        .message-sender { font-size: 0.75rem; font-weight: bold; margin-bottom: 4px; display: block; color: #64748b; }
-        .message.sent .message-sender { color: #c7d2fe; text-align: right; }
+        .message-wrapper { display: flex; flex-direction: column; max-width: 75%; }
+        .message-wrapper.sent { align-self: flex-end; align-items: flex-end; }
+        .message-wrapper.received { align-self: flex-start; align-items: flex-start; }
+        .message-sender { font-size: 0.75rem; font-weight: bold; margin-bottom: 4px; color: #64748b; }
+        .message { padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; word-break: break-all; }
+        .message.sent { background-color: #4f46e5; color: white; border-bottom-right-radius: 2px; }
+        .message.received { background-color: #e2e8f0; color: #1e293b; border-bottom-left-radius: 2px; }
+        .message-time { font-size: 0.65rem; color: #94a3b8; margin-top: 2px; }
         .chat-input-area { padding: 16px; background-color: white; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; }
         #message-input { flex: 1; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; }
         #send-btn { background-color: #4f46e5; color: white; border: none; padding: 0 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
@@ -24,8 +31,14 @@
 
 <div class="chat-container">
     <div class="chat-header">
-        <h2>👥 Team Project Room</h2>
-        <span id="user-display" style="font-size: 0.8rem; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 10px;"></span>
+        <div class="header-top">
+            <h2 id="room-display">🚪 방 로딩 중...</h2>
+            <button class="change-btn" onclick="changeRoom()">방 변경</button>
+        </div>
+        <div class="header-bottom">
+            <span>내 이름: <b id="user-display"></b></span>
+            <button class="change-btn" onclick="changeName()">이름 변경</button>
+        </div>
     </div>
     <div class="chat-messages" id="chat-messages"></div>
     <div class="chat-input-area">
@@ -34,12 +47,12 @@
     </div>
 </div>
 
-<!-- Firebase SDK 로드 (v9 호환 버전 사용) -->
+<!-- Firebase SDK 로드 -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
 <script>
-    // ⭕ 종창님의 Firebase 실제 연결 정보가 적용되었습니다.
+    // 종창님의 Firebase 연결 정보
     const firebaseConfig = {
         apiKey: "AIzaSyDfACFo9nn2MaJusjlII9y6Wj6QIGuf65g",
         authDomain: "my-team-chat-2712e.firebaseapp.com",
@@ -54,31 +67,68 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    // 사용자 이름 설정
     let myName = localStorage.getItem('chat_username');
-    if (!myName) {
-        myName = prompt("메신저에서 사용할 이름을 입력해주세요:") || "익명" + Math.floor(Math.random() * 1000);
-        localStorage.setItem('chat_username', myName);
+    let currentRoom = localStorage.getItem('chat_roomname');
+    let messageListener = null; // 실시간 리스너 저장용 변수
+
+    // 초기 실행 함수
+    function initChat() {
+        // 1. 이름 설정
+        if (!myName) {
+            myName = prompt("메신저에서 사용할 이름을 입력해주세요:") || "익명" + Math.floor(Math.random() * 1000);
+            localStorage.setItem('chat_username', myName);
+        }
+        document.getElementById('user-display').innerText = myName;
+
+        // 2. 방 설정
+        if (!currentRoom) {
+            currentRoom = prompt("입장할 방 이름을 입력해주세요 (예: 기획팀, 디자인팀):") || "기본방";
+            localStorage.setItem('chat_roomname', currentRoom);
+        }
+        document.getElementById('room-display').innerText = "💬 " + currentRoom;
+
+        // 3. 해당 방의 메시지 실시간 불러오기 시작
+        loadMessages();
     }
-    document.getElementById('user-display').innerText = myName;
 
     const chatMessages = document.getElementById('chat-messages');
     const messageInput = document.getElementById('message-input');
 
-    // 1. 데이터베이스에서 메시지 실시간으로 받아오기
-    database.ref('messages').limitToLast(50).on('child_added', (snapshot) => {
-        const data = snapshot.val();
-        const isMe = data.sender === myName;
-        appendMessage(data.sender, data.text, isMe ? 'sent' : 'received');
-        autoScroll();
-    });
+    // 지정된 방의 메시지를 실시간으로 가져오는 함수
+    function loadMessages() {
+        // 기존에 연결된 리스너가 있다면 제거 (방 바꿀 때 중복 방지)
+        if (messageListener) {
+            database.ref('rooms/' + currentRoom).off();
+        }
+        
+        chatMessages.innerHTML = ''; // 화면 초기화
 
-    // 2. 메시지 전송
+        // Firebase 상의 주소를 'messages' 대신 'rooms/방이름' 구조로 분리하여 저장합니다.
+        messageListener = database.ref('rooms/' + currentRoom).limitToLast(50);
+        
+        messageListener.on('child_added', (snapshot) => {
+            const data = snapshot.val();
+            const isMe = data.sender === myName;
+            
+            // 시간 변환 (오후 2:30 형태)
+            const timeString = new Date(data.timestamp).toLocaleTimeString('ko-KR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+
+            appendMessage(data.sender, data.text, isMe ? 'sent' : 'received', timeString);
+            autoScroll();
+        });
+    }
+
+    // 메시지 전송
     function sendMessage() {
         const text = messageInput.value.trim();
         if (text === '') return;
 
-        database.ref('messages').push({
+        // 현재 들어가 있는 방 경로(rooms/방이름)에 메시지를 차곡차곡 넣습니다.
+        database.ref('rooms/' + currentRoom).push({
             sender: myName,
             text: text,
             timestamp: Date.now()
@@ -87,19 +137,48 @@
         messageInput.value = '';
     }
 
-    function appendMessage(sender, text, type) {
-        const messageDiv = document.createElement('div');
-        messageDiv.classList.add('message', type);
+    function appendMessage(sender, text, type, time) {
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('message-wrapper', type);
 
         const senderSpan = document.createElement('span');
         senderSpan.classList.add('message-sender');
         senderSpan.innerText = sender;
 
-        const textNode = document.createTextNode(text);
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('message', type);
+        messageDiv.appendChild(document.createTextNode(text));
 
-        messageDiv.appendChild(senderSpan);
-        messageDiv.appendChild(textNode);
-        chatMessages.appendChild(messageDiv);
+        const timeSpan = document.createElement('span');
+        timeSpan.classList.add('message-time');
+        timeSpan.innerText = time;
+
+        wrapper.appendChild(senderSpan);
+        wrapper.appendChild(messageDiv);
+        wrapper.appendChild(timeSpan);
+        chatMessages.appendChild(wrapper);
+    }
+
+    // 방 변경 기능
+    function changeRoom() {
+        const newRoom = prompt("이동할 새로운 방 이름을 입력하세요:", currentRoom);
+        if (newRoom && newRoom.trim() !== "") {
+            currentRoom = newRoom.trim();
+            localStorage.setItem('chat_roomname', currentRoom);
+            document.getElementById('room-display').innerText = "💬 " + currentRoom;
+            loadMessages(); // 새로운 방의 메시지 로드
+        }
+    }
+
+    // 이름 변경 기능
+    function changeName() {
+        const newName = prompt("변경할 이름을 입력하세요:", myName);
+        if (newName && newName.trim() !== "") {
+            myName = newName.trim();
+            localStorage.setItem('chat_username', myName);
+            document.getElementById('user-display').innerText = myName;
+            loadMessages(); // 내 이름 기준 전송/수신 UI 업데이트를 위해 리로드
+        }
     }
 
     function handleKeyPress(event) {
@@ -109,6 +188,9 @@
     function autoScroll() {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
+
+    // 실행 시작
+    initChat();
 </script>
 </body>
 </html>

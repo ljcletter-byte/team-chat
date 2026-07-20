@@ -523,18 +523,44 @@
     </div>
 
     <!-- 4. 실시간 채팅방 스크린 -->
+<!-- 💡 기존에 수정한 대화방 헤더 부분을 찾아서 아래 코드로 대체하세요 -->
 <div id="chat-room-screen" class="screen">
-        <div class="header">
-            <div style="display:flex; align-items:center; width:100%; justify-content:space-between;">
-                <div style="display:flex; align-items:center;">
-                    <i class="fa-solid fa-chevron-left" onclick="leaveChatRoom()" style="cursor:pointer; margin-right:15px; font-size:20px;"></i>
-                    <span id="chat-room-title">대화방</span>
-                </div>
-                <!-- 🌟 우측에 방 나가기 아이콘 배치 -->
+    <div class="header">
+        <div style="display:flex; align-items:center; width:100%; justify-content:space-between;">
+            <div style="display:flex; align-items:center;">
+                <i class="fa-solid fa-chevron-left" onclick="leaveChatRoom()" style="cursor:pointer; margin-right:15px; font-size:20px;"></i>
+                <span id="chat-room-title">대화방</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:15px;">
+                <!-- 🌟 실시간 일정 공유 달력 아이콘 추가 -->
+                <i class="fa-solid fa-calendar-days" onclick="toggleScheduleModal()" style="cursor:pointer; color:var(--primary-color); font-size:18px;" title="공유 일정"></i>
                 <i class="fa-solid fa-right-from-bracket" onclick="deleteCurrentChatRoom()" style="cursor:pointer; color:#E53E3E; font-size:18px;" title="방 나가기"></i>
             </div>
         </div>
-        
+    </div>
+
+    <!-- 🌟 대화방 내부에서 띄워줄 일정 공유 모달 팝업 레이아웃 -->
+<div id="schedule-modal" class="hidden" style="position:absolute; top:60px; left:0; width:100%; height:calc(100% - 60px); background:rgba(255,255,255,0.98); z-index:100; display:flex; flex-direction:column; padding:20px; box-sizing:border-box;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:2px solid var(--primary-color); padding-bottom:8px;">
+        <h3 style="font-size:16px; color:var(--text-main);"><i class="fa-solid fa-calendar-check" style="margin-right:6px;"></i>우리 방 공유 일정</h3>
+        <button onclick="toggleScheduleModal()" style="background:none; border:none; font-size:16px; cursor:pointer; color:var(--text-sub);"><i class="fa-solid fa-xmark"></i> 닫기</button>
+    </div>
+
+    <!-- 일정 입력 폼 -->
+    <div style="background:#F8FAFC; padding:12px; border-radius:8px; border:1px solid var(--border-color); margin-bottom:15px;">
+        <input type="text" id="sched-title" placeholder="일정 제목을 입력하세요" style="width:100%; padding:8px; border:1px solid var(--border-color); border-radius:4px; margin-bottom:8px; font-size:13px; outline:none;">
+        <div style="display:flex; gap:8px;">
+            <input type="date" id="sched-date" style="flex:1; padding:6px; border:1px solid var(--border-color); border-radius:4px; font-size:13px; outline:none;">
+            <button onclick="addSharedSchedule()" style="background:var(--primary-color); color:white; border:none; padding:0 15px; border-radius:4px; font-size:13px; cursor:pointer; font-weight:600;">등록</button>
+        </div>
+    </div>
+
+    <!-- 일정 리스트 출력 영역 -->
+    <div id="schedule-list" style="flex:1; overflow-y:auto; font-size:14px;">
+        <!-- 등록된 일정이 여기에 실시간으로 표시됩니다 -->
+    </div>
+</div>
+    
         <div class="message-area" id="msg-box"></div>
 
         <div class="chat-input-area">
@@ -1070,7 +1096,105 @@
             console.error("방 나가기 오류:", error);
             alert("방을 나가는 도중 오류가 발생했습니다.");
         }
-    }    
+    }   
+
+    // 🌟 [추가] 공유 일정 모달 켜고 끄기 및 실시간 리스너 연동
+    let scheduleListener = null;
+
+    function toggleScheduleModal() {
+        const modal = document.getElementById('schedule-modal');
+        if (!currentRoomId) return;
+
+        if (modal.classList.contains('hidden')) {
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+            listenSharedSchedules(); // 열릴 때 실시간 리스너 가동
+        } else {
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+            // 닫힐 때 자원 낭비 방지를 위해 리스너 해제
+            if (scheduleListener) {
+                database.ref(`rooms/${currentRoomId}/schedules`).off('value', scheduleListener);
+                scheduleListener = null;
+            }
+        }
+    }
+
+    // 🌟 [추가] 일정 데이터베이스 실시간 감시 및 화면 렌더링
+    function listenSharedSchedules() {
+        const listEl = document.getElementById('schedule-list');
+        listEl.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-sub);">일정 불러오는 중...</div>';
+
+        scheduleListener = database.ref(`rooms/${currentRoomId}/schedules`).on('value', (snapshot) => {
+            listEl.innerHTML = '';
+            if (!snapshot.exists()) {
+                listEl.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-sub); font-size:13px;">등록된 공유 일정이 없습니다.<br>새로운 일정을 등록해 보세요!</div>';
+                return;
+            }
+
+            snapshot.forEach((child) => {
+                const sched = child.val();
+                const schedId = child.key;
+
+                const item = document.createElement('div');
+                item.style = "display:flex; justify-content:space-between; align-items:center; background:white; padding:10px; border-radius:6px; border:1px solid var(--border-color); margin-bottom:8px; box-shadow:0 1px 3px rgba(0,0,0,0.02);";
+                item.innerHTML = `
+                    <div>
+                        <div style="font-weight:600; color:var(--text-main); font-size:14px;">${sched.title}</div>
+                        <div style="font-size:11px; color:var(--text-sub); margin-top:2px;">
+                            <i class="fa-regular fa-calendar" style="margin-right:4px;"></i>${sched.date} 
+                            <span style="margin-left:6px; color:#4A90E2;">by ${sched.creatorName}</span>
+                        </div>
+                    </div>
+                    <button onclick="deleteSharedSchedule('${schedId}')" style="background:none; border:none; color:#E53E3E; cursor:pointer; font-size:12px; padding:5px;"><i class="fa-regular fa-trash-can"></i></button>
+                `;
+                listEl.appendChild(item);
+            });
+        });
+    }
+
+    // 🌟 [추가] 새로운 공유 일정 등록 프로세스
+    async function addSharedSchedule() {
+        const titleInput = document.getElementById('sched-title');
+        const dateInput = document.getElementById('sched-date');
+        
+        const title = titleInput.value.trim();
+        const date = dateInput.value;
+
+        if (!title || !date) return alert('일정 제목 and 날짜를 모두 입력해 주세요.');
+
+        const newSchedule = {
+            title: title,
+            date: date,
+            creatorId: currentUser.id,
+            creatorName: currentUser.name,
+            createdAt: Date.now()
+        };
+
+        try {
+            // 해당 채팅방의 하위 스케줄 노드에 푸시
+            await database.ref(`rooms/${currentRoomId}/schedules`).push(newSchedule);
+            
+            // 입력창 초기화
+            titleInput.value = '';
+            dateInput.value = '';
+        } catch (error) {
+            console.error("일정 등록 실패:", error);
+            alert("일정을 등록하는 도중 오류가 발생했습니다.");
+        }
+    }
+
+    // 🌟 [추가] 등록된 공유 일정 삭제하기
+    async function deleteSharedSchedule(schedId) {
+        if (!confirm("이 일정을 삭제하시겠습니까?\n이 방의 모든 멤버 화면에서 삭제됩니다.")) return;
+
+        try {
+            await database.ref(`rooms/${currentRoomId}/schedules/${schedId}`).remove();
+        } catch (error) {
+            console.error("일정 삭제 실패:", error);
+            alert("일정을 삭제하지 못했습니다.");
+        }
+    }
 </script>
 </body>
 </html>

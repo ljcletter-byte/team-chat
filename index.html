@@ -523,11 +523,15 @@
     </div>
 
     <!-- 4. 실시간 채팅방 스크린 -->
-    <div id="chat-room-screen" class="screen">
+<div id="chat-room-screen" class="screen">
         <div class="header">
-            <div style="display:flex; align-items:center;">
-                <i class="fa-solid fa-chevron-left" onclick="leaveChatRoom()" style="cursor:pointer; margin-right:15px; font-size:20px;"></i>
-                <span id="chat-room-title">대화방</span>
+            <div style="display:flex; align-items:center; width:100%; justify-content:space-between;">
+                <div style="display:flex; align-items:center;">
+                    <i class="fa-solid fa-chevron-left" onclick="leaveChatRoom()" style="cursor:pointer; margin-right:15px; font-size:20px;"></i>
+                    <span id="chat-room-title">대화방</span>
+                </div>
+                <!-- 🌟 우측에 방 나가기 아이콘 배치 -->
+                <i class="fa-solid fa-right-from-bracket" onclick="deleteCurrentChatRoom()" style="cursor:pointer; color:#E53E3E; font-size:18px;" title="방 나가기"></i>
             </div>
         </div>
         
@@ -1045,6 +1049,28 @@
         alert('해당 유저의 모든 계정 데이터가 파기되었습니다.');
         loadAdminInfrastructure();
     }
+// 현재 진입한 대화방을 내 목록에서만 지우는 함수
+    async function deleteCurrentChatRoom() {
+        if (!currentRoomId || !currentUser) return;
+
+        if (!confirm("이 대화방을 완전히 나가시겠습니까?\n내 화면에서 대화 목록이 완전히 삭제되며 복구할 수 없습니다.")) {
+            return;
+        }
+
+        try {
+            // Firebase에서 내 계정 하위의 해당 방 목록만 삭제 (상대방 대화 기록은 유지됨)
+            await database.ref(`user_rooms/${currentUser.id}/${currentRoomId}`).remove();
+            
+            alert("대화방을 나갔습니다.");
+            
+            // 기존에 있던 뒤로가기 함수를 호출하여 안전하게 메인 채팅 목록으로 이동
+            leaveChatRoom(); 
+            
+        } catch (error) {
+            console.error("방 나가기 오류:", error);
+            alert("방을 나가는 도중 오류가 발생했습니다.");
+        }
+    }    
 </script>
 </body>
 </html>

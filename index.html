@@ -522,23 +522,23 @@
         </div>
     </div>
 
-    <!-- 4. 실시간 채팅방 스크린 -->
-<!-- 💡 기존에 수정한 대화방 헤더 부분을 찾아서 아래 코드로 대체하세요 -->
-<div id="chat-room-screen" class="screen">
-    <div class="header">
-        <div style="display:flex; align-items:center; width:100%; justify-content:space-between;">
-            <div style="display:flex; align-items:center;">
-                <i class="fa-solid fa-chevron-left" onclick="leaveChatRoom()" style="cursor:pointer; margin-right:15px; font-size:20px;"></i>
-                <span id="chat-room-title">대화방</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:15px;">
-                <!-- 🌟 실시간 일정 공유 달력 아이콘 추가 -->
-                <i class="fa-solid fa-calendar-days" onclick="toggleScheduleModal()" style="cursor:pointer; color:var(--primary-color); font-size:18px;" title="공유 일정"></i>
-                <i class="fa-solid fa-right-from-bracket" onclick="deleteCurrentChatRoom()" style="cursor:pointer; color:#E53E3E; font-size:18px;" title="방 나가기"></i>
+<div class="header">
+            <div style="display:flex; align-items:center; width:100%; justify-content:space-between;">
+                <!-- 왼쪽: 뒤로가기 및 대화방 이름 -->
+                <div style="display:flex; align-items:center;">
+                    <i class="fa-solid fa-chevron-left" onclick="leaveChatRoom()" style="cursor:pointer; margin-right:15px; font-size:20px;"></i>
+                    <span id="chat-room-title">대화방</span>
+                </div>
+                
+                <!-- 오른쪽: 기능 아이콘 모음 (달력 + 나가기) -->
+                <div style="display:flex; align-items:center; gap:20px;">
+                    <!-- 🗓️ 실시간 일정 공유 달력 아이콘 -->
+                    <i class="fa-solid fa-calendar-days" onclick="toggleScheduleModal()" style="cursor:pointer; color:var(--primary-color); font-size:18px;" title="일정 공유"></i>
+                    <!-- 🚪 방 나가기 아이콘 -->
+                    <i class="fa-solid fa-right-from-bracket" onclick="deleteCurrentChatRoom()" style="cursor:pointer; color:#E53E3E; font-size:18px;" title="방 나가기"></i>
+                </div>
             </div>
         </div>
-    </div>
-
     <!-- 🌟 대화방 내부에서 띄워줄 일정 공유 모달 팝업 레이아웃 -->
 <div id="schedule-modal" class="hidden" style="position:absolute; top:60px; left:0; width:100%; height:calc(100% - 60px); background:rgba(255,255,255,0.98); z-index:100; display:flex; flex-direction:column; padding:20px; box-sizing:border-box;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:2px solid var(--primary-color); padding-bottom:8px;">

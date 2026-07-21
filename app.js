@@ -91,6 +91,31 @@ async function handleLogin() {
     }
 }
 
+// 🚪 로그아웃 처리 함수
+function handleLogout() {
+    if (!confirm("로그아웃 하시겠습니까?")) return;
+
+    // 1. 현재 접속된 대화방 실시간 수신 해제
+    if (currentRoomId) {
+        database.ref(`messages/${currentRoomId}`).off();
+        currentRoomId = null;
+    }
+
+    // 2. 대화방 목록 수신 해제 및 정보 초기화
+    database.ref('rooms').off();
+    currentUser = null;
+
+    // 3. 입력 필드 초기화
+    const idInput = document.getElementById('login-id');
+    const pwInput = document.getElementById('login-pw');
+    if (idInput) idInput.value = '';
+    if (pwInput) pwInput.value = '';
+
+    // 4. 로그인 화면으로 이동
+    switchScreen('login-screen');
+    alert("로그아웃 되었습니다.");
+}
+
 // 회원가입
 async function handleRegisterWithCode() {
     const id = document.getElementById('reg-id')?.value.trim();

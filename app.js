@@ -332,12 +332,18 @@ async function enterChatRoom(roomId, roomTitle) {
     }
 }
 
-// 💬 실시간 메시지 감시 (연속 메시지 프로필 생략 UI)
+// 💬 실시간 메시지 감시 (삭제 기능 및 실시간 반영 추가)
 function listenMessages(roomId) {
     const msgBox = document.getElementById('msg-box');
     if (!msgBox) return;
 
-    database.ref(`messages/${roomId}`).limitToLast(100).on('value', (snapshot) => {
+    const msgRef = database.ref(`messages/${roomId}`);
+
+    // 기존 감시자 해제
+    msgRef.off();
+
+    // 1. 전체 메시지 렌더링
+    msgRef.limitToLast(100).on('value', (snapshot) => {
         msgBox.innerHTML = '';
         if (!snapshot.exists()) return;
 
@@ -345,6 +351,7 @@ function listenMessages(roomId) {
 
         snapshot.forEach((child) => {
             const msg = child.val();
+            const msgId = child.key; // 🔥 메시지 데이터 고유 Key
             const isMe = msg.senderId === (currentUser ? currentUser.id : '');
             const isSystem = msg.senderId === 'system';
             const timeStr = formatTime(msg.timestamp);
@@ -352,6 +359,7 @@ function listenMessages(roomId) {
             const isContinuous = (lastSenderId === msg.senderId) && !isSystem;
 
             const msgDiv = document.createElement('div');
+            msgDiv.id = `msg-${msgId}`; // 🔥 특정 메시지 DOM 요소를 식별하기 위한 ID
             
             if (isSystem) {
                 msgDiv.style = "display:flex; justify-content:center; margin:10px 0;";
@@ -385,12 +393,22 @@ function listenMessages(roomId) {
                     `;
                 }
 
+                // 🗑️ 내가 보낸 메시지일 경우에만 삭제 버튼 추가
+                const deleteBtnHtml = isMe ? `
+                    <button onclick="deleteMessage('${msgId}')" title="메시지 삭제" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:11px; padding:2px; margin-top:2px; transition:color 0.2s;" onmouseover="this.style.color='#E53E3E'" onmouseout="this.style.color='#A0AEC0'">
+                        <i class="fa-regular fa-trash-can"></i>
+                    </button>
+                ` : '';
+
                 const bubbleHtml = `
                     <div style="display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'};">
                         ${(!isMe && !isContinuous) ? `<span style="font-size:11px; color:#718096; margin-bottom:3px; font-weight:500;">${msg.senderName || '알 수 없음'}</span>` : ''}
                         <div style="display:flex; align-items:flex-end; gap:5px; flex-direction:${isMe ? 'row-reverse' : 'row'};">
                             ${contentHtml}
-                            <span style="font-size:10px; color:#A0AEC0; white-space:nowrap;">${timeStr}</span>
+                            <div style="display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'}; gap:1px;">
+                                <span style="font-size:10px; color:#A0AEC0; white-space:nowrap;">${timeStr}</span>
+                                ${deleteBtnHtml}
+                            </div>
                         </div>
                     </div>
                 `;
@@ -402,6 +420,34 @@ function listenMessages(roomId) {
         });
         msgBox.scrollTop = msgBox.scrollHeight;
     });
+
+    // 2. 🔥 실시간 메시지 삭제 이벤트 감시 (상대방이 지웠을 때도 화면에서 지움)
+    msgRef.on('child_removed', (snapshot) => {
+        const deletedMsgId = snapshot.key;
+        const targetEl = document.getElementById(`msg-${deletedMsgId}`);
+        if (targetEl) {
+            targetEl.remove();
+        }
+    });
+}
+
+// 🗑️ 메시지 삭제 처리 함수
+function deleteMessage(msgId) {
+    if (!currentRoomId || !msgId) return;
+
+    if (confirm("이 메시지를 삭제하시겠습니까?")) {
+        database.ref(`messages/${currentRoomId}/${msgId}`).remove()
+            .then(() => {
+                const targetEl = document.getElementById(`msg-${msgId}`);
+                if (targetEl) {
+                    targetEl.remove();
+                }
+            })
+            .catch((error) => {
+                console.error("메시지 삭제 오류:", error);
+                alert("메시지 삭제에 실패했습니다.");
+            });
+    }
 }
 
 // 메시지 전송

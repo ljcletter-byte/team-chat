@@ -167,7 +167,6 @@ async function handleRegisterWithCode() {
 // 👥 사용자 & 팀원 목록 함수
 // ==========================================
 
-// 실시간 팀원/친구 목록 불러오기
 function loadFriendsList() {
     const listEl = document.getElementById('friends-list');
     if (!listEl) return;
@@ -181,7 +180,6 @@ function loadFriendsList() {
             return;
         }
 
-        // 본인 정보 카드 표시
         if (currentUser) {
             const myColor = getUserAvatarColor(currentUser.id);
             const myCard = document.createElement('div');
@@ -201,7 +199,6 @@ function loadFriendsList() {
         titleHeader.innerText = "팀원 목록";
         listEl.appendChild(titleHeader);
 
-        // 팀원 목록 생성
         snapshot.forEach((child) => {
             const user = child.val();
             if (currentUser && user.id === currentUser.id) return;
@@ -229,7 +226,6 @@ function loadFriendsList() {
     });
 }
 
-// 💬 1:1 대화 시작하기
 async function startDirectChat(targetId, targetName) {
     if (!currentUser) return;
 
@@ -284,7 +280,6 @@ async function startDirectChat(targetId, targetName) {
 // 💬 대화방 입장 및 조작 (Chat Room Actions)
 // ==========================================
 
-// 대화방 입장 검증
 function attemptEnterRoom(roomId, roomTitle, roomPassword) {
     if (roomPassword) {
         pendingRoom = { id: roomId, title: roomTitle, password: roomPassword };
@@ -317,7 +312,7 @@ function closePasswordModal() {
     pendingRoom = null;
 }
 
-// 💬 대화방 입장 (방장 제어 및 동적 버튼 설정)
+// 💬 대화방 입장 (방장 제어 및 일정 버튼 동시 보존)
 async function enterChatRoom(roomId, roomTitle) {
     if (currentRoomId) {
         database.ref(`messages/${currentRoomId}`).off();
@@ -333,7 +328,6 @@ async function enterChatRoom(roomId, roomTitle) {
         if (roomSnap.exists()) {
             const room = roomSnap.val();
             
-            // 방장 여부 판별
             if (currentUser && room.createdBy === currentUser.id) {
                 isOwner = true;
             }
@@ -349,18 +343,25 @@ async function enterChatRoom(roomId, roomTitle) {
         const titleEl = document.getElementById('chat-room-title');
         if (titleEl) titleEl.innerText = displayTitle || '대화방';
 
-        // 🔘 방장 전용 삭제 버튼 및 나가기 버튼 세팅
+        // 🔘 일정 버튼 + (방장삭제 or 일반나가기) 동시 렌더링
         const headerRight = document.getElementById('chat-header-actions');
         if (headerRight) {
-            let deleteBtnHtml = isOwner ? `
-                <button onclick="deleteChatRoom('${roomId}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; margin-right:5px;">
+            const actionBtnHtml = isOwner ? `
+                <button onclick="deleteChatRoom('${roomId}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">
                     🗑️ 방 삭제
                 </button>
-            ` : '';
-            headerRight.innerHTML = `${deleteBtnHtml}
+            ` : `
                 <button onclick="leaveChatRoom()" style="background:#EDF2F7; color:#4A5568; border:none; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">
                     🚪 나가기
-                </button>`;
+                </button>
+            `;
+
+            headerRight.innerHTML = `
+                <button onclick="toggleScheduleModal()" style="background:#EBF8FF; color:#3182CE; border:none; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
+                    🗓️ 일정
+                </button>
+                ${actionBtnHtml}
+            `;
         }
 
         switchScreen('chat-room-screen');
@@ -463,7 +464,6 @@ function listenMessages(roomId) {
     });
 }
 
-// 🗑️ 메시지 삭제 처리 함수
 function deleteMessage(msgId) {
     if (!currentRoomId || !msgId) return;
 
@@ -480,7 +480,6 @@ function deleteMessage(msgId) {
     }
 }
 
-// 🔥 대화방 완전히 삭제하기 (방장 전용)
 async function deleteChatRoom(roomId) {
     const targetRoomId = roomId || currentRoomId;
     if (!targetRoomId) return;
@@ -504,7 +503,6 @@ async function deleteChatRoom(roomId) {
     }
 }
 
-// 🚪 대화방 나가기 함수
 async function leaveChatRoom() {
     if (!currentRoomId || !currentUser) {
         switchScreen('chats-screen');
@@ -536,7 +534,6 @@ async function leaveChatRoom() {
     }
 }
 
-// ✉️ 텍스트 메시지 전송
 async function sendTextMessage() {
     const input = document.getElementById('chat-input-text');
     if (!input) return;
@@ -564,7 +561,6 @@ async function sendTextMessage() {
     }
 }
 
-// 📷 이미지 전송
 function sendImageMessage(fileInput) {
     if (!fileInput || !fileInput.files.length) return;
     const file = fileInput.files[0];
@@ -606,7 +602,6 @@ function sendImageMessage(fileInput) {
 // 📋 대화방 목록 및 생성 (Rooms Management)
 // ==========================================
 
-// 📋 대화방 목록 불러오기
 function loadChatRooms() {
     const chatListEl = document.getElementById('chat-list');
     if (!chatListEl) return;
@@ -663,7 +658,6 @@ function loadChatRooms() {
     });
 }
 
-// 새 대화방 생성
 async function createNewChatRoom() {
     if (!currentUser) return alert("로그인이 필요합니다.");
 
@@ -711,7 +705,6 @@ async function createNewChatRoom() {
     }
 }
 
-// 방 검색 필터링
 function filterChatRooms() {
     const query = document.getElementById('chat-search-input')?.value.toLowerCase().trim() || '';
     const items = document.querySelectorAll('.chat-room-item');
@@ -834,7 +827,6 @@ function toggleFindAccountModal() {
     if (modal) modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
 }
 
-// 🌙 다크 모드 토글
 function toggleDarkMode() {
     document.body.classList.toggle('dark-mode');
     const isDark = document.body.classList.contains('dark-mode');
@@ -857,7 +849,6 @@ function toggleDarkMode() {
     }
 }
 
-// 🖼️ 이미지 뷰어
 function openImageViewer(src) {
     const modal = document.getElementById('image-viewer-modal');
     const img = document.getElementById('image-viewer-img');
@@ -872,7 +863,6 @@ function closeImageViewer() {
     if (modal) modal.style.display = 'none';
 }
 
-// 🌙 페이지 로드 시 다크 모드 설정 복원
 document.addEventListener('DOMContentLoaded', () => {
     if (localStorage.getItem('theme') === 'dark') {
         toggleDarkMode();

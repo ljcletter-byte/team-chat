@@ -90,15 +90,15 @@ body {
 }
 
 .chat-input-area {
-    padding: 12px;
+    padding: 10px 12px;
     background: #FFFFFF;
     border-top: 1px solid var(--border-color);
     display: flex;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
 }
 
-.chat-input-area input {
+.chat-input-area input[type="text"] {
     flex: 1;
     padding: 10px 14px;
     border: 1px solid var(--border-color);
@@ -107,7 +107,7 @@ body {
     font-size: 14px;
 }
 
-.chat-input-area input:focus {
+.chat-input-area input[type="text"]:focus {
     border-color: var(--primary-color);
 }
 
@@ -126,7 +126,20 @@ body {
     background: var(--primary-hover);
 }
 
-/* 일정 모달 */
+/* 일정 및 안내 모달 공통 */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
 #schedule-modal {
     position: absolute;
     top: 56px;

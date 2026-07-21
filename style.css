@@ -156,3 +156,26 @@ body {
 .hidden {
     display: none !important;
 }
+
+/* 🖼️ 이미지 뷰어 모달 (화면 전체 가리기 수정) */
+#image-viewer-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background-color: rgba(0, 0, 0, 0.85);
+    z-index: 99999 !important;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+}
+
+#image-viewer-modal img {
+    max-width: 90%;
+    max-height: 85%;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    object-fit: contain;
+}

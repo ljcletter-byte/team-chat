@@ -1,6 +1,7 @@
 // 🌟 상태 관리
 let currentUser = null;
 let currentRoomId = null;
+let pendingRoom = null; // 비밀번호 입력 대기 방 정보
 let scheduleListener = null;
 
 // 🔒 지정된 초대 코드
@@ -26,7 +27,7 @@ function formatTime(timestamp) {
     return `${ampm} ${hours}:${minutes}`;
 }
 
-// 안전한 화면 전환 함수
+// 화면 전환 함수
 function switchScreen(screenId) {
     document.querySelectorAll('.screen').forEach(screen => {
         if (screen) {
@@ -39,8 +40,6 @@ function switchScreen(screenId) {
     if (targetScreen) {
         targetScreen.classList.add('active');
         targetScreen.style.display = 'flex';
-    } else {
-        console.warn(`[경고] ID가 '${screenId}'인 화면을 찾을 수 없습니다.`);
     }
 }
 
@@ -48,7 +47,6 @@ function switchScreen(screenId) {
 async function handleLogin() {
     const idInput = document.getElementById('login-id');
     const pwInput = document.getElementById('login-pw');
-    
     if (!idInput || !pwInput) return;
 
     const id = idInput.value.trim();
@@ -121,7 +119,114 @@ async function handleRegisterWithCode() {
     }
 }
 
-// 💬 대화방 입장 처리
+// 👥 실시간 친구 목록 불러오기
+function loadFriendsList() {
+    const listEl = document.getElementById('friends-list');
+    if (!listEl) return;
+
+    listEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">팀원 목록 불러오는 중...</div>';
+
+    database.ref('users').once('value', (snapshot) => {
+        listEl.innerHTML = '';
+        if (!snapshot.exists()) {
+            listEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">등록된 팀원이 없습니다.</div>';
+            return;
+        }
+
+        // 로그인된 본인 프로필 카드
+        if (currentUser) {
+            const myCard = document.createElement('div');
+            myCard.style = "padding:12px; margin-bottom:12px; border-bottom:2px solid #E2E8F0; display:flex; align-items:center; gap:12px;";
+            myCard.innerHTML = `
+                <div class="avatar" style="background:#3182CE; color:white; font-size:18px;">${currentUser.name.charAt(0)}</div>
+                <div>
+                    <div style="font-weight:700; font-size:16px; color:#2D3748;">${currentUser.name} (나)</div>
+                    <div style="font-size:12px; color:#718096;">@${currentUser.id}</div>
+                </div>
+            `;
+            listEl.appendChild(myCard);
+        }
+
+        const titleHeader = document.createElement('div');
+        titleHeader.style = "font-size:12px; font-weight:700; color:#A0AEC0; margin:8px 4px;";
+        titleHeader.innerText = "팀원 목록";
+        listEl.appendChild(titleHeader);
+
+        snapshot.forEach((child) => {
+            const user = child.val();
+            if (currentUser && user.id === currentUser.id) return; // 나 자신은 아래 목록에서 제외
+
+            const userDiv = document.createElement('div');
+            userDiv.style = "padding:10px 12px; border-bottom:1px solid #EDF2F7; display:flex; justify-content:space-between; align-items:center; background:#fff; border-radius:8px; margin-bottom:6px;";
+            userDiv.innerHTML = `
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <div class="avatar" style="background:#E2E8F0; color:#4A5568;">${user.name.charAt(0)}</div>
+                    <div>
+                        <div style="font-weight:600; font-size:14px; color:#2D3748;">${user.name}</div>
+                        <div style="font-size:11px; color:#A0AEC0;">@${user.id}</div>
+                    </div>
+                </div>
+                <button onclick="startDirectChat('${user.id}', '${user.name}')" style="background:#EBF8FF; color:#3182CE; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
+                    1:1 대화
+                </button>
+            `;
+            listEl.appendChild(userDiv);
+        });
+    });
+}
+
+// 💬 1:1 대화 시작하기
+async function startDirectChat(targetId, targetName) {
+    if (!currentUser) return;
+    const roomTitle = `${currentUser.name}, ${targetName}`;
+
+    try {
+        const now = Date.now();
+        const newRoomRef = database.ref('rooms').push();
+        await newRoomRef.set({
+            title: roomTitle,
+            createdBy: currentUser.id,
+            createdAt: now,
+            lastMessage: "1:1 대화방이 생성되었습니다.",
+            lastTimestamp: now
+        });
+
+        enterChatRoom(newRoomRef.key, roomTitle);
+    } catch (err) {
+        console.error("1:1 대화 생성 실패:", err);
+    }
+}
+
+// 🔐 대화방 클릭 시 입장 검증 (비밀번호 체크)
+function attemptEnterRoom(roomId, roomTitle, roomPassword) {
+    if (roomPassword) {
+        pendingRoom = { id: roomId, title: roomTitle, password: roomPassword };
+        document.getElementById('room-enter-pw').value = '';
+        document.getElementById('password-modal').style.display = 'flex';
+    } else {
+        enterChatRoom(roomId, roomTitle);
+    }
+}
+
+function verifyAndEnterRoom() {
+    const inputPw = document.getElementById('room-enter-pw').value.trim();
+    if (!pendingRoom) return;
+
+    if (inputPw === pendingRoom.password) {
+        closePasswordModal();
+        enterChatRoom(pendingRoom.id, pendingRoom.title);
+    } else {
+        alert("비밀번호가 일치하지 않습니다.");
+        document.getElementById('room-enter-pw').value = '';
+    }
+}
+
+function closePasswordModal() {
+    document.getElementById('password-modal').style.display = 'none';
+    pendingRoom = null;
+}
+
+// 💬 대화방 실제 입장
 function enterChatRoom(roomId, roomTitle) {
     if (currentRoomId) {
         database.ref(`messages/${currentRoomId}`).off();
@@ -135,7 +240,7 @@ function enterChatRoom(roomId, roomTitle) {
     listenMessages(currentRoomId);
 }
 
-// 💬 실시간 메시지 감시 및 화면 출력 (🎨 P3: 이미지 말풍선 지원)
+// 💬 실시간 메시지 감시 및 출력
 function listenMessages(roomId) {
     const msgBox = document.getElementById('msg-box');
     if (!msgBox) return;
@@ -162,10 +267,8 @@ function listenMessages(roomId) {
                 `;
             } else {
                 msgDiv.style = `display:flex; gap:8px; margin-bottom:14px; flex-direction:${isMe ? 'row-reverse' : 'row'};`;
-                
                 const avatarHtml = isMe ? '' : `<div class="avatar avatar-sm">${firstChar}</div>`;
                 
-                // 💡 P3: 이미지 및 텍스트 구분 모듈
                 let contentHtml = '';
                 if (msg.imageUrl) {
                     contentHtml = `<img src="${msg.imageUrl}" style="max-width:180px; border-radius:12px; border:1px solid #E2E8F0; cursor:pointer;" onclick="window.open('${msg.imageUrl}')">`;
@@ -221,16 +324,14 @@ async function sendTextMessage() {
         input.value = '';
     } catch (error) {
         console.error("메시지 전송 실패:", error);
-        alert("메시지 전송에 실패했습니다.");
     }
 }
 
-// 📸 P3: 이미지 메시지 전송 (Base64 변환 저장 방식)
+// 📸 이미지 메시지 전송
 function sendImageMessage(fileInput) {
     const file = fileInput.files[0];
     if (!file || !currentRoomId || !currentUser) return;
 
-    // 용량 제한 (최대 1MB)
     if (file.size > 1024 * 1024) {
         alert("이미지는 1MB 이하로 선택해 주세요.");
         fileInput.value = '';
@@ -258,125 +359,12 @@ function sendImageMessage(fileInput) {
             fileInput.value = '';
         } catch (err) {
             console.error("이미지 전송 실패:", err);
-            alert("이미지 전송에 실패했습니다.");
         }
     };
     reader.readAsDataURL(file);
 }
 
-// 🗓️ 공유 일정 모달 토글
-function toggleScheduleModal() {
-    const modal = document.getElementById('schedule-modal');
-    if (!currentRoomId || !modal) return;
-
-    if (modal.classList.contains('hidden')) {
-        modal.classList.remove('hidden');
-        modal.style.display = 'flex';
-        listenSharedSchedules();
-    } else {
-        modal.classList.add('hidden');
-        modal.style.display = 'none';
-        if (scheduleListener) {
-            database.ref(`rooms/${currentRoomId}/schedules`).off('value', scheduleListener);
-            scheduleListener = null;
-        }
-    }
-}
-
-// 공유 일정 리스너
-function listenSharedSchedules() {
-    const listEl = document.getElementById('schedule-list');
-    if (!listEl) return;
-    listEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">일정 불러오는 중...</div>';
-
-    scheduleListener = database.ref(`rooms/${currentRoomId}/schedules`).on('value', (snapshot) => {
-        listEl.innerHTML = '';
-        if (!snapshot.exists()) {
-            listEl.innerHTML = '<div style="text-align:center; padding:40px; color:#888; font-size:13px;">등록된 공유 일정이 없습니다.<br>새로운 일정을 등록해 보세요!</div>';
-            return;
-        }
-
-        snapshot.forEach((child) => {
-            const sched = child.val();
-            const schedId = child.key;
-
-            const item = document.createElement('div');
-            item.style = "display:flex; justify-content:space-between; align-items:center; background:white; padding:10px; border-radius:6px; border:1px solid #ddd; margin-bottom:8px;";
-            item.innerHTML = `
-                <div>
-                    <div style="font-weight:600; color:#333; font-size:14px;">${sched.title}</div>
-                    <div style="font-size:11px; color:#666; margin-top:2px;">
-                        <i class="fa-regular fa-calendar" style="margin-right:4px;"></i>${sched.date} 
-                        <span style="margin-left:6px; color:#4A90E2;">by ${sched.creatorName}</span>
-                    </div>
-                </div>
-                <button onclick="deleteSharedSchedule('${schedId}')" style="background:none; border:none; color:#E53E3E; cursor:pointer; font-size:12px; padding:5px;"><i class="fa-regular fa-trash-can"></i></button>
-            `;
-            listEl.appendChild(item);
-        });
-    });
-}
-
-// 공유 일정 추가
-async function addSharedSchedule() {
-    const titleInput = document.getElementById('sched-title');
-    const dateInput = document.getElementById('sched-date');
-
-    const title = titleInput.value.trim();
-    const date = dateInput.value;
-
-    if (!title || !date) return alert('일정 제목과 날짜를 모두 입력해 주세요.');
-
-    const newSchedule = {
-        title: title,
-        date: date,
-        creatorId: currentUser.id,
-        creatorName: currentUser.name,
-        createdAt: Date.now()
-    };
-
-    try {
-        await database.ref(`rooms/${currentRoomId}/schedules`).push(newSchedule);
-
-        const systemMessage = {
-            senderId: 'system',
-            senderName: '🗓️ 일정 알림',
-            text: `📢 [공유 일정] ${currentUser.name}님이 새로운 일정을 등록했습니다.\n📌 ${title} (${date})`,
-            timestamp: Date.now()
-        };
-        await database.ref(`messages/${currentRoomId}`).push(systemMessage);
-
-        titleInput.value = '';
-        dateInput.value = '';
-        toggleScheduleModal();
-
-    } catch (error) {
-        console.error("일정 등록 실패:", error);
-        alert("일정 등록에 실패했습니다.");
-    }
-}
-
-// 공유 일정 삭제
-async function deleteSharedSchedule(schedId) {
-    if (!confirm("이 일정을 삭제하시겠습니까?")) return;
-    try {
-        await database.ref(`rooms/${currentRoomId}/schedules/${schedId}`).remove();
-    } catch (error) {
-        console.error("일정 삭제 실패:", error);
-    }
-}
-
-// 대화방 나가기
-function leaveChatRoom() {
-    if (currentRoomId) {
-        database.ref(`messages/${currentRoomId}`).off();
-    }
-    currentRoomId = null;
-    switchScreen('chats-screen');
-    loadChatRooms();
-}
-
-// 📋 대화방 목록 불러오기
+// 📋 대화방 목록 불러오기 (🔐 비밀번호 잠금 아이콘 지원)
 function loadChatRooms() {
     const chatListEl = document.getElementById('chat-list');
     if (!chatListEl) return;
@@ -395,18 +383,24 @@ function loadChatRooms() {
             const roomId = child.key;
             const timeStr = formatTime(room.lastTimestamp);
             const firstChar = (room.title || '방').charAt(0);
+            const isLocked = !!room.password;
 
             const roomDiv = document.createElement('div');
             roomDiv.className = "chat-room-item";
             roomDiv.setAttribute("data-title", room.title || '');
             roomDiv.style = "padding:12px 16px; border-bottom:1px solid #E2E8F0; cursor:pointer; display:flex; gap:12px; align-items:center; background:#fff;";
-            roomDiv.onclick = () => enterChatRoom(roomId, room.title || '대화방');
+            
+            // 비밀번호 검증 후 입장 연결
+            roomDiv.onclick = () => attemptEnterRoom(roomId, room.title || '대화방', room.password);
             
             roomDiv.innerHTML = `
                 <div class="avatar" style="background:#EBF8FF; color:#3182CE;">${firstChar}</div>
                 <div style="flex:1; overflow:hidden;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                        <span style="font-weight:600; font-size:15px; color:#2D3748;">${room.title || '대화방'}</span>
+                        <span style="font-weight:600; font-size:15px; color:#2D3748; display:flex; align-items:center; gap:6px;">
+                            ${room.title || '대화방'}
+                            ${isLocked ? '<i class="fa-solid fa-lock" style="font-size:12px; color:#E53E3E;"></i>' : ''}
+                        </span>
                         <span style="font-size:11px; color:#A0AEC0;">${timeStr}</span>
                     </div>
                     <div style="font-size:13px; color:#718096; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${room.lastMessage || '이전 메시지가 없습니다.'}</div>
@@ -417,41 +411,36 @@ function loadChatRooms() {
     });
 }
 
-// 🔍 P3: 대화방 실시간 필터링 검색
-function filterChatRooms() {
-    const query = document.getElementById('chat-search-input')?.value.toLowerCase().trim() || '';
-    const items = document.querySelectorAll('.chat-room-item');
-
-    items.forEach((item) => {
-        const title = item.getAttribute('data-title').toLowerCase();
-        if (title.includes(query)) {
-            item.style.display = 'flex';
-        } else {
-            item.style.display = 'none';
-        }
-    });
-}
-
-// 대화방 개설
+// 🔒 비밀번호 설정 가능한 대화방 개설
 async function createNewChatRoom() {
     if (!currentUser) return alert("로그인이 필요합니다.");
 
-    const roomTitleInput = document.getElementById('new-room-title');
-    const roomTitle = roomTitleInput ? roomTitleInput.value.trim() : '';
+    const titleInput = document.getElementById('new-room-title');
+    const pwInput = document.getElementById('new-room-password');
+
+    const roomTitle = titleInput ? titleInput.value.trim() : '';
+    const roomPassword = pwInput ? pwInput.value.trim() : '';
 
     if (!roomTitle) return alert("대화방 이름을 입력해 주세요.");
 
     try {
         const now = Date.now();
         const newRoomRef = database.ref('rooms').push();
-        await newRoomRef.set({
+        
+        const roomData = {
             title: roomTitle,
             createdBy: currentUser.id,
             creatorName: currentUser.name,
             createdAt: now,
             lastMessage: "대화방이 생성되었습니다.",
             lastTimestamp: now
-        });
+        };
+
+        if (roomPassword) {
+            roomData.password = roomPassword; // 비밀번호 저장
+        }
+
+        await newRoomRef.set(roomData);
 
         await database.ref(`messages/${newRoomRef.key}`).push({
             senderId: 'system',
@@ -461,24 +450,136 @@ async function createNewChatRoom() {
         });
 
         alert("새 대화방이 개설되었습니다!");
-        if (roomTitleInput) roomTitleInput.value = '';
+        if (titleInput) titleInput.value = '';
+        if (pwInput) pwInput.value = '';
         toggleCreateRoomModal();
         loadChatRooms();
     } catch (error) {
         console.error("방 생성 실패:", error);
-        alert("대화방 개설에 실패했습니다.");
     }
 }
 
-// 모달 토글
+// 🔍 대화방 필터링
+function filterChatRooms() {
+    const query = document.getElementById('chat-search-input')?.value.toLowerCase().trim() || '';
+    const items = document.querySelectorAll('.chat-room-item');
+
+    items.forEach((item) => {
+        const title = item.getAttribute('data-title').toLowerCase();
+        item.style.display = title.includes(query) ? 'flex' : 'none';
+    });
+}
+
+// 일정 공유 기능들
+function toggleScheduleModal() {
+    const modal = document.getElementById('schedule-modal');
+    if (!currentRoomId || !modal) return;
+
+    if (modal.classList.contains('hidden')) {
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+        listenSharedSchedules();
+    } else {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+        if (scheduleListener) {
+            database.ref(`rooms/${currentRoomId}/schedules`).off('value', scheduleListener);
+            scheduleListener = null;
+        }
+    }
+}
+
+function listenSharedSchedules() {
+    const listEl = document.getElementById('schedule-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">일정 불러오는 중...</div>';
+
+    scheduleListener = database.ref(`rooms/${currentRoomId}/schedules`).on('value', (snapshot) => {
+        listEl.innerHTML = '';
+        if (!snapshot.exists()) {
+            listEl.innerHTML = '<div style="text-align:center; padding:40px; color:#888; font-size:13px;">등록된 공유 일정이 없습니다.</div>';
+            return;
+        }
+
+        snapshot.forEach((child) => {
+            const sched = child.val();
+            const schedId = child.key;
+
+            const item = document.createElement('div');
+            item.style = "display:flex; justify-content:space-between; align-items:center; background:white; padding:10px; border-radius:6px; border:1px solid #ddd; margin-bottom:8px;";
+            item.innerHTML = `
+                <div>
+                    <div style="font-weight:600; color:#333; font-size:14px;">${sched.title}</div>
+                    <div style="font-size:11px; color:#666; margin-top:2px;">
+                        <i class="fa-regular fa-calendar" style="margin-right:4px;"></i>${sched.date} 
+                        <span style="margin-left:6px; color:#3182CE;">by ${sched.creatorName}</span>
+                    </div>
+                </div>
+                <button onclick="deleteSharedSchedule('${schedId}')" style="background:none; border:none; color:#E53E3E; cursor:pointer; font-size:12px; padding:5px;"><i class="fa-regular fa-trash-can"></i></button>
+            `;
+            listEl.appendChild(item);
+        });
+    });
+}
+
+async function addSharedSchedule() {
+    const titleInput = document.getElementById('sched-title');
+    const dateInput = document.getElementById('sched-date');
+
+    const title = titleInput.value.trim();
+    const date = dateInput.value;
+
+    if (!title || !date) return alert('일정 제목과 날짜를 입력해 주세요.');
+
+    try {
+        await database.ref(`rooms/${currentRoomId}/schedules`).push({
+            title: title,
+            date: date,
+            creatorId: currentUser.id,
+            creatorName: currentUser.name,
+            createdAt: Date.now()
+        });
+
+        await database.ref(`messages/${currentRoomId}`).push({
+            senderId: 'system',
+            senderName: '🗓️ 일정 알림',
+            text: `📢 [공유 일정] ${currentUser.name}님이 일정을 등록했습니다.\n📌 ${title} (${date})`,
+            timestamp: Date.now()
+        });
+
+        titleInput.value = '';
+        dateInput.value = '';
+        toggleScheduleModal();
+    } catch (error) {
+        console.error("일정 등록 실패:", error);
+    }
+}
+
+async function deleteSharedSchedule(schedId) {
+    if (!confirm("이 일정을 삭제하시겠습니까?")) return;
+    try {
+        await database.ref(`rooms/${currentRoomId}/schedules/${schedId}`).remove();
+    } catch (error) {
+        console.error("일정 삭제 실패:", error);
+    }
+}
+
+function leaveChatRoom() {
+    if (currentRoomId) {
+        database.ref(`messages/${currentRoomId}`).off();
+    }
+    currentRoomId = null;
+    switchScreen('chats-screen');
+    loadChatRooms();
+}
+
+// 모달 토글 함수들
 function toggleCreateRoomModal() {
     const modal = document.getElementById('create-room-modal');
-    if (!modal) return;
-    modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
+    if (modal) modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
 }
 
 function toggleFindAccountModal() {
     const modal = document.getElementById('find-account-modal');
-    if (!modal) return;
-    modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
+    if (modal) modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
 }

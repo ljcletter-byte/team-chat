@@ -3,6 +3,9 @@ let currentUser = null;
 let currentRoomId = null;
 let scheduleListener = null;
 
+// 🔒 지정된 초대 코드 (이 코드를 입력해야만 회원가입 가능)
+const SYSTEM_INVITE_CODE = "SECRET2026"; 
+
 // SHA-256 비밀번호 암호화
 async function sha256(message) {
     const msgBuffer = new TextEncoder().encode(message);
@@ -58,12 +61,53 @@ async function handleLogin() {
         currentUser = userData;
         alert(`${currentUser.name}님 환영합니다!`);
 
-        // 대화방 입장 (기본 '일반' 방 또는 대화방 목록 처리)
-        enterChatRoom('general', '일반 대화방');
+        // 로그인 성공 후 대화방 목록 화면으로 이동
+        switchScreen('chats-screen');
+        loadChatRooms();
 
     } catch (error) {
         console.error("로그인 오류:", error);
         alert("로그인 중 오류가 발생했습니다.");
+    }
+}
+
+// 📌 [신규 추가] 1. 제한된 회원가입 처리 함수 (초대 코드 검증)
+async function handleRegisterWithCode() {
+    const id = document.getElementById('reg-id')?.value.trim();
+    const pw = document.getElementById('reg-pw')?.value.trim();
+    const name = document.getElementById('reg-name')?.value.trim();
+    const inviteCode = document.getElementById('reg-invite-code')?.value.trim();
+
+    if (!id || !pw || !name || !inviteCode) {
+        return alert('모든 항목과 초대 코드를 입력해 주세요.');
+    }
+
+    if (inviteCode !== SYSTEM_INVITE_CODE) {
+        return alert('유효하지 않은 가입 초대 코드입니다. 관리자에게 문의하세요.');
+    }
+
+    try {
+        const userRef = database.ref('users/' + id);
+        const snapshot = await userRef.once('value');
+        
+        if (snapshot.exists()) {
+            return alert('이미 존재하는 아이디입니다.');
+        }
+
+        const hashedPassword = await sha256(pw);
+        await userRef.set({
+            id: id,
+            name: name,
+            password: hashedPassword,
+            role: 'member',
+            createdAt: Date.now()
+        });
+
+        alert('회원가입이 완료되었습니다! 로그인해 주세요.');
+        switchScreen('login-screen');
+    } catch (error) {
+        console.error("회원가입 오류:", error);
+        alert("회원가입 처리 중 오류가 발생했습니다.");
     }
 }
 
@@ -98,7 +142,6 @@ function listenMessages(roomId) {
             const msgDiv = document.createElement('div');
             
             if (isSystem) {
-                // 시스템 알림 메시지 스타일
                 msgDiv.style = "display:flex; justify-content:center; margin:10px 0;";
                 msgDiv.innerHTML = `
                     <div style="background:#E2E8F0; color:#4A5568; padding:6px 12px; border-radius:12px; font-size:12px; text-align:center; max-width:85%; white-space:pre-wrap;">
@@ -106,7 +149,6 @@ function listenMessages(roomId) {
                     </div>
                 `;
             } else {
-                // 일반 대화 메시지 스타일
                 msgDiv.style = `display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'}; margin-bottom:10px;`;
                 msgDiv.innerHTML = `
                     <span style="font-size:11px; color:#888; margin-bottom:2px;">${msg.senderName || '알 수 없음'}</span>
@@ -224,7 +266,6 @@ async function addSharedSchedule() {
     try {
         await database.ref(`rooms/${currentRoomId}/schedules`).push(newSchedule);
 
-        // 일정 등록 메시지를 채팅방에 자동 전송
         const systemMessage = {
             senderId: 'system',
             senderName: '🗓️ 일정 알림',
@@ -253,14 +294,14 @@ async function deleteSharedSchedule(schedId) {
     }
 }
 
-// // 대화방 나가기 (대화방 목록 화면으로 이동)
+// 대화방 나가기 (대화방 목록 화면으로 이동)
 function leaveChatRoom() {
     if (currentRoomId) {
         database.ref(`messages/${currentRoomId}`).off();
     }
     currentRoomId = null;
-    switchScreen('chats-screen'); // 로그인 화면이 아닌 '방 목록 화면'으로 이동!
-    loadChatRooms(); // 방 목록을 다시 불러옴
+    switchScreen('chats-screen');
+    loadChatRooms();
 }
 
 // 📋 대화방 목록 불러오기
@@ -297,17 +338,52 @@ function loadChatRooms() {
     });
 }
 
-// 🚪 특정 대화방 입장
-function enterChatRoom(roomId, roomTitle) {
-    if (currentRoomId) {
-        database.ref(`messages/${currentRoomId}`).off();
-    }
-    
-    currentRoomId = roomId;
-    
-    const titleEl = document.getElementById('chat-room-title');
-    if (titleEl) titleEl.innerText = roomTitle;
+// 📌 [신규 추가] 2. 카카오톡 스타일 대화방 개설 기능
+async function createNewChatRoom() {
+    if (!currentUser) return alert("로그인이 필요합니다.");
 
-    switchScreen('chat-room-screen');
-    listenMessages(roomId);
+    const roomTitleInput = document.getElementById('new-room-title');
+    const roomTitle = roomTitleInput ? roomTitleInput.value.trim() : '';
+
+    if (!roomTitle) return alert("대화방 이름을 입력해 주세요.");
+
+    try {
+        const newRoomRef = database.ref('rooms').push();
+        await newRoomRef.set({
+            title: roomTitle,
+            createdBy: currentUser.id,
+            creatorName: currentUser.name,
+            createdAt: Date.now(),
+            lastMessage: "대화방이 생성되었습니다.",
+            lastTimestamp: Date.now()
+        });
+
+        // 생성 직후 안내 시스템 메시지 등록
+        await database.ref(`messages/${newRoomRef.key}`).push({
+            senderId: 'system',
+            senderName: '시스템',
+            text: `📢 [${currentUser.name}]님이 대화방을 개설했습니다.`,
+            timestamp: Date.now()
+        });
+
+        alert("새 대화방이 개설되었습니다!");
+        if (roomTitleInput) roomTitleInput.value = '';
+        toggleCreateRoomModal();
+        loadChatRooms();
+    } catch (error) {
+        console.error("방 생성 실패:", error);
+        alert("대화방 개설에 실패했습니다.");
+    }
+}
+
+// 📌 [신규 추가] 3. 방 생성 모달 토글
+function toggleCreateRoomModal() {
+    const modal = document.getElementById('create-room-modal');
+    if (!modal) return;
+    
+    if (modal.style.display === 'flex') {
+        modal.style.display = 'none';
+    } else {
+        modal.style.display = 'flex';
+    }
 }

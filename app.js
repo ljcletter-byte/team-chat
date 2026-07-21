@@ -95,23 +95,19 @@ async function handleLogin() {
 function handleLogout() {
     if (!confirm("로그아웃 하시겠습니까?")) return;
 
-    // 1. 현재 접속된 대화방 실시간 수신 해제
     if (currentRoomId) {
         database.ref(`messages/${currentRoomId}`).off();
         currentRoomId = null;
     }
 
-    // 2. 대화방 목록 수신 해제 및 정보 초기화
     database.ref('rooms').off();
     currentUser = null;
 
-    // 3. 입력 필드 초기화
     const idInput = document.getElementById('login-id');
     const pwInput = document.getElementById('login-pw');
     if (idInput) idInput.value = '';
     if (pwInput) pwInput.value = '';
 
-    // 4. 로그인 화면으로 이동
     switchScreen('login-screen');
     alert("로그아웃 되었습니다.");
 }
@@ -156,7 +152,7 @@ async function handleRegisterWithCode() {
     }
 }
 
-// 👥 실시간 친구 목록 (깨진 아이콘 보정 + 아바타 색상 반영)
+// 👥 실시간 친구 목록
 function loadFriendsList() {
     const listEl = document.getElementById('friends-list');
     if (!listEl) return;
@@ -170,7 +166,6 @@ function loadFriendsList() {
             return;
         }
 
-        // 로그인된 본인 프로필
         if (currentUser) {
             const myColor = getUserAvatarColor(currentUser.id);
             const myCard = document.createElement('div');
@@ -217,7 +212,7 @@ function loadFriendsList() {
     });
 }
 
-// 💬 1:1 대화 시작하기 (중복 방 개설 방지 로직 포함)
+// 💬 1:1 대화 시작하기
 async function startDirectChat(targetId, targetName) {
     if (!currentUser) return;
 
@@ -236,13 +231,11 @@ async function startDirectChat(targetId, targetName) {
             });
         }
 
-        // 이미 생성된 1:1 방이 있다면 바로 입장
         if (existingRoomId) {
             enterChatRoom(existingRoomId, targetName);
             return;
         }
 
-        // 신규 1:1 방 생성
         const now = Date.now();
         const newRoomRef = database.ref('rooms').push();
         const membersObj = {};
@@ -299,7 +292,7 @@ function closePasswordModal() {
     pendingRoom = null;
 }
 
-// 💬 대화방 입장 (동적 방 이름 적용)
+// 💬 대화방 입장 (방장 제어 및 동적 버튼 설정)
 async function enterChatRoom(roomId, roomTitle) {
     if (currentRoomId) {
         database.ref(`messages/${currentRoomId}`).off();
@@ -310,10 +303,16 @@ async function enterChatRoom(roomId, roomTitle) {
     try {
         const roomSnap = await database.ref(`rooms/${roomId}`).once('value');
         let displayTitle = roomTitle;
+        let isOwner = false;
 
         if (roomSnap.exists()) {
             const room = roomSnap.val();
-            // 1:1 방일 경우 내 이름이 아닌 상대방 이름으로 헤더 표시
+            
+            // 방장 여부 판별
+            if (currentUser && room.createdBy === currentUser.id) {
+                isOwner = true;
+            }
+
             if (room.isDirect && room.membersInfo) {
                 const partnerId = Object.keys(room.membersInfo).find(id => id !== currentUser.id);
                 if (partnerId) {
@@ -325,6 +324,20 @@ async function enterChatRoom(roomId, roomTitle) {
         const titleEl = document.getElementById('chat-room-title');
         if (titleEl) titleEl.innerText = displayTitle || '대화방';
 
+        // 🔘 방장 전용 삭제 버튼 제어
+        const headerRight = document.getElementById('chat-header-actions');
+        if (headerRight) {
+            let deleteBtnHtml = isOwner ? `
+                <button onclick="deleteChatRoom('${roomId}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; margin-right:5px;">
+                    🗑️ 방 삭제
+                </button>
+            ` : '';
+            headerRight.innerHTML = `${deleteBtnHtml}
+                <button onclick="leaveChatRoom()" style="background:#EDF2F7; color:#4A5568; border:none; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">
+                    🚪 나가기
+                </button>`;
+        }
+
         switchScreen('chat-room-screen');
         listenMessages(currentRoomId);
     } catch (err) {
@@ -332,17 +345,14 @@ async function enterChatRoom(roomId, roomTitle) {
     }
 }
 
-// 💬 실시간 메시지 감시 (삭제 기능 및 실시간 반영 추가)
+// 💬 실시간 메시지 감시
 function listenMessages(roomId) {
     const msgBox = document.getElementById('msg-box');
     if (!msgBox) return;
 
     const msgRef = database.ref(`messages/${roomId}`);
-
-    // 기존 감시자 해제
     msgRef.off();
 
-    // 1. 전체 메시지 렌더링
     msgRef.limitToLast(100).on('value', (snapshot) => {
         msgBox.innerHTML = '';
         if (!snapshot.exists()) return;
@@ -351,7 +361,7 @@ function listenMessages(roomId) {
 
         snapshot.forEach((child) => {
             const msg = child.val();
-            const msgId = child.key; // 🔥 메시지 데이터 고유 Key
+            const msgId = child.key;
             const isMe = msg.senderId === (currentUser ? currentUser.id : '');
             const isSystem = msg.senderId === 'system';
             const timeStr = formatTime(msg.timestamp);
@@ -359,7 +369,7 @@ function listenMessages(roomId) {
             const isContinuous = (lastSenderId === msg.senderId) && !isSystem;
 
             const msgDiv = document.createElement('div');
-            msgDiv.id = `msg-${msgId}`; // 🔥 특정 메시지 DOM 요소를 식별하기 위한 ID
+            msgDiv.id = `msg-${msgId}`;
             
             if (isSystem) {
                 msgDiv.style = "display:flex; justify-content:center; margin:10px 0;";
@@ -372,7 +382,6 @@ function listenMessages(roomId) {
             } else {
                 msgDiv.style = `display:flex; gap:8px; margin-bottom:${isContinuous ? '4px' : '10px'}; flex-direction:${isMe ? 'row-reverse' : 'row'};`;
                 
-                // 연속 메시지일 때 상대방 아바타 영역 숨김
                 let avatarHtml = '';
                 if (!isMe) {
                     if (!isContinuous) {
@@ -393,7 +402,6 @@ function listenMessages(roomId) {
                     `;
                 }
 
-                // 🗑️ 내가 보낸 메시지일 경우에만 삭제 버튼 추가
                 const deleteBtnHtml = isMe ? `
                     <button onclick="deleteMessage('${msgId}')" title="메시지 삭제" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:11px; padding:2px; margin-top:2px; transition:color 0.2s;" onmouseover="this.style.color='#E53E3E'" onmouseout="this.style.color='#A0AEC0'">
                         <i class="fa-regular fa-trash-can"></i>
@@ -421,7 +429,6 @@ function listenMessages(roomId) {
         msgBox.scrollTop = msgBox.scrollHeight;
     });
 
-    // 2. 🔥 실시간 메시지 삭제 이벤트 감시 (상대방이 지웠을 때도 화면에서 지움)
     msgRef.on('child_removed', (snapshot) => {
         const deletedMsgId = snapshot.key;
         const targetEl = document.getElementById(`msg-${deletedMsgId}`);
@@ -439,14 +446,73 @@ function deleteMessage(msgId) {
         database.ref(`messages/${currentRoomId}/${msgId}`).remove()
             .then(() => {
                 const targetEl = document.getElementById(`msg-${msgId}`);
-                if (targetEl) {
-                    targetEl.remove();
-                }
+                if (targetEl) targetEl.remove();
             })
             .catch((error) => {
                 console.error("메시지 삭제 오류:", error);
                 alert("메시지 삭제에 실패했습니다.");
             });
+    }
+}
+
+// 🔥 대화방 완전히 삭제하기 (방장/관리자용)
+async function deleteChatRoom(roomId) {
+    const targetRoomId = roomId || currentRoomId;
+    if (!targetRoomId) return;
+
+    if (!confirm("정말로 이 대화방을 완전히 삭제하시겠습니까?\n모든 대화 내용이 사라집니다.")) return;
+
+    try {
+        // 1. 방 메시지 삭제
+        await database.ref(`messages/${targetRoomId}`).remove();
+        // 2. 방 데이터 삭제
+        await database.ref(`rooms/${targetRoomId}`).remove();
+
+        alert("대화방이 삭제되었습니다.");
+        
+        if (currentRoomId === targetRoomId) {
+            currentRoomId = null;
+            switchScreen('chats-screen');
+            loadChatRooms();
+        }
+    } catch (error) {
+        console.error("방 삭제 오류:", error);
+        alert("대화방 삭제 중 오류가 발생했습니다.");
+    }
+}
+
+// 🚪 대화방 나가기 함수
+async function leaveChatRoom() {
+    if (!currentRoomId || !currentUser) {
+        switchScreen('chats-screen');
+        return;
+    }
+
+    if (!confirm("대화방에서 나가시겠습니까?")) return;
+
+    try {
+        const roomId = currentRoomId;
+
+        // 1. 시스템 퇴장 메시지 전송
+        await database.ref(`messages/${roomId}`).push({
+            senderId: 'system',
+            senderName: '시스템',
+            text: `📢 [${currentUser.name}]님이 대화방에서 퇴장하셨습니다.`,
+            timestamp: Date.now()
+        });
+
+        // 2. 멤버 목록에서 나 제거 (1:1 방의 경우)
+        await database.ref(`rooms/${roomId}/members/${currentUser.id}`).remove();
+
+        // 3. 리스너 해제 및 화면 이동
+        database.ref(`messages/${roomId}`).off();
+        currentRoomId = null;
+
+        switchScreen('chats-screen');
+        loadChatRooms();
+    } catch (error) {
+        console.error("방 나가기 실패:", error);
+        switchScreen('chats-screen');
     }
 }
 
@@ -515,7 +581,7 @@ function sendImageMessage(fileInput) {
     reader.readAsDataURL(file);
 }
 
-// 📋 대화방 목록 불러오기 (1:1 방은 상대방 이름 표시)
+// 📋 대화방 목록 불러오기
 function loadChatRooms() {
     const chatListEl = document.getElementById('chat-list');
     if (!chatListEl) return;
@@ -537,7 +603,6 @@ function loadChatRooms() {
 
             let displayTitle = room.title || '대화방';
             
-            // 1:1 대화방이면 상대방 이름 가져오기
             if (room.isDirect && room.membersInfo && currentUser) {
                 const partnerId = Object.keys(room.membersInfo).find(id => id !== currentUser.id);
                 if (partnerId) {
@@ -724,15 +789,6 @@ async function deleteSharedSchedule(schedId) {
     } catch (error) {
         console.error("일정 삭제 실패:", error);
     }
-}
-
-function leaveChatRoom() {
-    if (currentRoomId) {
-        database.ref(`messages/${currentRoomId}`).off();
-    }
-    currentRoomId = null;
-    switchScreen('chats-screen');
-    loadChatRooms();
 }
 
 function toggleCreateRoomModal() {

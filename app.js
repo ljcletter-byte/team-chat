@@ -135,7 +135,7 @@ function enterChatRoom(roomId, roomTitle) {
     listenMessages(currentRoomId);
 }
 
-// 💬 실시간 메시지 감시 및 화면 출력 (🎨 P2: 프로필 아바타 포함)
+// 💬 실시간 메시지 감시 및 화면 출력 (🎨 P3: 이미지 말풍선 지원)
 function listenMessages(roomId) {
     const msgBox = document.getElementById('msg-box');
     if (!msgBox) return;
@@ -163,16 +163,25 @@ function listenMessages(roomId) {
             } else {
                 msgDiv.style = `display:flex; gap:8px; margin-bottom:14px; flex-direction:${isMe ? 'row-reverse' : 'row'};`;
                 
-                // 상대방일 때 아바타 생성
                 const avatarHtml = isMe ? '' : `<div class="avatar avatar-sm">${firstChar}</div>`;
                 
+                // 💡 P3: 이미지 및 텍스트 구분 모듈
+                let contentHtml = '';
+                if (msg.imageUrl) {
+                    contentHtml = `<img src="${msg.imageUrl}" style="max-width:180px; border-radius:12px; border:1px solid #E2E8F0; cursor:pointer;" onclick="window.open('${msg.imageUrl}')">`;
+                } else {
+                    contentHtml = `
+                        <div style="background:${isMe ? '#3182CE' : '#FFFFFF'}; color:${isMe ? '#FFF' : '#2D3748'}; padding:8px 12px; border-radius:12px; max-width:200px; word-break:break-word; font-size:14px; line-height:1.4; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:${isMe ? 'none' : '1px solid #E2E8F0'};">
+                            ${msg.text || ''}
+                        </div>
+                    `;
+                }
+
                 const bubbleHtml = `
                     <div style="display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'};">
                         ${!isMe ? `<span style="font-size:11px; color:#718096; margin-bottom:3px; font-weight:500;">${msg.senderName || '알 수 없음'}</span>` : ''}
                         <div style="display:flex; align-items:flex-end; gap:6px; flex-direction:${isMe ? 'row-reverse' : 'row'};">
-                            <div style="background:${isMe ? '#3182CE' : '#FFFFFF'}; color:${isMe ? '#FFF' : '#2D3748'}; padding:8px 12px; border-radius:12px; max-width:200px; word-break:break-word; font-size:14px; line-height:1.4; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:${isMe ? 'none' : '1px solid #E2E8F0'};">
-                                ${msg.text || ''}
-                            </div>
+                            ${contentHtml}
                             <span style="font-size:10px; color:#A0AEC0; white-space:nowrap;">${timeStr}</span>
                         </div>
                     </div>
@@ -214,6 +223,45 @@ async function sendTextMessage() {
         console.error("메시지 전송 실패:", error);
         alert("메시지 전송에 실패했습니다.");
     }
+}
+
+// 📸 P3: 이미지 메시지 전송 (Base64 변환 저장 방식)
+function sendImageMessage(fileInput) {
+    const file = fileInput.files[0];
+    if (!file || !currentRoomId || !currentUser) return;
+
+    // 용량 제한 (최대 1MB)
+    if (file.size > 1024 * 1024) {
+        alert("이미지는 1MB 이하로 선택해 주세요.");
+        fileInput.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async function (e) {
+        const base64Image = e.target.result;
+        const now = Date.now();
+
+        try {
+            await database.ref(`messages/${currentRoomId}`).push({
+                senderId: currentUser.id,
+                senderName: currentUser.name,
+                imageUrl: base64Image,
+                timestamp: now
+            });
+
+            await database.ref(`rooms/${currentRoomId}`).update({
+                lastMessage: "📷 사진을 보냈습니다.",
+                lastTimestamp: now
+            });
+
+            fileInput.value = '';
+        } catch (err) {
+            console.error("이미지 전송 실패:", err);
+            alert("이미지 전송에 실패했습니다.");
+        }
+    };
+    reader.readAsDataURL(file);
 }
 
 // 🗓️ 공유 일정 모달 토글
@@ -328,7 +376,7 @@ function leaveChatRoom() {
     loadChatRooms();
 }
 
-// 📋 대화방 목록 불러오기 (🎨 P2: 방 아이콘/아바타 적용)
+// 📋 대화방 목록 불러오기
 function loadChatRooms() {
     const chatListEl = document.getElementById('chat-list');
     if (!chatListEl) return;
@@ -349,6 +397,8 @@ function loadChatRooms() {
             const firstChar = (room.title || '방').charAt(0);
 
             const roomDiv = document.createElement('div');
+            roomDiv.className = "chat-room-item";
+            roomDiv.setAttribute("data-title", room.title || '');
             roomDiv.style = "padding:12px 16px; border-bottom:1px solid #E2E8F0; cursor:pointer; display:flex; gap:12px; align-items:center; background:#fff;";
             roomDiv.onclick = () => enterChatRoom(roomId, room.title || '대화방');
             
@@ -364,6 +414,21 @@ function loadChatRooms() {
             `;
             chatListEl.appendChild(roomDiv);
         });
+    });
+}
+
+// 🔍 P3: 대화방 실시간 필터링 검색
+function filterChatRooms() {
+    const query = document.getElementById('chat-search-input')?.value.toLowerCase().trim() || '';
+    const items = document.querySelectorAll('.chat-room-item');
+
+    items.forEach((item) => {
+        const title = item.getAttribute('data-title').toLowerCase();
+        if (title.includes(query)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
+        }
     });
 }
 
@@ -405,9 +470,15 @@ async function createNewChatRoom() {
     }
 }
 
-// 방 생성 모달 토글
+// 모달 토글
 function toggleCreateRoomModal() {
     const modal = document.getElementById('create-room-modal');
+    if (!modal) return;
+    modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
+}
+
+function toggleFindAccountModal() {
+    const modal = document.getElementById('find-account-modal');
     if (!modal) return;
     modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
 }

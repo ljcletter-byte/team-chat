@@ -3,6 +3,14 @@ let currentUser = null;
 let currentRoomId = null;
 let scheduleListener = null;
 
+// SHA-256 비밀번호 암호화
+async function sha256(message) {
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 // 안전한 화면 전환 함수
 function switchScreen(screenId) {
     document.querySelectorAll('.screen').forEach(screen => {
@@ -21,12 +29,56 @@ function switchScreen(screenId) {
     }
 }
 
-// SHA-256 비밀번호 암호화
-async function sha256(message) {
-    const msgBuffer = new TextEncoder().encode(message);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+// 🔐 로그인 처리 함수
+async function handleLogin() {
+    const idInput = document.getElementById('login-id');
+    const pwInput = document.getElementById('login-pw');
+    
+    if (!idInput || !pwInput) return;
+
+    const id = idInput.value.trim();
+    const pw = pwInput.value.trim();
+
+    if (!id || !pw) return alert('아이디와 비밀번호를 입력해 주세요.');
+
+    try {
+        const snapshot = await database.ref('users/' + id).once('value');
+        if (!snapshot.exists()) {
+            return alert('존재하지 않는 아이디입니다.');
+        }
+
+        const userData = snapshot.val();
+        const hashedPassword = await sha256(pw);
+
+        if (userData.password !== hashedPassword) {
+            return alert('비밀번호가 일치하지 않습니다.');
+        }
+
+        // 로그인 성공 처리
+        currentUser = userData;
+        alert(`${currentUser.name}님 환영합니다!`);
+
+        // 대화방 입장 (기본 '일반' 방 또는 대화방 목록 처리)
+        enterChatRoom('general', '일반 대화방');
+
+    } catch (error) {
+        console.error("로그인 오류:", error);
+        alert("로그인 중 오류가 발생했습니다.");
+    }
+}
+
+// 💬 대화방 입장 처리
+function enterChatRoom(roomId, roomTitle) {
+    if (currentRoomId) {
+        database.ref(`messages/${currentRoomId}`).off();
+    }
+
+    currentRoomId = roomId;
+    const titleEl = document.getElementById('chat-room-title');
+    if (titleEl) titleEl.innerText = roomTitle || '대화방';
+
+    switchScreen('chat-room-screen');
+    listenMessages(currentRoomId);
 }
 
 // 💬 실시간 메시지 감시 및 화면 출력
@@ -41,22 +93,35 @@ function listenMessages(roomId) {
         snapshot.forEach((child) => {
             const msg = child.val();
             const isMe = msg.senderId === (currentUser ? currentUser.id : '');
+            const isSystem = msg.senderId === 'system';
 
             const msgDiv = document.createElement('div');
-            msgDiv.style = `display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'}; margin-bottom:10px;`;
-            msgDiv.innerHTML = `
-                <span style="font-size:11px; color:#888; margin-bottom:2px;">${msg.senderName || '알 수 없음'}</span>
-                <div style="background:${isMe ? 'var(--primary-color)' : '#E9ECEF'}; color:${isMe ? '#fff' : '#333'}; padding:8px 12px; border-radius:12px; max-width:70%; word-break:break-word; font-size:14px;">
-                    ${msg.text || ''}
-                </div>
-            `;
+            
+            if (isSystem) {
+                // 시스템 알림 메시지 스타일
+                msgDiv.style = "display:flex; justify-content:center; margin:10px 0;";
+                msgDiv.innerHTML = `
+                    <div style="background:#E2E8F0; color:#4A5568; padding:6px 12px; border-radius:12px; font-size:12px; text-align:center; max-width:85%; white-space:pre-wrap;">
+                        ${msg.text}
+                    </div>
+                `;
+            } else {
+                // 일반 대화 메시지 스타일
+                msgDiv.style = `display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'}; margin-bottom:10px;`;
+                msgDiv.innerHTML = `
+                    <span style="font-size:11px; color:#888; margin-bottom:2px;">${msg.senderName || '알 수 없음'}</span>
+                    <div style="background:${isMe ? 'var(--primary-color)' : '#E9ECEF'}; color:${isMe ? '#fff' : '#333'}; padding:8px 12px; border-radius:12px; max-width:70%; word-break:break-word; font-size:14px;">
+                        ${msg.text || ''}
+                    </div>
+                `;
+            }
             msgBox.appendChild(msgDiv);
         });
         msgBox.scrollTop = msgBox.scrollHeight;
     });
 }
 
-// 메시지 전송
+// ✏️ 메시지 전송
 async function sendTextMessage() {
     const input = document.getElementById('chat-input-text');
     if (!input) return;
@@ -138,7 +203,7 @@ function listenSharedSchedules() {
     });
 }
 
-// 공유 일정 추가
+// 📢 [P2 고도화] 공유 일정 추가 및 채팅방 자동 시스템 알림 전송
 async function addSharedSchedule() {
     const titleInput = document.getElementById('sched-title');
     const dateInput = document.getElementById('sched-date');
@@ -158,9 +223,20 @@ async function addSharedSchedule() {
 
     try {
         await database.ref(`rooms/${currentRoomId}/schedules`).push(newSchedule);
+
+        // 일정 등록 메시지를 채팅방에 자동 전송
+        const systemMessage = {
+            senderId: 'system',
+            senderName: '🗓️ 일정 알림',
+            text: `[공유 일정] ${currentUser.name}님이 새로운 일정을 등록했습니다.\n📌 ${title} (${date})`,
+            timestamp: Date.now()
+        };
+        await database.ref(`messages/${currentRoomId}`).push(systemMessage);
+
         titleInput.value = '';
         dateInput.value = '';
         toggleScheduleModal();
+
     } catch (error) {
         console.error("일정 등록 실패:", error);
         alert("일정 등록에 실패했습니다.");
@@ -183,5 +259,5 @@ function leaveChatRoom() {
         database.ref(`messages/${currentRoomId}`).off();
     }
     currentRoomId = null;
-    switchScreen('chats-screen');
+    switchScreen('login-screen');
 }

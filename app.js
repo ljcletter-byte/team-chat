@@ -376,7 +376,7 @@ function listenMessages(roomId) {
 
                 let contentHtml = '';
                 if (msg.imageUrl) {
-                    contentHtml = `<img src="${msg.imageUrl}" style="max-width:180px; border-radius:12px; border:1px solid #E2E8F0; cursor:pointer;" onclick="window.open('${msg.imageUrl}')">`;
+                    contentHtml = `<img src="${msg.imageUrl}" style="max-width:180px; border-radius:12px; border:1px solid #E2E8F0; cursor:pointer;" onclick="openImageViewer(this.src)">`;
                 } else {
                     contentHtml = `
                         <div style="background:${isMe ? '#3182CE' : '#FFFFFF'}; color:${isMe ? '#FFF' : '#2D3748'}; padding:8px 12px; border-radius:12px; max-width:210px; word-break:break-word; font-size:14px; line-height:1.4; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:${isMe ? 'none' : '1px solid #E2E8F0'};">
@@ -704,7 +704,18 @@ function toggleDarkMode() {
     document.body.classList.toggle('dark-mode');
     const isDark = document.body.classList.contains('dark-mode');
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
+
+    const appEl = document.getElementById('app');
+    const screens = document.querySelectorAll('.screen');
     
+    if (isDark) {
+        if(appEl) appEl.style.backgroundColor = '#1a202c';
+        screens.forEach(s => s.style.backgroundColor = '#1a202c');
+    } else {
+        if(appEl) appEl.style.backgroundColor = '#ffffff';
+        screens.forEach(s => s.style.backgroundColor = '#ffffff');
+    }
+
     const icon = document.getElementById('dark-mode-icon');
     if (icon) {
         icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
@@ -714,9 +725,7 @@ function toggleDarkMode() {
 // 🌙 페이지 로드 시 다크 모드 상태 복원
 document.addEventListener('DOMContentLoaded', () => {
     if (localStorage.getItem('theme') === 'dark') {
-        document.body.classList.add('dark-mode');
-        const icon = document.getElementById('dark-mode-icon');
-        if (icon) icon.className = 'fa-solid fa-sun';
+        toggleDarkMode();
     }
 });
 

@@ -698,3 +698,39 @@ function toggleFindAccountModal() {
     const modal = document.getElementById('find-account-modal');
     if (modal) modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
 }
+
+// 🌙 다크 모드 토글 함수
+function toggleDarkMode() {
+    document.body.classList.toggle('dark-mode');
+    const isDark = document.body.classList.contains('dark-mode');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    
+    const icon = document.getElementById('dark-mode-icon');
+    if (icon) {
+        icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+    }
+}
+
+// 🌙 페이지 로드 시 다크 모드 상태 복원
+document.addEventListener('DOMContentLoaded', () => {
+    if (localStorage.getItem('theme') === 'dark') {
+        document.body.classList.add('dark-mode');
+        const icon = document.getElementById('dark-mode-icon');
+        if (icon) icon.className = 'fa-solid fa-sun';
+    }
+});
+
+// 🖼️ 이미지 뷰어 열기 / 닫기
+function openImageViewer(src) {
+    const modal = document.getElementById('image-viewer-modal');
+    const img = document.getElementById('image-viewer-img');
+    if (modal && img) {
+        img.src = src;
+        modal.style.display = 'flex';
+    }
+}
+
+function closeImageViewer() {
+    const modal = document.getElementById('image-viewer-modal');
+    if (modal) modal.style.display = 'none';
+}

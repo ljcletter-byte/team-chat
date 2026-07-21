@@ -1,13 +1,25 @@
 // 🌟 상태 관리
 let currentUser = null;
 let currentRoomId = null;
-let pendingRoom = null; // 비밀번호 입력 대기 방 정보
+let pendingRoom = null;
 let scheduleListener = null;
 
-// 🔒 지정된 초대 코드
 const SYSTEM_INVITE_CODE = "SECRET2026"; 
 
-// SHA-256 비밀번호 암호화
+// 🎨 사용자마다 고유한 파스텔 색상을 생성해주는 함수
+function getUserAvatarColor(userId) {
+    const colors = [
+        '#4299E1', '#48BB78', '#ED8936', '#9F7AEA', '#ED64A6', 
+        '#38B2AC', '#667EEA', '#F6AD55', '#FC8181', '#68D391'
+    ];
+    let hash = 0;
+    for (let i = 0; i < userId.length; i++) {
+        hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+}
+
+// SHA-256 암호화
 async function sha256(message) {
     const msgBuffer = new TextEncoder().encode(message);
     const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
@@ -27,7 +39,7 @@ function formatTime(timestamp) {
     return `${ampm} ${hours}:${minutes}`;
 }
 
-// 화면 전환 함수
+// 화면 전환
 function switchScreen(screenId) {
     document.querySelectorAll('.screen').forEach(screen => {
         if (screen) {
@@ -43,7 +55,7 @@ function switchScreen(screenId) {
     }
 }
 
-// 🔐 로그인 처리 함수
+// 🔐 로그인
 async function handleLogin() {
     const idInput = document.getElementById('login-id');
     const pwInput = document.getElementById('login-pw');
@@ -79,7 +91,7 @@ async function handleLogin() {
     }
 }
 
-// 🔒 제한된 회원가입 처리 함수
+// 회원가입
 async function handleRegisterWithCode() {
     const id = document.getElementById('reg-id')?.value.trim();
     const pw = document.getElementById('reg-pw')?.value.trim();
@@ -119,7 +131,7 @@ async function handleRegisterWithCode() {
     }
 }
 
-// 👥 실시간 친구 목록 불러오기
+// 👥 실시간 친구 목록 (깨진 아이콘 보정 + 아바타 색상 반영)
 function loadFriendsList() {
     const listEl = document.getElementById('friends-list');
     if (!listEl) return;
@@ -133,12 +145,13 @@ function loadFriendsList() {
             return;
         }
 
-        // 로그인된 본인 프로필 카드
+        // 로그인된 본인 프로필
         if (currentUser) {
+            const myColor = getUserAvatarColor(currentUser.id);
             const myCard = document.createElement('div');
             myCard.style = "padding:12px; margin-bottom:12px; border-bottom:2px solid #E2E8F0; display:flex; align-items:center; gap:12px;";
             myCard.innerHTML = `
-                <div class="avatar" style="background:#3182CE; color:white; font-size:18px;">${currentUser.name.charAt(0)}</div>
+                <div class="avatar" style="background:${myColor}; color:white; font-size:18px; font-weight:bold; width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center;">${currentUser.name.charAt(0)}</div>
                 <div>
                     <div style="font-weight:700; font-size:16px; color:#2D3748;">${currentUser.name} (나)</div>
                     <div style="font-size:12px; color:#718096;">@${currentUser.id}</div>
@@ -154,15 +167,19 @@ function loadFriendsList() {
 
         snapshot.forEach((child) => {
             const user = child.val();
-            if (currentUser && user.id === currentUser.id) return; // 나 자신은 아래 목록에서 제외
+            if (currentUser && user.id === currentUser.id) return;
+
+            const userColor = getUserAvatarColor(user.id);
+            const isTargetAdmin = user.role === 'admin' || user.id.includes('admin');
+            const adminBadge = isTargetAdmin ? '<span style="color:#D69E2E; font-size:12px; margin-right:4px;">👑</span>' : '';
 
             const userDiv = document.createElement('div');
             userDiv.style = "padding:10px 12px; border-bottom:1px solid #EDF2F7; display:flex; justify-content:space-between; align-items:center; background:#fff; border-radius:8px; margin-bottom:6px;";
             userDiv.innerHTML = `
                 <div style="display:flex; align-items:center; gap:10px;">
-                    <div class="avatar" style="background:#E2E8F0; color:#4A5568;">${user.name.charAt(0)}</div>
+                    <div class="avatar" style="background:${userColor}; color:white; font-weight:bold; width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:15px;">${user.name.charAt(0)}</div>
                     <div>
-                        <div style="font-weight:600; font-size:14px; color:#2D3748;">${user.name}</div>
+                        <div style="font-weight:600; font-size:14px; color:#2D3748; display:flex; align-items:center;">${adminBadge}${user.name}</div>
                         <div style="font-size:11px; color:#A0AEC0;">@${user.id}</div>
                     </div>
                 </div>
@@ -175,29 +192,60 @@ function loadFriendsList() {
     });
 }
 
-// 💬 1:1 대화 시작하기
+// 💬 1:1 대화 시작하기 (중복 방 개설 방지 로직 포함)
 async function startDirectChat(targetId, targetName) {
     if (!currentUser) return;
-    const roomTitle = `${currentUser.name}, ${targetName}`;
 
     try {
+        const snapshot = await database.ref('rooms').once('value');
+        let existingRoomId = null;
+
+        if (snapshot.exists()) {
+            snapshot.forEach((child) => {
+                const room = child.val();
+                if (room.isDirect && room.members) {
+                    if (room.members[currentUser.id] && room.members[targetId]) {
+                        existingRoomId = child.key;
+                    }
+                }
+            });
+        }
+
+        // 이미 생성된 1:1 방이 있다면 바로 입장
+        if (existingRoomId) {
+            enterChatRoom(existingRoomId, targetName);
+            return;
+        }
+
+        // 신규 1:1 방 생성
         const now = Date.now();
         const newRoomRef = database.ref('rooms').push();
+        const membersObj = {};
+        membersObj[currentUser.id] = true;
+        membersObj[targetId] = true;
+
+        const membersInfoObj = {};
+        membersInfoObj[currentUser.id] = currentUser.name;
+        membersInfoObj[targetId] = targetName;
+
         await newRoomRef.set({
-            title: roomTitle,
+            title: `${currentUser.name}, ${targetName}`,
             createdBy: currentUser.id,
             createdAt: now,
             lastMessage: "1:1 대화방이 생성되었습니다.",
-            lastTimestamp: now
+            lastTimestamp: now,
+            isDirect: true,
+            members: membersObj,
+            membersInfo: membersInfoObj
         });
 
-        enterChatRoom(newRoomRef.key, roomTitle);
+        enterChatRoom(newRoomRef.key, targetName);
     } catch (err) {
-        console.error("1:1 대화 생성 실패:", err);
+        console.error("1:1 대화 연결 실패:", err);
     }
 }
 
-// 🔐 대화방 클릭 시 입장 검증 (비밀번호 체크)
+// 대화방 입장 검증
 function attemptEnterRoom(roomId, roomTitle, roomPassword) {
     if (roomPassword) {
         pendingRoom = { id: roomId, title: roomTitle, password: roomPassword };
@@ -226,21 +274,40 @@ function closePasswordModal() {
     pendingRoom = null;
 }
 
-// 💬 대화방 실제 입장
-function enterChatRoom(roomId, roomTitle) {
+// 💬 대화방 입장 (동적 방 이름 적용)
+async function enterChatRoom(roomId, roomTitle) {
     if (currentRoomId) {
         database.ref(`messages/${currentRoomId}`).off();
     }
 
     currentRoomId = roomId;
-    const titleEl = document.getElementById('chat-room-title');
-    if (titleEl) titleEl.innerText = roomTitle || '대화방';
 
-    switchScreen('chat-room-screen');
-    listenMessages(currentRoomId);
+    try {
+        const roomSnap = await database.ref(`rooms/${roomId}`).once('value');
+        let displayTitle = roomTitle;
+
+        if (roomSnap.exists()) {
+            const room = roomSnap.val();
+            // 1:1 방일 경우 내 이름이 아닌 상대방 이름으로 헤더 표시
+            if (room.isDirect && room.membersInfo) {
+                const partnerId = Object.keys(room.membersInfo).find(id => id !== currentUser.id);
+                if (partnerId) {
+                    displayTitle = room.membersInfo[partnerId];
+                }
+            }
+        }
+
+        const titleEl = document.getElementById('chat-room-title');
+        if (titleEl) titleEl.innerText = displayTitle || '대화방';
+
+        switchScreen('chat-room-screen');
+        listenMessages(currentRoomId);
+    } catch (err) {
+        console.error("방 진입 실패:", err);
+    }
 }
 
-// 💬 실시간 메시지 감시 및 출력
+// 💬 실시간 메시지 감시 (연속 메시지 프로필 생략 UI)
 function listenMessages(roomId) {
     const msgBox = document.getElementById('msg-box');
     if (!msgBox) return;
@@ -249,32 +316,45 @@ function listenMessages(roomId) {
         msgBox.innerHTML = '';
         if (!snapshot.exists()) return;
 
+        let lastSenderId = null;
+
         snapshot.forEach((child) => {
             const msg = child.val();
             const isMe = msg.senderId === (currentUser ? currentUser.id : '');
             const isSystem = msg.senderId === 'system';
             const timeStr = formatTime(msg.timestamp);
-            const firstChar = (msg.senderName || '알').charAt(0);
+            const userColor = getUserAvatarColor(msg.senderId || 'unknown');
+            const isContinuous = (lastSenderId === msg.senderId) && !isSystem;
 
             const msgDiv = document.createElement('div');
             
             if (isSystem) {
-                msgDiv.style = "display:flex; justify-content:center; margin:12px 0;";
+                msgDiv.style = "display:flex; justify-content:center; margin:10px 0;";
                 msgDiv.innerHTML = `
-                    <div style="background:#E2E8F0; color:#4A5568; padding:6px 14px; border-radius:12px; font-size:12px; text-align:center; max-width:85%; white-space:pre-wrap; line-height:1.4;">
+                    <div style="background:#EDF2F7; color:#4A5568; padding:5px 12px; border-radius:12px; font-size:11px; text-align:center; max-width:85%;">
                         ${msg.text}
                     </div>
                 `;
+                lastSenderId = 'system';
             } else {
-                msgDiv.style = `display:flex; gap:8px; margin-bottom:14px; flex-direction:${isMe ? 'row-reverse' : 'row'};`;
-                const avatarHtml = isMe ? '' : `<div class="avatar avatar-sm">${firstChar}</div>`;
+                msgDiv.style = `display:flex; gap:8px; margin-bottom:${isContinuous ? '4px' : '10px'}; flex-direction:${isMe ? 'row-reverse' : 'row'};`;
                 
+                // 연속 메시지일 때 상대방 아바타 영역 숨김
+                let avatarHtml = '';
+                if (!isMe) {
+                    if (!isContinuous) {
+                        avatarHtml = `<div class="avatar" style="background:${userColor}; color:white; font-size:13px; font-weight:bold; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${(msg.senderName || '알').charAt(0)}</div>`;
+                    } else {
+                        avatarHtml = `<div style="width:34px; flex-shrink:0;"></div>`;
+                    }
+                }
+
                 let contentHtml = '';
                 if (msg.imageUrl) {
                     contentHtml = `<img src="${msg.imageUrl}" style="max-width:180px; border-radius:12px; border:1px solid #E2E8F0; cursor:pointer;" onclick="window.open('${msg.imageUrl}')">`;
                 } else {
                     contentHtml = `
-                        <div style="background:${isMe ? '#3182CE' : '#FFFFFF'}; color:${isMe ? '#FFF' : '#2D3748'}; padding:8px 12px; border-radius:12px; max-width:200px; word-break:break-word; font-size:14px; line-height:1.4; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:${isMe ? 'none' : '1px solid #E2E8F0'};">
+                        <div style="background:${isMe ? '#3182CE' : '#FFFFFF'}; color:${isMe ? '#FFF' : '#2D3748'}; padding:8px 12px; border-radius:12px; max-width:210px; word-break:break-word; font-size:14px; line-height:1.4; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:${isMe ? 'none' : '1px solid #E2E8F0'};">
                             ${msg.text || ''}
                         </div>
                     `;
@@ -282,8 +362,8 @@ function listenMessages(roomId) {
 
                 const bubbleHtml = `
                     <div style="display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'};">
-                        ${!isMe ? `<span style="font-size:11px; color:#718096; margin-bottom:3px; font-weight:500;">${msg.senderName || '알 수 없음'}</span>` : ''}
-                        <div style="display:flex; align-items:flex-end; gap:6px; flex-direction:${isMe ? 'row-reverse' : 'row'};">
+                        ${(!isMe && !isContinuous) ? `<span style="font-size:11px; color:#718096; margin-bottom:3px; font-weight:500;">${msg.senderName || '알 수 없음'}</span>` : ''}
+                        <div style="display:flex; align-items:flex-end; gap:5px; flex-direction:${isMe ? 'row-reverse' : 'row'};">
                             ${contentHtml}
                             <span style="font-size:10px; color:#A0AEC0; white-space:nowrap;">${timeStr}</span>
                         </div>
@@ -291,6 +371,7 @@ function listenMessages(roomId) {
                 `;
 
                 msgDiv.innerHTML = avatarHtml + bubbleHtml;
+                lastSenderId = msg.senderId;
             }
             msgBox.appendChild(msgDiv);
         });
@@ -298,7 +379,7 @@ function listenMessages(roomId) {
     });
 }
 
-// ✏️ 메시지 전송
+// 메시지 전송
 async function sendTextMessage() {
     const input = document.getElementById('chat-input-text');
     if (!input) return;
@@ -308,14 +389,13 @@ async function sendTextMessage() {
 
     try {
         const now = Date.now();
-        const messageData = {
+        await database.ref(`messages/${currentRoomId}`).push({
             senderId: currentUser.id,
             senderName: currentUser.name,
             text: text,
             timestamp: now
-        };
+        });
 
-        await database.ref(`messages/${currentRoomId}`).push(messageData);
         await database.ref(`rooms/${currentRoomId}`).update({
             lastMessage: text,
             lastTimestamp: now
@@ -327,7 +407,7 @@ async function sendTextMessage() {
     }
 }
 
-// 📸 이미지 메시지 전송
+// 이미지 전송
 function sendImageMessage(fileInput) {
     const file = fileInput.files[0];
     if (!file || !currentRoomId || !currentUser) return;
@@ -364,7 +444,7 @@ function sendImageMessage(fileInput) {
     reader.readAsDataURL(file);
 }
 
-// 📋 대화방 목록 불러오기 (🔐 비밀번호 잠금 아이콘 지원)
+// 📋 대화방 목록 불러오기 (1:1 방은 상대방 이름 표시)
 function loadChatRooms() {
     const chatListEl = document.getElementById('chat-list');
     if (!chatListEl) return;
@@ -382,23 +462,34 @@ function loadChatRooms() {
             const room = child.val();
             const roomId = child.key;
             const timeStr = formatTime(room.lastTimestamp);
-            const firstChar = (room.title || '방').charAt(0);
             const isLocked = !!room.password;
+
+            let displayTitle = room.title || '대화방';
+            
+            // 1:1 대화방이면 상대방 이름 가져오기
+            if (room.isDirect && room.membersInfo && currentUser) {
+                const partnerId = Object.keys(room.membersInfo).find(id => id !== currentUser.id);
+                if (partnerId) {
+                    displayTitle = room.membersInfo[partnerId];
+                }
+            }
+
+            const firstChar = displayTitle.charAt(0);
+            const roomColor = getUserAvatarColor(roomId);
 
             const roomDiv = document.createElement('div');
             roomDiv.className = "chat-room-item";
-            roomDiv.setAttribute("data-title", room.title || '');
+            roomDiv.setAttribute("data-title", displayTitle);
             roomDiv.style = "padding:12px 16px; border-bottom:1px solid #E2E8F0; cursor:pointer; display:flex; gap:12px; align-items:center; background:#fff;";
             
-            // 비밀번호 검증 후 입장 연결
-            roomDiv.onclick = () => attemptEnterRoom(roomId, room.title || '대화방', room.password);
+            roomDiv.onclick = () => attemptEnterRoom(roomId, displayTitle, room.password);
             
             roomDiv.innerHTML = `
-                <div class="avatar" style="background:#EBF8FF; color:#3182CE;">${firstChar}</div>
+                <div class="avatar" style="background:${roomColor}; color:white; font-weight:bold; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;">${firstChar}</div>
                 <div style="flex:1; overflow:hidden;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                         <span style="font-weight:600; font-size:15px; color:#2D3748; display:flex; align-items:center; gap:6px;">
-                            ${room.title || '대화방'}
+                            ${displayTitle}
                             ${isLocked ? '<i class="fa-solid fa-lock" style="font-size:12px; color:#E53E3E;"></i>' : ''}
                         </span>
                         <span style="font-size:11px; color:#A0AEC0;">${timeStr}</span>
@@ -411,7 +502,7 @@ function loadChatRooms() {
     });
 }
 
-// 🔒 비밀번호 설정 가능한 대화방 개설
+// 방 생성
 async function createNewChatRoom() {
     if (!currentUser) return alert("로그인이 필요합니다.");
 
@@ -437,7 +528,7 @@ async function createNewChatRoom() {
         };
 
         if (roomPassword) {
-            roomData.password = roomPassword; // 비밀번호 저장
+            roomData.password = roomPassword;
         }
 
         await newRoomRef.set(roomData);
@@ -459,7 +550,7 @@ async function createNewChatRoom() {
     }
 }
 
-// 🔍 대화방 필터링
+// 방 필터링
 function filterChatRooms() {
     const query = document.getElementById('chat-search-input')?.value.toLowerCase().trim() || '';
     const items = document.querySelectorAll('.chat-room-item');
@@ -470,7 +561,7 @@ function filterChatRooms() {
     });
 }
 
-// 일정 공유 기능들
+// 일정 공유
 function toggleScheduleModal() {
     const modal = document.getElementById('schedule-modal');
     if (!currentRoomId || !modal) return;
@@ -573,7 +664,6 @@ function leaveChatRoom() {
     loadChatRooms();
 }
 
-// 모달 토글 함수들
 function toggleCreateRoomModal() {
     const modal = document.getElementById('create-room-modal');
     if (modal) modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';

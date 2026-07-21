@@ -14,7 +14,7 @@
 </head>
 <body>
     <div id="app">
-        <!-- 🎨 1. 로그인 화면 (P2: 브랜드 로고 및 밸런스 개선) -->
+        <!-- 🎨 1. 로그인 화면 (P3: 계정 찾기 링크 포함) -->
         <div id="login-screen" class="screen active" style="display:flex; flex-direction:column; justify-content:center; padding: 0 24px;">
             <div style="text-align: center; margin-bottom: 32px;">
                 <div style="width: 64px; height: 64px; background: #EBF8FF; color: #3182CE; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 28px; margin-bottom: 12px;">
@@ -32,6 +32,7 @@
                     <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
                         <input type="checkbox" id="remember-me" style="accent-color:#3182CE;"> 로그인 상태 유지
                     </label>
+                    <span onclick="toggleFindAccountModal()" style="cursor:pointer; color:#3182CE; text-decoration:underline;">계정 찾기</span>
                 </div>
 
                 <button onclick="handleLogin()" style="width:100%; padding:12px; background:#3182CE; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:15px; margin-bottom:12px;">로그인</button>
@@ -39,7 +40,7 @@
             </div>
         </div>
 
-        <!-- 2. 제한된 회원가입 화면 -->
+        <!-- 2. 회원가입 화면 -->
         <div id="register-screen" class="screen" style="display:none;">
             <div class="header" style="display:flex; align-items:center; gap:8px;">
                 <button onclick="switchScreen('login-screen')" style="background:none; border:none; cursor:pointer; font-size:16px; font-weight:bold; color:#4A5568;">&lt;</button>
@@ -54,7 +55,7 @@
             </div>
         </div>
 
-        <!-- 🎨 3. 채팅 목록 화면 (P2: 하단 탭바 포함) -->
+        <!-- 🎨 3. 채팅 목록 화면 (P3: 실시간 방 검색 기능 추가) -->
         <div id="chats-screen" class="screen" style="display:none; flex-direction:column; height:100%;">
             <div class="header" style="display:flex; justify-content:space-between; align-items:center;">
                 <h3 style="margin:0; font-size:18px; font-weight:700;">채팅</h3>
@@ -63,10 +64,18 @@
                 </button>
             </div>
 
+            <!-- 🔍 P3: 검색 인풋 추가 -->
+            <div style="padding: 8px 12px; background: #FFF; border-bottom: 1px solid #E2E8F0;">
+                <div style="display:flex; align-items:center; background:#F7FAFC; border:1px solid #E2E8F0; border-radius:8px; padding:0 10px;">
+                    <i class="fa-solid fa-magnifying-glass" style="color:#A0AEC0; font-size:13px; margin-right:8px;"></i>
+                    <input type="text" id="chat-search-input" placeholder="대화방 이름 검색..." onkeyup="filterChatRooms()" style="width:100%; padding:8px 0; border:none; background:transparent; outline:none; font-size:13px;">
+                </div>
+            </div>
+
             <!-- 실시간 대화방 목록 -->
             <div id="chat-list" style="flex:1; overflow-y:auto;"></div>
 
-            <!-- 🎨 P2: 카카오톡 스타일 하단 네비게이션 탭바 -->
+            <!-- 하단 네비게이션 탭바 -->
             <div style="display:flex; justify-content:space-around; align-items:center; height:60px; background:#FFFFFF; border-top:1px solid #E2E8F0;">
                 <button onclick="alert('친구 목록 기능 준비 중입니다.')" style="background:none; border:none; color:#A0AEC0; cursor:pointer; display:flex; flex-direction:column; align-items:center; font-size:11px; gap:3px;">
                     <i class="fa-regular fa-user" style="font-size:18px;"></i>친구
@@ -118,8 +127,13 @@
             <!-- 메시지 수신 영역 -->
             <div class="message-area" id="msg-box"></div>
 
-            <!-- 메시지 입력 영역 -->
+            <!-- 🎨 P3: 이미지 첨부 버튼 추가된 메시지 입력 영역 -->
             <div class="chat-input-area">
+                <label for="chat-image-input" style="cursor:pointer; color:#718096; padding:6px 8px; font-size:18px;">
+                    <i class="fa-regular fa-image"></i>
+                </label>
+                <input type="file" id="chat-image-input" accept="image/*" style="display:none;" onchange="sendImageMessage(this)">
+                
                 <input type="text" id="chat-input-text" placeholder="메시지를 입력하세요..." onkeypress="if(event.keyCode==13) sendTextMessage()">
                 <button class="chat-input-btn" onclick="sendTextMessage()">전송</button>
             </div>
@@ -127,7 +141,7 @@
     </div>
 
     <!-- 제한된 대화방 개설 모달 -->
-    <div id="create-room-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index:1000;">
+    <div id="create-room-modal" class="modal-overlay" style="display:none;">
         <div style="background:#fff; padding:20px; border-radius:12px; width:80%; max-width:320px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
             <h3 style="margin-top:0; font-size:16px; color:#2D3748;">💬 새 대화방 개설</h3>
             <input type="text" id="new-room-title" placeholder="대화방 이름을 입력하세요" style="width:100%; padding:10px; border:1px solid #E2E8F0; border-radius:6px; margin-bottom:15px; box-sizing:border-box; outline:none; font-size:14px;">
@@ -135,6 +149,18 @@
                 <button onclick="toggleCreateRoomModal()" style="padding:8px 12px; background:#E2E8F0; color:#4A5568; border:none; border-radius:6px; cursor:pointer; font-weight:600;">취소</button>
                 <button onclick="createNewChatRoom()" style="padding:8px 12px; background:#3182CE; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">개설하기</button>
             </div>
+        </div>
+    </div>
+
+    <!-- 💡 P3: 계정 찾기 안내 모달 -->
+    <div id="find-account-modal" class="modal-overlay" style="display:none;">
+        <div style="background:#fff; padding:20px; border-radius:12px; width:80%; max-width:320px; text-align:center;">
+            <div style="font-size:32px; color:#3182CE; margin-bottom:10px;"><i class="fa-solid fa-circle-info"></i></div>
+            <h3 style="font-size:16px; color:#2D3748; margin-bottom:8px;">계정 정보 찾기 안내</h3>
+            <p style="font-size:13px; color:#718096; line-height:1.5; margin-bottom:16px;">
+                비밀번호 분실 또는 아이디 확인이 필요하신 경우, 사내 **시스템 관리자**에게 문의해 주세요.
+            </p>
+            <button onclick="toggleFindAccountModal()" style="width:100%; padding:10px; background:#3182CE; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">확인</button>
         </div>
     </div>
 

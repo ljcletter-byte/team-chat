@@ -1,4 +1,6 @@
-// 🌟 상태 관리
+// ==========================================
+// 🌟 상태 관리 변수 (Global State)
+// ==========================================
 let currentUser = null;
 let currentRoomId = null;
 let pendingRoom = null;
@@ -6,8 +8,13 @@ let scheduleListener = null;
 
 const SYSTEM_INVITE_CODE = "SECRET2026"; 
 
-// 🎨 사용자마다 고유한 파스텔 색상을 생성해주는 함수
+// ==========================================
+// 🛠️ 유틸리티 함수 (Utility Functions)
+// ==========================================
+
+// 🎨 사용자마다 고유한 파스텔 색상 생성
 function getUserAvatarColor(userId) {
+    if (!userId) return '#4299E1';
     const colors = [
         '#4299E1', '#48BB78', '#ED8936', '#9F7AEA', '#ED64A6', 
         '#38B2AC', '#667EEA', '#F6AD55', '#FC8181', '#68D391'
@@ -39,7 +46,7 @@ function formatTime(timestamp) {
     return `${ampm} ${hours}:${minutes}`;
 }
 
-// 화면 전환
+// 화면 전환 (Screen Router)
 function switchScreen(screenId) {
     document.querySelectorAll('.screen').forEach(screen => {
         if (screen) {
@@ -55,7 +62,11 @@ function switchScreen(screenId) {
     }
 }
 
-// 🔐 로그인
+// ==========================================
+// 🔐 인증 관련 함수 (Auth Functions)
+// ==========================================
+
+// 로그인 처리
 async function handleLogin() {
     const idInput = document.getElementById('login-id');
     const pwInput = document.getElementById('login-pw');
@@ -91,7 +102,7 @@ async function handleLogin() {
     }
 }
 
-// 🚪 로그아웃 처리 함수
+// 로그아웃 처리
 function handleLogout() {
     if (!confirm("로그아웃 하시겠습니까?")) return;
 
@@ -112,7 +123,7 @@ function handleLogout() {
     alert("로그아웃 되었습니다.");
 }
 
-// 회원가입
+// 회원가입 처리
 async function handleRegisterWithCode() {
     const id = document.getElementById('reg-id')?.value.trim();
     const pw = document.getElementById('reg-pw')?.value.trim();
@@ -152,7 +163,11 @@ async function handleRegisterWithCode() {
     }
 }
 
-// 👥 실시간 친구 목록
+// ==========================================
+// 👥 사용자 & 팀원 목록 함수
+// ==========================================
+
+// 실시간 팀원/친구 목록 불러오기
 function loadFriendsList() {
     const listEl = document.getElementById('friends-list');
     if (!listEl) return;
@@ -166,6 +181,7 @@ function loadFriendsList() {
             return;
         }
 
+        // 본인 정보 카드 표시
         if (currentUser) {
             const myColor = getUserAvatarColor(currentUser.id);
             const myCard = document.createElement('div');
@@ -185,6 +201,7 @@ function loadFriendsList() {
         titleHeader.innerText = "팀원 목록";
         listEl.appendChild(titleHeader);
 
+        // 팀원 목록 생성
         snapshot.forEach((child) => {
             const user = child.val();
             if (currentUser && user.id === currentUser.id) return;
@@ -263,19 +280,25 @@ async function startDirectChat(targetId, targetName) {
     }
 }
 
+// ==========================================
+// 💬 대화방 입장 및 조작 (Chat Room Actions)
+// ==========================================
+
 // 대화방 입장 검증
 function attemptEnterRoom(roomId, roomTitle, roomPassword) {
     if (roomPassword) {
         pendingRoom = { id: roomId, title: roomTitle, password: roomPassword };
-        document.getElementById('room-enter-pw').value = '';
-        document.getElementById('password-modal').style.display = 'flex';
+        const input = document.getElementById('room-enter-pw');
+        if (input) input.value = '';
+        const modal = document.getElementById('password-modal');
+        if (modal) modal.style.display = 'flex';
     } else {
         enterChatRoom(roomId, roomTitle);
     }
 }
 
 function verifyAndEnterRoom() {
-    const inputPw = document.getElementById('room-enter-pw').value.trim();
+    const inputPw = document.getElementById('room-enter-pw')?.value.trim();
     if (!pendingRoom) return;
 
     if (inputPw === pendingRoom.password) {
@@ -283,12 +306,14 @@ function verifyAndEnterRoom() {
         enterChatRoom(pendingRoom.id, pendingRoom.title);
     } else {
         alert("비밀번호가 일치하지 않습니다.");
-        document.getElementById('room-enter-pw').value = '';
+        const input = document.getElementById('room-enter-pw');
+        if (input) input.value = '';
     }
 }
 
 function closePasswordModal() {
-    document.getElementById('password-modal').style.display = 'none';
+    const modal = document.getElementById('password-modal');
+    if (modal) modal.style.display = 'none';
     pendingRoom = null;
 }
 
@@ -324,7 +349,7 @@ async function enterChatRoom(roomId, roomTitle) {
         const titleEl = document.getElementById('chat-room-title');
         if (titleEl) titleEl.innerText = displayTitle || '대화방';
 
-        // 🔘 방장 전용 삭제 버튼 제어
+        // 🔘 방장 전용 삭제 버튼 및 나가기 버튼 세팅
         const headerRight = document.getElementById('chat-header-actions');
         if (headerRight) {
             let deleteBtnHtml = isOwner ? `
@@ -375,7 +400,7 @@ function listenMessages(roomId) {
                 msgDiv.style = "display:flex; justify-content:center; margin:10px 0;";
                 msgDiv.innerHTML = `
                     <div style="background:#EDF2F7; color:#4A5568; padding:5px 12px; border-radius:12px; font-size:11px; text-align:center; max-width:85%;">
-                        ${msg.text}
+                        ${msg.text || ''}
                     </div>
                 `;
                 lastSenderId = 'system';
@@ -455,7 +480,7 @@ function deleteMessage(msgId) {
     }
 }
 
-// 🔥 대화방 완전히 삭제하기 (방장/관리자용)
+// 🔥 대화방 완전히 삭제하기 (방장 전용)
 async function deleteChatRoom(roomId) {
     const targetRoomId = roomId || currentRoomId;
     if (!targetRoomId) return;
@@ -463,9 +488,7 @@ async function deleteChatRoom(roomId) {
     if (!confirm("정말로 이 대화방을 완전히 삭제하시겠습니까?\n모든 대화 내용이 사라집니다.")) return;
 
     try {
-        // 1. 방 메시지 삭제
         await database.ref(`messages/${targetRoomId}`).remove();
-        // 2. 방 데이터 삭제
         await database.ref(`rooms/${targetRoomId}`).remove();
 
         alert("대화방이 삭제되었습니다.");
@@ -493,7 +516,6 @@ async function leaveChatRoom() {
     try {
         const roomId = currentRoomId;
 
-        // 1. 시스템 퇴장 메시지 전송
         await database.ref(`messages/${roomId}`).push({
             senderId: 'system',
             senderName: '시스템',
@@ -501,10 +523,8 @@ async function leaveChatRoom() {
             timestamp: Date.now()
         });
 
-        // 2. 멤버 목록에서 나 제거 (1:1 방의 경우)
         await database.ref(`rooms/${roomId}/members/${currentUser.id}`).remove();
 
-        // 3. 리스너 해제 및 화면 이동
         database.ref(`messages/${roomId}`).off();
         currentRoomId = null;
 
@@ -516,7 +536,7 @@ async function leaveChatRoom() {
     }
 }
 
-// 메시지 전송
+// ✉️ 텍스트 메시지 전송
 async function sendTextMessage() {
     const input = document.getElementById('chat-input-text');
     if (!input) return;
@@ -544,8 +564,9 @@ async function sendTextMessage() {
     }
 }
 
-// 이미지 전송
+// 📷 이미지 전송
 function sendImageMessage(fileInput) {
+    if (!fileInput || !fileInput.files.length) return;
     const file = fileInput.files[0];
     if (!file || !currentRoomId || !currentUser) return;
 
@@ -580,6 +601,10 @@ function sendImageMessage(fileInput) {
     };
     reader.readAsDataURL(file);
 }
+
+// ==========================================
+// 📋 대화방 목록 및 생성 (Rooms Management)
+// ==========================================
 
 // 📋 대화방 목록 불러오기
 function loadChatRooms() {
@@ -638,7 +663,7 @@ function loadChatRooms() {
     });
 }
 
-// 방 생성
+// 새 대화방 생성
 async function createNewChatRoom() {
     if (!currentUser) return alert("로그인이 필요합니다.");
 
@@ -686,23 +711,26 @@ async function createNewChatRoom() {
     }
 }
 
-// 방 필터링
+// 방 검색 필터링
 function filterChatRooms() {
     const query = document.getElementById('chat-search-input')?.value.toLowerCase().trim() || '';
     const items = document.querySelectorAll('.chat-room-item');
 
     items.forEach((item) => {
-        const title = item.getAttribute('data-title').toLowerCase();
+        const title = item.getAttribute('data-title')?.toLowerCase() || '';
         item.style.display = title.includes(query) ? 'flex' : 'none';
     });
 }
 
-// 일정 공유
+// ==========================================
+// 📅 공유 일정 기능 (Schedules)
+// ==========================================
+
 function toggleScheduleModal() {
     const modal = document.getElementById('schedule-modal');
     if (!currentRoomId || !modal) return;
 
-    if (modal.classList.contains('hidden')) {
+    if (modal.classList.contains('hidden') || modal.style.display === 'none') {
         modal.classList.remove('hidden');
         modal.style.display = 'flex';
         listenSharedSchedules();
@@ -752,6 +780,7 @@ function listenSharedSchedules() {
 async function addSharedSchedule() {
     const titleInput = document.getElementById('sched-title');
     const dateInput = document.getElementById('sched-date');
+    if (!titleInput || !dateInput) return;
 
     const title = titleInput.value.trim();
     const date = dateInput.value;
@@ -791,6 +820,10 @@ async function deleteSharedSchedule(schedId) {
     }
 }
 
+// ==========================================
+// 🔲 모달 및 UI 제어 함수 (Modals & Theme)
+// ==========================================
+
 function toggleCreateRoomModal() {
     const modal = document.getElementById('create-room-modal');
     if (modal) modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
@@ -801,7 +834,7 @@ function toggleFindAccountModal() {
     if (modal) modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
 }
 
-// 🌙 다크 모드 토글 함수
+// 🌙 다크 모드 토글
 function toggleDarkMode() {
     document.body.classList.toggle('dark-mode');
     const isDark = document.body.classList.contains('dark-mode');
@@ -811,10 +844,10 @@ function toggleDarkMode() {
     const screens = document.querySelectorAll('.screen');
     
     if (isDark) {
-        if(appEl) appEl.style.backgroundColor = '#1a202c';
+        if (appEl) appEl.style.backgroundColor = '#1a202c';
         screens.forEach(s => s.style.backgroundColor = '#1a202c');
     } else {
-        if(appEl) appEl.style.backgroundColor = '#ffffff';
+        if (appEl) appEl.style.backgroundColor = '#ffffff';
         screens.forEach(s => s.style.backgroundColor = '#ffffff');
     }
 
@@ -824,14 +857,7 @@ function toggleDarkMode() {
     }
 }
 
-// 🌙 페이지 로드 시 다크 모드 상태 복원
-document.addEventListener('DOMContentLoaded', () => {
-    if (localStorage.getItem('theme') === 'dark') {
-        toggleDarkMode();
-    }
-});
-
-// 🖼️ 이미지 뷰어 열기 / 닫기
+// 🖼️ 이미지 뷰어
 function openImageViewer(src) {
     const modal = document.getElementById('image-viewer-modal');
     const img = document.getElementById('image-viewer-img');
@@ -845,3 +871,10 @@ function closeImageViewer() {
     const modal = document.getElementById('image-viewer-modal');
     if (modal) modal.style.display = 'none';
 }
+
+// 🌙 페이지 로드 시 다크 모드 설정 복원
+document.addEventListener('DOMContentLoaded', () => {
+    if (localStorage.getItem('theme') === 'dark') {
+        toggleDarkMode();
+    }
+});

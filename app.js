@@ -253,11 +253,61 @@ async function deleteSharedSchedule(schedId) {
     }
 }
 
-// 대화방 나가기
+// // 대화방 나가기 (대화방 목록 화면으로 이동)
 function leaveChatRoom() {
     if (currentRoomId) {
         database.ref(`messages/${currentRoomId}`).off();
     }
     currentRoomId = null;
-    switchScreen('login-screen');
+    switchScreen('chats-screen'); // 로그인 화면이 아닌 '방 목록 화면'으로 이동!
+    loadChatRooms(); // 방 목록을 다시 불러옴
+}
+
+// 📋 대화방 목록 불러오기
+function loadChatRooms() {
+    const chatListEl = document.getElementById('chat-list');
+    if (!chatListEl) return;
+
+    chatListEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">대화방 목록 불러오는 중...</div>';
+
+    database.ref('rooms').on('value', (snapshot) => {
+        chatListEl.innerHTML = '';
+        if (!snapshot.exists()) {
+            chatListEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">개설된 대화방이 없습니다.</div>';
+            return;
+        }
+
+        snapshot.forEach((child) => {
+            const room = child.val();
+            const roomId = child.key;
+
+            const roomDiv = document.createElement('div');
+            roomDiv.style = "padding:14px; border-bottom:1px solid #eee; cursor:pointer; display:flex; justify-content:space-between; align-items:center; background:#fff;";
+            roomDiv.onclick = () => enterChatRoom(roomId, room.title || '대화방');
+            
+            roomDiv.innerHTML = `
+                <div>
+                    <div style="font-weight:600; font-size:15px; color:#2D3748;">💬 ${room.title || '대화방'}</div>
+                    <div style="font-size:12px; color:#718096; margin-top:4px;">${room.lastMessage || '이전 메시지가 없습니다.'}</div>
+                </div>
+                <span style="font-size:12px; color:#A0AEC0; font-weight:bold;">입장 &gt;</span>
+            `;
+            chatListEl.appendChild(roomDiv);
+        });
+    });
+}
+
+// 🚪 특정 대화방 입장
+function enterChatRoom(roomId, roomTitle) {
+    if (currentRoomId) {
+        database.ref(`messages/${currentRoomId}`).off();
+    }
+    
+    currentRoomId = roomId;
+    
+    const titleEl = document.getElementById('chat-room-title');
+    if (titleEl) titleEl.innerText = roomTitle;
+
+    switchScreen('chat-room-screen');
+    listenMessages(roomId);
 }

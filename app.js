@@ -1,4 +1,4 @@
-// 🌟 상태 관리 (State Management)
+// 🌟 상태 관리
 let currentUser = null;
 let currentRoomId = null;
 let scheduleListener = null;
@@ -14,7 +14,7 @@ async function sha256(message) {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// 🕒 시간 포맷 함수 (예: 오후 3:05)
+// 🕒 시간 포맷 함수
 function formatTime(timestamp) {
     if (!timestamp) return '';
     const date = new Date(timestamp);
@@ -22,7 +22,7 @@ function formatTime(timestamp) {
     const minutes = date.getMinutes().toString().padStart(2, '0');
     const ampm = hours >= 12 ? '오후' : '오전';
     hours = hours % 12;
-    hours = hours ? hours : 12; // 0시는 12시로 표기
+    hours = hours ? hours : 12;
     return `${ampm} ${hours}:${minutes}`;
 }
 
@@ -81,7 +81,7 @@ async function handleLogin() {
     }
 }
 
-// 🔒 제한된 회원가입 처리 함수 (초대 코드 검증)
+// 🔒 제한된 회원가입 처리 함수
 async function handleRegisterWithCode() {
     const id = document.getElementById('reg-id')?.value.trim();
     const pw = document.getElementById('reg-pw')?.value.trim();
@@ -135,7 +135,7 @@ function enterChatRoom(roomId, roomTitle) {
     listenMessages(currentRoomId);
 }
 
-// 💬 실시간 메시지 감시 및 화면 출력 (P1: 전송 시간 표시 및 깨짐 수정)
+// 💬 실시간 메시지 감시 및 화면 출력 (🎨 P2: 프로필 아바타 포함)
 function listenMessages(roomId) {
     const msgBox = document.getElementById('msg-box');
     if (!msgBox) return;
@@ -149,11 +149,11 @@ function listenMessages(roomId) {
             const isMe = msg.senderId === (currentUser ? currentUser.id : '');
             const isSystem = msg.senderId === 'system';
             const timeStr = formatTime(msg.timestamp);
+            const firstChar = (msg.senderName || '알').charAt(0);
 
             const msgDiv = document.createElement('div');
             
             if (isSystem) {
-                // 🛠️ [P1] 깨짐 문자 수정 및 정제된 시스템 메세지
                 msgDiv.style = "display:flex; justify-content:center; margin:12px 0;";
                 msgDiv.innerHTML = `
                     <div style="background:#E2E8F0; color:#4A5568; padding:6px 14px; border-radius:12px; font-size:12px; text-align:center; max-width:85%; white-space:pre-wrap; line-height:1.4;">
@@ -161,22 +161,24 @@ function listenMessages(roomId) {
                     </div>
                 `;
             } else {
-                // 🛠️ [P1] 말풍선 옆 전송 시각 표기 추가
-                msgDiv.style = `display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'}; margin-bottom:12px;`;
+                msgDiv.style = `display:flex; gap:8px; margin-bottom:14px; flex-direction:${isMe ? 'row-reverse' : 'row'};`;
+                
+                // 상대방일 때 아바타 생성
+                const avatarHtml = isMe ? '' : `<div class="avatar avatar-sm">${firstChar}</div>`;
                 
                 const bubbleHtml = `
-                    <div style="display:flex; align-items:flex-end; gap:6px; flex-direction:${isMe ? 'row-reverse' : 'row'};">
-                        <div style="background:${isMe ? 'var(--primary-color, #3182CE)' : '#E9ECEF'}; color:${isMe ? '#fff' : '#333'}; padding:8px 12px; border-radius:12px; max-width:220px; word-break:break-word; font-size:14px; line-height:1.4;">
-                            ${msg.text || ''}
+                    <div style="display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'};">
+                        ${!isMe ? `<span style="font-size:11px; color:#718096; margin-bottom:3px; font-weight:500;">${msg.senderName || '알 수 없음'}</span>` : ''}
+                        <div style="display:flex; align-items:flex-end; gap:6px; flex-direction:${isMe ? 'row-reverse' : 'row'};">
+                            <div style="background:${isMe ? '#3182CE' : '#FFFFFF'}; color:${isMe ? '#FFF' : '#2D3748'}; padding:8px 12px; border-radius:12px; max-width:200px; word-break:break-word; font-size:14px; line-height:1.4; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:${isMe ? 'none' : '1px solid #E2E8F0'};">
+                                ${msg.text || ''}
+                            </div>
+                            <span style="font-size:10px; color:#A0AEC0; white-space:nowrap;">${timeStr}</span>
                         </div>
-                        <span style="font-size:10px; color:#A0AEC0; white-space:nowrap;">${timeStr}</span>
                     </div>
                 `;
 
-                msgDiv.innerHTML = `
-                    <span style="font-size:11px; color:#718096; margin-bottom:3px; font-weight:500;">${msg.senderName || '알 수 없음'}</span>
-                    ${bubbleHtml}
-                `;
+                msgDiv.innerHTML = avatarHtml + bubbleHtml;
             }
             msgBox.appendChild(msgDiv);
         });
@@ -326,7 +328,7 @@ function leaveChatRoom() {
     loadChatRooms();
 }
 
-// 📋 대화방 목록 불러오기 (P1: 시각 정보 추가)
+// 📋 대화방 목록 불러오기 (🎨 P2: 방 아이콘/아바타 적용)
 function loadChatRooms() {
     const chatListEl = document.getElementById('chat-list');
     if (!chatListEl) return;
@@ -344,19 +346,20 @@ function loadChatRooms() {
             const room = child.val();
             const roomId = child.key;
             const timeStr = formatTime(room.lastTimestamp);
+            const firstChar = (room.title || '방').charAt(0);
 
             const roomDiv = document.createElement('div');
-            roomDiv.style = "padding:14px; border-bottom:1px solid #eee; cursor:pointer; display:flex; justify-content:space-between; align-items:center; background:#fff;";
+            roomDiv.style = "padding:12px 16px; border-bottom:1px solid #E2E8F0; cursor:pointer; display:flex; gap:12px; align-items:center; background:#fff;";
             roomDiv.onclick = () => enterChatRoom(roomId, room.title || '대화방');
             
-            // 🛠️ [P1] 우측 상단 마지막 메시지 시각 표기 추가
             roomDiv.innerHTML = `
-                <div style="flex:1; overflow:hidden; padding-right:10px;">
+                <div class="avatar" style="background:#EBF8FF; color:#3182CE;">${firstChar}</div>
+                <div style="flex:1; overflow:hidden;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                        <span style="font-weight:600; font-size:15px; color:#2D3748;">💬 ${room.title || '대화방'}</span>
+                        <span style="font-weight:600; font-size:15px; color:#2D3748;">${room.title || '대화방'}</span>
                         <span style="font-size:11px; color:#A0AEC0;">${timeStr}</span>
                     </div>
-                    <div style="font-size:12px; color:#718096; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${room.lastMessage || '이전 메시지가 없습니다.'}</div>
+                    <div style="font-size:13px; color:#718096; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${room.lastMessage || '이전 메시지가 없습니다.'}</div>
                 </div>
             `;
             chatListEl.appendChild(roomDiv);
@@ -364,7 +367,7 @@ function loadChatRooms() {
     });
 }
 
-// 카카오톡 스타일 대화방 개설 기능 (P1: 깨짐 현상 없는 정제 문구 적용)
+// 대화방 개설
 async function createNewChatRoom() {
     if (!currentUser) return alert("로그인이 필요합니다.");
 
@@ -385,7 +388,6 @@ async function createNewChatRoom() {
             lastTimestamp: now
         });
 
-        // 🛠️ [P1] 특수문자 깨짐 없는 깔끔한 시스템 메시지 생성
         await database.ref(`messages/${newRoomRef.key}`).push({
             senderId: 'system',
             senderName: '시스템',
@@ -407,10 +409,5 @@ async function createNewChatRoom() {
 function toggleCreateRoomModal() {
     const modal = document.getElementById('create-room-modal');
     if (!modal) return;
-    
-    if (modal.style.display === 'flex') {
-        modal.style.display = 'none';
-    } else {
-        modal.style.display = 'flex';
-    }
+    modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
 }

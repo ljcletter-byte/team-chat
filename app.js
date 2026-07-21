@@ -3,7 +3,7 @@ let currentUser = null;
 let currentRoomId = null;
 let scheduleListener = null;
 
-// 🔒 지정된 초대 코드 (이 코드를 입력해야만 회원가입 가능)
+// 🔒 지정된 초대 코드
 const SYSTEM_INVITE_CODE = "SECRET2026"; 
 
 // SHA-256 비밀번호 암호화
@@ -12,6 +12,18 @@ async function sha256(message) {
     const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// 🕒 시간 포맷 함수 (예: 오후 3:05)
+function formatTime(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    let hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? '오후' : '오전';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // 0시는 12시로 표기
+    return `${ampm} ${hours}:${minutes}`;
 }
 
 // 안전한 화면 전환 함수
@@ -57,11 +69,9 @@ async function handleLogin() {
             return alert('비밀번호가 일치하지 않습니다.');
         }
 
-        // 로그인 성공 처리
         currentUser = userData;
         alert(`${currentUser.name}님 환영합니다!`);
 
-        // 로그인 성공 후 대화방 목록 화면으로 이동
         switchScreen('chats-screen');
         loadChatRooms();
 
@@ -71,7 +81,7 @@ async function handleLogin() {
     }
 }
 
-// 📌 [신규 추가] 1. 제한된 회원가입 처리 함수 (초대 코드 검증)
+// 🔒 제한된 회원가입 처리 함수 (초대 코드 검증)
 async function handleRegisterWithCode() {
     const id = document.getElementById('reg-id')?.value.trim();
     const pw = document.getElementById('reg-pw')?.value.trim();
@@ -83,7 +93,7 @@ async function handleRegisterWithCode() {
     }
 
     if (inviteCode !== SYSTEM_INVITE_CODE) {
-        return alert('유효하지 않은 가입 초대 코드입니다. 관리자에게 문의하세요.');
+        return alert('유효하지 않은 가입 초대 코드입니다.');
     }
 
     try {
@@ -125,7 +135,7 @@ function enterChatRoom(roomId, roomTitle) {
     listenMessages(currentRoomId);
 }
 
-// 💬 실시간 메시지 감시 및 화면 출력
+// 💬 실시간 메시지 감시 및 화면 출력 (P1: 전송 시간 표시 및 깨짐 수정)
 function listenMessages(roomId) {
     const msgBox = document.getElementById('msg-box');
     if (!msgBox) return;
@@ -138,23 +148,34 @@ function listenMessages(roomId) {
             const msg = child.val();
             const isMe = msg.senderId === (currentUser ? currentUser.id : '');
             const isSystem = msg.senderId === 'system';
+            const timeStr = formatTime(msg.timestamp);
 
             const msgDiv = document.createElement('div');
             
             if (isSystem) {
-                msgDiv.style = "display:flex; justify-content:center; margin:10px 0;";
+                // 🛠️ [P1] 깨짐 문자 수정 및 정제된 시스템 메세지
+                msgDiv.style = "display:flex; justify-content:center; margin:12px 0;";
                 msgDiv.innerHTML = `
-                    <div style="background:#E2E8F0; color:#4A5568; padding:6px 12px; border-radius:12px; font-size:12px; text-align:center; max-width:85%; white-space:pre-wrap;">
+                    <div style="background:#E2E8F0; color:#4A5568; padding:6px 14px; border-radius:12px; font-size:12px; text-align:center; max-width:85%; white-space:pre-wrap; line-height:1.4;">
                         ${msg.text}
                     </div>
                 `;
             } else {
-                msgDiv.style = `display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'}; margin-bottom:10px;`;
-                msgDiv.innerHTML = `
-                    <span style="font-size:11px; color:#888; margin-bottom:2px;">${msg.senderName || '알 수 없음'}</span>
-                    <div style="background:${isMe ? 'var(--primary-color)' : '#E9ECEF'}; color:${isMe ? '#fff' : '#333'}; padding:8px 12px; border-radius:12px; max-width:70%; word-break:break-word; font-size:14px;">
-                        ${msg.text || ''}
+                // 🛠️ [P1] 말풍선 옆 전송 시각 표기 추가
+                msgDiv.style = `display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'}; margin-bottom:12px;`;
+                
+                const bubbleHtml = `
+                    <div style="display:flex; align-items:flex-end; gap:6px; flex-direction:${isMe ? 'row-reverse' : 'row'};">
+                        <div style="background:${isMe ? 'var(--primary-color, #3182CE)' : '#E9ECEF'}; color:${isMe ? '#fff' : '#333'}; padding:8px 12px; border-radius:12px; max-width:220px; word-break:break-word; font-size:14px; line-height:1.4;">
+                            ${msg.text || ''}
+                        </div>
+                        <span style="font-size:10px; color:#A0AEC0; white-space:nowrap;">${timeStr}</span>
                     </div>
+                `;
+
+                msgDiv.innerHTML = `
+                    <span style="font-size:11px; color:#718096; margin-bottom:3px; font-weight:500;">${msg.senderName || '알 수 없음'}</span>
+                    ${bubbleHtml}
                 `;
             }
             msgBox.appendChild(msgDiv);
@@ -172,17 +193,18 @@ async function sendTextMessage() {
     if (!text || !currentRoomId || !currentUser) return;
 
     try {
+        const now = Date.now();
         const messageData = {
             senderId: currentUser.id,
             senderName: currentUser.name,
             text: text,
-            timestamp: Date.now()
+            timestamp: now
         };
 
         await database.ref(`messages/${currentRoomId}`).push(messageData);
         await database.ref(`rooms/${currentRoomId}`).update({
             lastMessage: text,
-            lastTimestamp: Date.now()
+            lastTimestamp: now
         });
 
         input.value = '';
@@ -192,7 +214,7 @@ async function sendTextMessage() {
     }
 }
 
-// 🗓️ 공유 일정 모달 켜고 끄기
+// 🗓️ 공유 일정 모달 토글
 function toggleScheduleModal() {
     const modal = document.getElementById('schedule-modal');
     if (!currentRoomId || !modal) return;
@@ -211,16 +233,16 @@ function toggleScheduleModal() {
     }
 }
 
-// 공유 일정 실시간 리스너
+// 공유 일정 리스너
 function listenSharedSchedules() {
     const listEl = document.getElementById('schedule-list');
     if (!listEl) return;
-    listEl.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-sub);">일정 불러오는 중...</div>';
+    listEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">일정 불러오는 중...</div>';
 
     scheduleListener = database.ref(`rooms/${currentRoomId}/schedules`).on('value', (snapshot) => {
         listEl.innerHTML = '';
         if (!snapshot.exists()) {
-            listEl.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-sub); font-size:13px;">등록된 공유 일정이 없습니다.<br>새로운 일정을 등록해 보세요!</div>';
+            listEl.innerHTML = '<div style="text-align:center; padding:40px; color:#888; font-size:13px;">등록된 공유 일정이 없습니다.<br>새로운 일정을 등록해 보세요!</div>';
             return;
         }
 
@@ -229,11 +251,11 @@ function listenSharedSchedules() {
             const schedId = child.key;
 
             const item = document.createElement('div');
-            item.style = "display:flex; justify-content:space-between; align-items:center; background:white; padding:10px; border-radius:6px; border:1px solid var(--border-color); margin-bottom:8px;";
+            item.style = "display:flex; justify-content:space-between; align-items:center; background:white; padding:10px; border-radius:6px; border:1px solid #ddd; margin-bottom:8px;";
             item.innerHTML = `
                 <div>
-                    <div style="font-weight:600; color:var(--text-main); font-size:14px;">${sched.title}</div>
-                    <div style="font-size:11px; color:var(--text-sub); margin-top:2px;">
+                    <div style="font-weight:600; color:#333; font-size:14px;">${sched.title}</div>
+                    <div style="font-size:11px; color:#666; margin-top:2px;">
                         <i class="fa-regular fa-calendar" style="margin-right:4px;"></i>${sched.date} 
                         <span style="margin-left:6px; color:#4A90E2;">by ${sched.creatorName}</span>
                     </div>
@@ -245,7 +267,7 @@ function listenSharedSchedules() {
     });
 }
 
-// 📢 [P2 고도화] 공유 일정 추가 및 채팅방 자동 시스템 알림 전송
+// 공유 일정 추가
 async function addSharedSchedule() {
     const titleInput = document.getElementById('sched-title');
     const dateInput = document.getElementById('sched-date');
@@ -269,7 +291,7 @@ async function addSharedSchedule() {
         const systemMessage = {
             senderId: 'system',
             senderName: '🗓️ 일정 알림',
-            text: `[공유 일정] ${currentUser.name}님이 새로운 일정을 등록했습니다.\n📌 ${title} (${date})`,
+            text: `📢 [공유 일정] ${currentUser.name}님이 새로운 일정을 등록했습니다.\n📌 ${title} (${date})`,
             timestamp: Date.now()
         };
         await database.ref(`messages/${currentRoomId}`).push(systemMessage);
@@ -294,7 +316,7 @@ async function deleteSharedSchedule(schedId) {
     }
 }
 
-// 대화방 나가기 (대화방 목록 화면으로 이동)
+// 대화방 나가기
 function leaveChatRoom() {
     if (currentRoomId) {
         database.ref(`messages/${currentRoomId}`).off();
@@ -304,7 +326,7 @@ function leaveChatRoom() {
     loadChatRooms();
 }
 
-// 📋 대화방 목록 불러오기
+// 📋 대화방 목록 불러오기 (P1: 시각 정보 추가)
 function loadChatRooms() {
     const chatListEl = document.getElementById('chat-list');
     if (!chatListEl) return;
@@ -321,24 +343,28 @@ function loadChatRooms() {
         snapshot.forEach((child) => {
             const room = child.val();
             const roomId = child.key;
+            const timeStr = formatTime(room.lastTimestamp);
 
             const roomDiv = document.createElement('div');
             roomDiv.style = "padding:14px; border-bottom:1px solid #eee; cursor:pointer; display:flex; justify-content:space-between; align-items:center; background:#fff;";
             roomDiv.onclick = () => enterChatRoom(roomId, room.title || '대화방');
             
+            // 🛠️ [P1] 우측 상단 마지막 메시지 시각 표기 추가
             roomDiv.innerHTML = `
-                <div>
-                    <div style="font-weight:600; font-size:15px; color:#2D3748;">💬 ${room.title || '대화방'}</div>
-                    <div style="font-size:12px; color:#718096; margin-top:4px;">${room.lastMessage || '이전 메시지가 없습니다.'}</div>
+                <div style="flex:1; overflow:hidden; padding-right:10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <span style="font-weight:600; font-size:15px; color:#2D3748;">💬 ${room.title || '대화방'}</span>
+                        <span style="font-size:11px; color:#A0AEC0;">${timeStr}</span>
+                    </div>
+                    <div style="font-size:12px; color:#718096; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${room.lastMessage || '이전 메시지가 없습니다.'}</div>
                 </div>
-                <span style="font-size:12px; color:#A0AEC0; font-weight:bold;">입장 &gt;</span>
             `;
             chatListEl.appendChild(roomDiv);
         });
     });
 }
 
-// 📌 [신규 추가] 2. 카카오톡 스타일 대화방 개설 기능
+// 카카오톡 스타일 대화방 개설 기능 (P1: 깨짐 현상 없는 정제 문구 적용)
 async function createNewChatRoom() {
     if (!currentUser) return alert("로그인이 필요합니다.");
 
@@ -348,22 +374,23 @@ async function createNewChatRoom() {
     if (!roomTitle) return alert("대화방 이름을 입력해 주세요.");
 
     try {
+        const now = Date.now();
         const newRoomRef = database.ref('rooms').push();
         await newRoomRef.set({
             title: roomTitle,
             createdBy: currentUser.id,
             creatorName: currentUser.name,
-            createdAt: Date.now(),
+            createdAt: now,
             lastMessage: "대화방이 생성되었습니다.",
-            lastTimestamp: Date.now()
+            lastTimestamp: now
         });
 
-        // 생성 직후 안내 시스템 메시지 등록
+        // 🛠️ [P1] 특수문자 깨짐 없는 깔끔한 시스템 메시지 생성
         await database.ref(`messages/${newRoomRef.key}`).push({
             senderId: 'system',
             senderName: '시스템',
             text: `📢 [${currentUser.name}]님이 대화방을 개설했습니다.`,
-            timestamp: Date.now()
+            timestamp: now
         });
 
         alert("새 대화방이 개설되었습니다!");
@@ -376,7 +403,7 @@ async function createNewChatRoom() {
     }
 }
 
-// 📌 [신규 추가] 3. 방 생성 모달 토글
+// 방 생성 모달 토글
 function toggleCreateRoomModal() {
     const modal = document.getElementById('create-room-modal');
     if (!modal) return;

@@ -602,9 +602,21 @@
     }
 
     function switchScreen(screenId) {
-        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-        document.getElementById(screenId).classList.add('active');
+    document.querySelectorAll('.screen').forEach(screen => {
+        if (screen) {
+            screen.classList.remove('active');
+            screen.style.display = 'none';
+        }
+    });
+
+    const targetScreen = document.getElementById(screenId);
+    if (targetScreen) {
+        targetScreen.classList.add('active');
+        targetScreen.style.display = 'flex';
+    } else {
+        console.warn(`[경고] ID가 '${screenId}'인 화면을 찾을 수 없습니다.`);
     }
+}
 
     async function handleRegister() {
         const id = document.getElementById('reg-id').value.trim();

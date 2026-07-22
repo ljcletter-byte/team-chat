@@ -395,10 +395,9 @@ async function enterChatRoom(roomId, roomTitle) {
         const titleEl = document.getElementById('chat-room-title');
         if (titleEl) titleEl.innerText = displayTitle || '대화방';
 
-        const headerRight = document.getElementById('chat-header-actions');
         if (headerRight) {
             const actionBtnHtml = isOwner ? `
-                <button onclick="deleteChatRoom('${roomId}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">
+                <button onclick="deleteChatRoom('${currentRoomId}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">
                     🗑️ 방 삭제
                 </button>
             ` : `
@@ -408,6 +407,9 @@ async function enterChatRoom(roomId, roomTitle) {
             `;
 
             headerRight.innerHTML = `
+                <button onclick="toggleInviteMemberModal()" style="background:#EBF8FF; color:#3182CE; border:none; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
+                    ➕ 초대
+                </button>
                 <button onclick="toggleScheduleModal()" style="background:#EBF8FF; color:#3182CE; border:none; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
                     🗓️ 일정
                 </button>
@@ -1231,4 +1233,124 @@ if (messaging) {
             });
         }
     });
+}
+
+// ==========================================
+// 👥 대화방 친구 초대 (Invite Members)
+// ==========================================
+
+// 초대 모달 토글 및 안 들어와 있는 친구 목록 불러오기
+function toggleInviteMemberModal() {
+    const modal = document.getElementById('invite-member-modal');
+    if (!modal || !currentRoomId) return;
+
+    const isHidden = modal.style.display === 'none' || modal.style.display === '';
+    modal.style.display = isHidden ? 'flex' : 'none';
+
+    if (isHidden) {
+        loadFriendsToInvite();
+    }
+}
+
+// 현재 방에 없는 친구 목록만 필터링해서 출력
+async function loadFriendsToInvite() {
+    const listEl = document.getElementById('invite-friends-list');
+    if (!listEl) return;
+
+    listEl.innerHTML = '<div style="font-size:12px; color:#888; text-align:center;">친구 목록 불러오는 중...</div>';
+
+    try {
+        // 1. 현재 대화방 데이터 가져오기
+        const roomSnap = await database.ref(`rooms/${currentRoomId}`).once('value');
+        if (!roomSnap.exists()) return;
+        const room = roomSnap.val();
+        
+        // 현재 방에 있는 멤버 ID 리스트/객체
+        const currentMembers = room.membersInfo || room.members || {};
+
+        // 2. 전체 유저 가져오기
+        const usersSnap = await database.ref('users').once('value');
+        listEl.innerHTML = '';
+
+        if (!usersSnap.exists()) {
+            listEl.innerHTML = '<div style="font-size:12px; color:#888; text-align:center;">초대 가능한 친구가 없습니다.</div>';
+            return;
+        }
+
+        let count = 0;
+        usersSnap.forEach((child) => {
+            const user = child.val();
+            // 이미 방에 있는 유저는 제외
+            const isAlreadyMember = Array.isArray(currentMembers) 
+                ? currentMembers.includes(user.id) 
+                : !!currentMembers[user.id];
+
+            if (!isAlreadyMember) {
+                count++;
+                const item = document.createElement('label');
+                item.style = "display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:8px; cursor:pointer;";
+                item.innerHTML = `
+                    <input type="checkbox" class="invite-friend-checkbox" value="${escapeHtml(user.id)}" data-name="${escapeHtml(user.name)}">
+                    <span>${escapeHtml(user.name)} (@${escapeHtml(user.id)})</span>
+                `;
+                listEl.appendChild(item);
+            }
+        });
+
+        if (count === 0) {
+            listEl.innerHTML = '<div style="font-size:12px; color:#888; text-align:center; padding:10px;">모든 친구가 이미 대화방에 있습니다.</div>';
+        }
+    } catch (err) {
+        console.error("초대 목록 로딩 오류:", err);
+        listEl.innerHTML = '<div style="font-size:12px; color:#E53E3E; text-align:center;">목록을 불러오지 못했습니다.</div>';
+    }
+}
+
+// 선택한 친구 대화방에 초대 처리
+async function inviteSelectedFriends() {
+    if (!currentRoomId || !currentUser) return;
+
+    const checkedBoxes = document.querySelectorAll('.invite-friend-checkbox:checked');
+    if (checkedBoxes.length === 0) {
+        return alert("초대할 친구를 최소 한 명 이상 선택해 주세요.");
+    }
+
+    try {
+        const roomRef = database.ref(`rooms/${currentRoomId}`);
+        const roomSnap = await roomRef.once('value');
+        if (!roomSnap.exists()) return;
+
+        const invitedNames = [];
+        const updateMembersInfo = {};
+
+        checkedBoxes.forEach(box => {
+            const userId = box.value;
+            const userName = box.getAttribute('data-name');
+            
+            // membersInfo 객체에 추가
+            updateMembersInfo[`membersInfo/${userId}`] = userName;
+            // members 배열/객체 형태 대응
+            updateMembersInfo[`members/${userId}`] = true;
+            
+            invitedNames.push(userName);
+        });
+
+        // 1. 방 정보에 멤버 업데이트
+        await roomRef.update(updateMembersInfo);
+
+        // 2. 대화방에 시스템 초대 메시지 전송
+        const namesStr = invitedNames.join(', ');
+        await database.ref(`messages/${currentRoomId}`).push({
+            senderId: 'system',
+            senderName: '시스템',
+            text: `📢 [${currentUser.name}]님이 [${namesStr}]님을 대화방에 초대했습니다.`,
+            timestamp: Date.now()
+        });
+
+        alert(`${invitedNames.length}명의 친구를 초대했습니다!`);
+        toggleInviteMemberModal();
+    } catch (error) {
+        console.error("친구 초대 실패:", error);
+        alert("친구 초대 중 오류가 발생했습니다.");
+    }
 }

@@ -868,3 +868,63 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleDarkMode();
     }
 });
+
+// ==========================================
+// 🔑 비밀번호 변경 관련 함수
+// ==========================================
+
+// 비밀번호 변경 모달 열기/닫기
+function toggleChangePwModal() {
+    const modal = document.getElementById('change-pw-modal');
+    if (!modal) return;
+    
+    const isHidden = modal.style.display === 'none' || modal.style.display === '';
+    modal.style.display = isHidden ? 'flex' : 'none';
+
+    if (isHidden) {
+        const input1 = document.getElementById('new-password-input');
+        const input2 = document.getElementById('new-password-confirm');
+        if (input1) input1.value = '';
+        if (input2) input2.value = '';
+    }
+}
+
+// 비밀번호 변경 실행
+async function handleChangePassword() {
+    if (!currentUser) {
+        alert("로그인이 필요합니다.");
+        return;
+    }
+
+    const newPw = document.getElementById('new-password-input')?.value.trim();
+    const confirmPw = document.getElementById('new-password-confirm')?.value.trim();
+
+    if (!newPw || !confirmPw) {
+        return alert("새 비밀번호와 비밀번호 확인을 모두 입력해 주세요.");
+    }
+
+    if (newPw !== confirmPw) {
+        return alert("새 비밀번호가 서로 일치하지 않습니다.");
+    }
+
+    if (newPw.length < 4) {
+        return alert("비밀번호는 최소 4자리 이상이어야 합니다.");
+    }
+
+    try {
+        // 새 비밀번호 해시화 및 DB 업데이트
+        const hashedPw = await sha256(newPw);
+
+        await database.ref(`users/${currentUser.id}`).update({
+            password: hashedPw
+        });
+
+        currentUser.password = hashedPw;
+
+        alert("비밀번호가 성공적으로 변경되었습니다!");
+        toggleChangePwModal();
+    } catch (error) {
+        console.error("비밀번호 변경 오류:", error);
+        alert("비밀번호 변경 중 오류가 발생했습니다.");
+    }
+}

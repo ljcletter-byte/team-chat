@@ -928,3 +928,221 @@ async function handleChangePassword() {
         alert("비밀번호 변경 중 오류가 발생했습니다.");
     }
 }
+
+// ==========================================
+// 🔑 비밀번호 변경 모달 및 처리 로직
+// ==========================================
+
+// 비밀번호 변경 모달 열기/닫기
+function toggleChangePwModal() {
+    const modal = document.getElementById('change-pw-modal');
+    if (!modal) return;
+    
+    const isHidden = modal.style.display === 'none' || modal.style.display === '';
+    modal.style.display = isHidden ? 'flex' : 'none';
+
+    if (isHidden) {
+        const input1 = document.getElementById('new-password-input');
+        const input2 = document.getElementById('new-password-confirm');
+        if (input1) input1.value = '';
+        if (input2) input2.value = '';
+    }
+}
+
+// 비밀번호 변경 실행
+async function handleChangePassword() {
+    if (!currentUser) {
+        alert("로그인이 필요합니다.");
+        return;
+    }
+
+    const newPw = document.getElementById('new-password-input')?.value.trim();
+    const confirmPw = document.getElementById('new-password-confirm')?.value.trim();
+
+    if (!newPw || !confirmPw) {
+        return alert("새 비밀번호와 비밀번호 확인을 모두 입력해 주세요.");
+    }
+
+    if (newPw !== confirmPw) {
+        return alert("새 비밀번호가 서로 일치하지 않습니다.");
+    }
+
+    if (newPw.length < 4) {
+        return alert("비밀번호는 최소 4자리 이상이어야 합니다.");
+    }
+
+    try {
+        // 새 비밀번호 해시화 및 DB 업데이트
+        const hashedPw = await sha256(newPw);
+
+        await database.ref(`users/${currentUser.id}`).update({
+            password: hashedPw
+        });
+
+        currentUser.password = hashedPw;
+
+        alert("비밀번호가 성공적으로 변경되었습니다!");
+        toggleChangePwModal();
+    } catch (error) {
+        console.error("비밀번호 변경 오류:", error);
+        alert("비밀번호 변경 중 오류가 발생했습니다.");
+    }
+}
+
+
+// ==========================================
+// 👑 관리자 센터 (Admin Dashboard) 로직
+// ==========================================
+
+// ⚙️ 설정 버튼 클릭 시 분기 처리 (관리자면 대시보드, 일반 사용자는 비밀번호 변경)
+function openSettingsOrAdmin() {
+    if (!currentUser) return alert("로그인이 필요합니다.");
+
+    const isAdmin = currentUser.role === 'admin' || currentUser.id.includes('admin');
+
+    if (isAdmin) {
+        toggleAdminModal();
+    } else {
+        toggleChangePwModal();
+    }
+}
+
+// 관리자 모달 열기/닫기
+function toggleAdminModal() {
+    const modal = document.getElementById('admin-modal');
+    if (!modal) return;
+
+    const isHidden = modal.style.display === 'none' || modal.style.display === '';
+    modal.style.display = isHidden ? 'flex' : 'none';
+
+    if (isHidden) {
+        switchAdminTab('users'); // 기본 탭: 회원 관리
+    }
+}
+
+// 관리자 센터 탭 전환 (회원 관리 <-> 대화방 관리)
+function switchAdminTab(tabName) {
+    const usersTab = document.getElementById('admin-tab-users');
+    const roomsTab = document.getElementById('admin-tab-rooms');
+    const usersBtn = document.getElementById('admin-tab-users-btn');
+    const roomsBtn = document.getElementById('admin-tab-rooms-btn');
+
+    if (tabName === 'users') {
+        usersTab.style.display = 'block';
+        roomsTab.style.display = 'none';
+        usersBtn.style.background = '#3182CE';
+        usersBtn.style.color = '#FFF';
+        roomsBtn.style.background = '#EDF2F7';
+        roomsBtn.style.color = '#4A5568';
+        loadAdminUsersList();
+    } else {
+        usersTab.style.display = 'none';
+        roomsTab.style.display = 'block';
+        roomsBtn.style.background = '#3182CE';
+        roomsBtn.style.color = '#FFF';
+        usersBtn.style.background = '#EDF2F7';
+        usersBtn.style.color = '#4A5568';
+        loadAdminRoomsList();
+    }
+}
+
+// 👥 [관리자] 전체 회원 목록 불러오기 및 계정 삭제 UI
+function loadAdminUsersList() {
+    const listEl = document.getElementById('admin-tab-users');
+    if (!listEl) return;
+
+    database.ref('users').once('value', (snapshot) => {
+        listEl.innerHTML = '';
+        if (!snapshot.exists()) {
+            listEl.innerHTML = '<div style="text-align:center; padding:15px; color:#888;">등록된 회원이 없습니다.</div>';
+            return;
+        }
+
+        snapshot.forEach((child) => {
+            const user = child.val();
+            const isMe = user.id === currentUser.id;
+            const isTargetAdmin = user.role === 'admin' || user.id.includes('admin');
+
+            const item = document.createElement('div');
+            item.style = "display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #EDF2F7; font-size:13px;";
+            item.innerHTML = `
+                <div>
+                    <div style="font-weight:600; color:#2D3748;">
+                        ${isTargetAdmin ? '👑 ' : ''}${user.name} 
+                        <span style="font-size:11px; color:#A0AEC0;">(@${user.id})</span>
+                    </div>
+                </div>
+                ${!isMe && !isTargetAdmin ? `
+                    <button onclick="adminKickUser('${user.id}', '${user.name}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600;">
+                        🚫 계정 삭제
+                    </button>
+                ` : '<span style="font-size:11px; color:#CBD5E0;">(본인/관리자)</span>'}
+            `;
+            listEl.appendChild(item);
+        });
+    });
+}
+
+// 🚫 [관리자] 회원 계정 강제 삭제 실행
+async function adminKickUser(targetUserId, targetUserName) {
+    if (!confirm(`정말로 [${targetUserName}] 계정을 시스템에서 삭제하시겠습니까?\n이 작업은 취소할 수 없습니다.`)) return;
+
+    try {
+        await database.ref(`users/${targetUserId}`).remove();
+        alert(`[${targetUserName}] 계정이 성공적으로 삭제되었습니다.`);
+        loadAdminUsersList(); // 관리자 회원 목록 갱신
+        if (typeof loadFriendsList === 'function') loadFriendsList(); // 메인 친구 목록 갱신
+    } catch (error) {
+        console.error("계정 삭제 오류:", error);
+        alert("계정 삭제 중 오류가 발생했습니다.");
+    }
+}
+
+// 💬 [관리자] 전체 대화방 목록 불러오기 및 강제 폐쇄 UI
+function loadAdminRoomsList() {
+    const listEl = document.getElementById('admin-tab-rooms');
+    if (!listEl) return;
+
+    database.ref('rooms').once('value', (snapshot) => {
+        listEl.innerHTML = '';
+        if (!snapshot.exists()) {
+            listEl.innerHTML = '<div style="text-align:center; padding:15px; color:#888;">개설된 대화방이 없습니다.</div>';
+            return;
+        }
+
+        snapshot.forEach((child) => {
+            const room = child.val();
+            const roomId = child.key;
+
+            const item = document.createElement('div');
+            item.style = "display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #EDF2F7; font-size:13px;";
+            item.innerHTML = `
+                <div style="overflow:hidden; padding-right:8px;">
+                    <div style="font-weight:600; color:#2D3748; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${room.title || '1:1 대화방'}</div>
+                    <div style="font-size:10px; color:#A0AEC0;">생성자: ${room.creatorName || room.createdBy || '알 수 없음'}</div>
+                </div>
+                <button onclick="adminDeleteRoom('${roomId}', '${room.title || '대화방'}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600; flex-shrink:0;">
+                    🗑️ 방 강제 폐쇄
+                </button>
+            `;
+            listEl.appendChild(item);
+        });
+    });
+}
+
+// 🗑️ [관리자] 대화방 강제 폐쇄 실행
+async function adminDeleteRoom(roomId, roomTitle) {
+    if (!confirm(`[${roomTitle}] 대화방을 강제로 폐쇄하고 모든 대화 기록을 삭제하시겠습니까?`)) return;
+
+    try {
+        await database.ref(`messages/${roomId}`).remove();
+        await database.ref(`rooms/${roomId}`).remove();
+
+        alert("대화방이 강제 폐쇄되었습니다.");
+        loadAdminRoomsList(); // 관리자 방 목록 갱신
+        if (typeof loadChatRooms === 'function') loadChatRooms(); // 메인 방 목록 갱신
+    } catch (error) {
+        console.error("대화방 삭제 오류:", error);
+        alert("대화방 폐쇄 처리 중 오류가 발생했습니다.");
+    }
+}

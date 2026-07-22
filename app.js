@@ -1197,11 +1197,14 @@ async function requestPushNotificationPermission() {
 
     try {
         const permission = await Notification.requestPermission();
-        
+
         if (permission === 'granted') {
             console.log("알림 권한이 승인되었습니다.");
-            const token = await messaging.getToken();
             
+            // 💡 현재 저장소 경로(./firebase-messaging-sw.js)로 서비스 워커 등록 지정
+            const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+            const token = await messaging.getToken({ serviceWorkerRegistration: registration });
+
             if (token) {
                 await database.ref(`users/${currentUser.id}/pushToken`).set(token);
                 console.log("푸시 토큰 저장 완료:", token);

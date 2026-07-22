@@ -315,16 +315,33 @@ function attemptEnterRoom(roomId, roomTitle, roomPassword) {
 
 // 비동기(async) 키워드 적용 및 비밀번호 검증 개선
 async function verifyAndEnterRoom() {
-    const inputPw = document.getElementById('room-enter-pw')?.value.trim();
-    if (!pendingRoom) return alert("방 정보가 올바르지 않습니다.");
-    if (!inputPw) return alert("비밀번호를 입력해 주세요.");
+    const inputPw = document.getElementById('room-enter-pw')?.value?.trim();
+    
+    if (!pendingRoom) {
+        alert("방 정보가 올바르지 않습니다.");
+        closePasswordModal();
+        return;
+    }
+
+    if (!currentUser) {
+        alert("로그인이 필요합니다. 다시 로그인해 주세요.");
+        closePasswordModal();
+        switchScreen('login-screen');
+        return;
+    }
+    
+    if (!inputPw) {
+        return alert("비밀번호를 입력해 주세요.");
+    }
 
     try {
         const hashedInputPw = await sha256(inputPw);
 
         if (hashedInputPw === pendingRoom.password) {
+            const targetId = pendingRoom.id;
+            const targetTitle = pendingRoom.title;
             closePasswordModal();
-            enterChatRoom(pendingRoom.id, pendingRoom.title);
+            enterChatRoom(targetId, targetTitle);
         } else {
             alert("비밀번호가 일치하지 않습니다.");
             const input = document.getElementById('room-enter-pw');
@@ -343,6 +360,12 @@ function closePasswordModal() {
 }
 
 async function enterChatRoom(roomId, roomTitle) {
+    if (!currentUser) {
+        alert("로그인 상태가 아닙니다. 다시 로그인해 주세요.");
+        switchScreen('login-screen');
+        return;
+    }
+
     if (currentRoomId) {
         database.ref(`messages/${currentRoomId}`).off();
     }
@@ -357,7 +380,7 @@ async function enterChatRoom(roomId, roomTitle) {
         if (roomSnap.exists()) {
             const room = roomSnap.val();
             
-            if (currentUser && room.createdBy === currentUser.id) {
+            if (room.createdBy === currentUser.id) {
                 isOwner = true;
             }
 

@@ -115,7 +115,7 @@
                 <button onclick="switchScreen('chats-screen'); loadChatRooms();" style="background:none; border:none; color:#3182CE; cursor:pointer; display:flex; flex-direction:column; align-items:center; font-size:11px; font-weight:bold; gap:3px;">
                     <i class="fa-solid fa-comment" style="font-size:18px;"></i>채팅
                 </button>
-                <button onclick="alert('설정 기능 준비 중입니다.')" style="background:none; border:none; color:#A0AEC0; cursor:pointer; display:flex; flex-direction:column; align-items:center; font-size:11px; gap:3px;">
+                <button onclick="openSettingsOrAdmin()" style="background:none; border:none; color:#A0AEC0; cursor:pointer; display:flex; flex-direction:column; align-items:center; font-size:11px; gap:3px;">
                     <i class="fa-solid fa-gear" style="font-size:18px;"></i>설정
                 </button>
             </div>
@@ -229,6 +229,45 @@
     <div id="image-viewer-modal" onclick="closeImageViewer()">
         <img id="image-viewer-img" src="" alt="확대 이미지" />
     </div>
+
+    <!-- 👑 관리자 전용 대시보드 모달 -->
+<div id="admin-modal" class="modal-overlay" style="display:none;">
+    <div style="background:white; padding:20px; border-radius:12px; width:380px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+        
+        <!-- 모달 헤더 -->
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #E2E8F0; padding-bottom:12px; margin-bottom:12px;">
+            <h3 style="margin:0; color:#2D3748; font-size:16px; display:flex; align-items:center; gap:6px;">
+                <span style="color:#D69E2E;">👑</span> 시스템 관리자 센터
+            </h3>
+            <button onclick="toggleAdminModal()" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:18px;">&times;</button>
+        </div>
+
+        <!-- 탭 버튼 (회원 관리 / 대화방 관리) -->
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+            <button id="admin-tab-users-btn" onclick="switchAdminTab('users')" style="flex:1; padding:8px; border:none; border-radius:6px; background:#3182CE; color:white; font-weight:600; cursor:pointer; font-size:12px;">
+                👥 회원 관리
+            </button>
+            <button id="admin-tab-rooms-btn" onclick="switchAdminTab('rooms')" style="flex:1; padding:8px; border:none; border-radius:6px; background:#EDF2F7; color:#4A5568; font-weight:600; cursor:pointer; font-size:12px;">
+                💬 대화방 강제 관리
+            </button>
+        </div>
+
+        <!-- 탭 1: 전체 회원 관리 목록 -->
+        <div id="admin-tab-users" style="flex:1; overflow-y:auto; max-height:300px; border:1px solid #EDF2F7; border-radius:8px; padding:8px;">
+            <div style="text-align:center; padding:20px; color:#888; font-size:12px;">회원 목록 불러오는 중...</div>
+        </div>
+
+        <!-- 탭 2: 전체 대화방 관리 목록 -->
+        <div id="admin-tab-rooms" style="display:none; flex:1; overflow-y:auto; max-height:300px; border:1px solid #EDF2F7; border-radius:8px; padding:8px;">
+            <div style="text-align:center; padding:20px; color:#888; font-size:12px;">대화방 목록 불러오는 중...</div>
+        </div>
+
+        <!-- 모달 푸터 -->
+        <div style="margin-top:12px; text-align:right;">
+            <button onclick="toggleAdminModal()" style="background:#EDF2F7; color:#4A5568; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">닫기</button>
+        </div>
+    </div>
+</div>
     
     <!-- Firebase 초기화 및 연동 -->
     <script>

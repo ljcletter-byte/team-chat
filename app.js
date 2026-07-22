@@ -37,9 +37,17 @@ function getUserAvatarColor(userId) {
     return colors[Math.abs(hash) % colors.length];
 }
 
-// SHA-256 암호화
+// SHA-256 암호화 (안전 버전)
 async function sha256(message) {
+    if (message === null || message === undefined) message = '';
     const msgBuffer = new TextEncoder().encode(String(message));
+    
+    // Web Crypto API 지원 여부 확인
+    if (!window.crypto || !window.crypto.subtle) {
+        console.error("Crypto API를 지원하지 않는 환경입니다.");
+        return String(message);
+    }
+
     const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');

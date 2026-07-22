@@ -663,36 +663,88 @@ function loadChatRooms() {
     });
 }
 
-async function createNewChatRoom() {
-    if (!currentUser) return alert("로그인이 필요합니다.");
+// 방 생성 모달 토글 및 친구 목록 불러오기
+function toggleCreateRoomModal() {
+    const modal = document.getElementById('create-room-modal');
+    if (!modal) return;
 
+    const isHidden = modal.style.display === 'none' || modal.style.display === '';
+    modal.style.display = isHidden ? 'flex' : 'none';
+
+    if (isHidden) {
+        loadFriendsForCreateRoom();
+    }
+}
+
+// 방 생성 모달 내 친구 목록 출력
+function loadFriendsForCreateRoom() {
+    const listEl = document.getElementById('create-room-friends-list');
+    if (!listEl) return;
+
+    database.ref('users').once('value', (snapshot) => {
+        listEl.innerHTML = '';
+        if (!snapshot.exists()) {
+            listEl.innerHTML = '<div style="font-size:12px; color:#888; text-align:center;">초대할 친구가 없습니다.</div>';
+            return;
+        }
+
+        let count = 0;
+        snapshot.forEach((child) => {
+            const user = child.val();
+            if (user.id !== currentUser.id) {
+                count++;
+                const item = document.createElement('label');
+                item.style = "display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:6px; cursor:pointer;";
+                item.innerHTML = `
+                    <input type="checkbox" class="create-room-friend-checkbox" value="${user.id}">
+                    <span>${user.name} (@${user.id})</span>
+                `;
+                listEl.appendChild(item);
+            }
+        });
+
+        if (count === 0) {
+            listEl.innerHTML = '<div style="font-size:12px; color:#888; text-align:center;">초대할 친구가 없습니다.</div>';
+        }
+    });
+}
+
+// 선택된 친구들과 함께 방 생성
+async function createRoomWithFriends() {
     const titleInput = document.getElementById('new-room-title');
     const pwInput = document.getElementById('new-room-password');
 
-    const roomTitle = titleInput ? titleInput.value.trim() : '';
-    const roomPassword = pwInput ? pwInput.value.trim() : '';
+    const roomTitle = titleInput?.value.trim();
+    const roomPassword = pwInput?.value.trim();
 
     if (!roomTitle) return alert("대화방 이름을 입력해 주세요.");
+
+    // 체크된 친구 ID 수집
+    const checkedBoxes = document.querySelectorAll('.create-room-friend-checkbox:checked');
+    const selectedMembers = [currentUser.id];
+    checkedBoxes.forEach(box => selectedMembers.push(box.value));
 
     try {
         const now = Date.now();
         const newRoomRef = database.ref('rooms').push();
-        
+
         const roomData = {
             title: roomTitle,
             createdBy: currentUser.id,
             creatorName: currentUser.name,
             createdAt: now,
             lastMessage: "대화방이 생성되었습니다.",
-            lastTimestamp: now
+            lastTimestamp: now,
+            members: selectedMembers // 👥 선택된 멤버 목록 저장
         };
 
         if (roomPassword) {
-            roomData.password = roomPassword;
+            roomData.password = await sha256(roomPassword); // 비밀번호 암호화 저장
         }
 
         await newRoomRef.set(roomData);
 
+        // 시스템 안내 메시지 생성
         await database.ref(`messages/${newRoomRef.key}`).push({
             senderId: 'system',
             senderName: '시스템',
@@ -703,10 +755,12 @@ async function createNewChatRoom() {
         alert("새 대화방이 개설되었습니다!");
         if (titleInput) titleInput.value = '';
         if (pwInput) pwInput.value = '';
+        
         toggleCreateRoomModal();
-        loadChatRooms();
+        if (typeof loadChatRooms === 'function') loadChatRooms();
     } catch (error) {
         console.error("방 생성 실패:", error);
+        alert("방 생성 중 오류가 발생했습니다.");
     }
 }
 

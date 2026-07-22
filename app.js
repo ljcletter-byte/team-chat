@@ -395,6 +395,9 @@ async function enterChatRoom(roomId, roomTitle) {
         const titleEl = document.getElementById('chat-room-title');
         if (titleEl) titleEl.innerText = displayTitle || '대화방';
 
+        // 💡 headerRight 요소 선언 추가!
+        const headerRight = document.getElementById('headerRight') || document.querySelector('.chat-header-right');
+
         if (headerRight) {
             const actionBtnHtml = isOwner ? `
                 <button onclick="deleteChatRoom('${currentRoomId}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">

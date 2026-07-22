@@ -293,11 +293,15 @@ function attemptEnterRoom(roomId, roomTitle, roomPassword) {
     }
 }
 
-function verifyAndEnterRoom() {
+async function verifyAndEnterRoom() {
     const inputPw = document.getElementById('room-enter-pw')?.value.trim();
     if (!pendingRoom) return;
 
-    if (inputPw === pendingRoom.password) {
+    // 🔑 입력받은 비밀번호를 sha256으로 암호화
+    const hashedInputPw = await sha256(inputPw);
+
+    // DB에 암호화되어 저장된 비밀번호와 비교
+    if (hashedInputPw === pendingRoom.password) {
         closePasswordModal();
         enterChatRoom(pendingRoom.id, pendingRoom.title);
     } else {

@@ -95,7 +95,8 @@ async function handleLogin() {
 
         switchScreen('chats-screen');
         loadChatRooms();
-
+        // 로그인 성공 처리 직후 (예: 화면을 chats-screen으로 전환한 후)
+        requestPushNotificationPermission(); // 이 한 줄이 실제로 실행을 시켜줍니다!
     } catch (error) {
         console.error("로그인 오류:", error);
         alert("로그인 중 오류가 발생했습니다.");
@@ -1145,4 +1146,62 @@ async function adminDeleteRoom(roomId, roomTitle) {
         console.error("대화방 삭제 오류:", error);
         alert("대화방 폐쇄 처리 중 오류가 발생했습니다.");
     }
+}
+
+// ==========================================
+// 🔔 푸시 알림 (Push Notification) 시스템
+// ==========================================
+
+// Messaging 객체 초기화
+let messaging = null;
+try {
+    messaging = firebase.messaging();
+} catch (e) {
+    console.log("이 브라우저는 FCM 푸시 알림을 지원하지 않습니다.");
+}
+
+// 1. 로그인 성공 시 호출할 알림 권한 요청 함수
+async function requestPushNotificationPermission() {
+    if (!messaging || !currentUser) return;
+
+    try {
+        // 알림 권한 요청
+        const permission = await Notification.requestPermission();
+        
+        if (permission === 'granted') {
+            console.log("알림 권한이 승인되었습니다.");
+            
+            // 기기 고유의 FCM 푸시 토큰 가져오기
+            // Note: 실제 배포 시 Web Push VAPID 키가 필요할 수 있습니다.
+            const token = await messaging.getToken();
+            
+            if (token) {
+                // 내 DB 정보에 푸시 토큰 저장
+                await database.ref(`users/${currentUser.id}/pushToken`).set(token);
+                console.log("푸시 토큰 저장 완료:", token);
+            }
+        } else {
+            console.log("알림 권한이 거부되었습니다.");
+        }
+    } catch (error) {
+        console.error("푸시 알림 설정 중 오류 발생:", error);
+    }
+}
+
+// 2. 앱이 켜져 있을 때(포그라운드) 실시간 알림 수신
+if (messaging) {
+    messaging.onMessage((payload) => {
+        console.log("포그라운드 메시지 도착:", payload);
+        
+        const title = payload.notification?.title || "새 메시지";
+        const body = payload.notification?.body || "새 메시지가 도착했습니다.";
+
+        // 브라우저 기본 Notification 팝업 띄우기
+        if (Notification.permission === 'granted') {
+            new Notification(title, {
+                body: body,
+                icon: 'https://cdn-icons-png.flaticon.com/512/732/732200.png'
+            });
+        }
+    });
 }

@@ -164,7 +164,7 @@
                 </label>
                 <input type="file" id="chat-image-input" accept="image/*" style="display:none;" onchange="sendImageMessage(this)">
                 
-                <input type="text" id="chat-input-text" placeholder="메시지를 입력하세요..." onkeypress="if(event.keyCode==13) sendTextMessage()">
+                <input type="text" id="chat-input-text" placeholder="메시지를 입력하세요..." onkeypress="if(event.key === 'Enter') sendTextMessage()">
                 <button class="chat-input-btn" onclick="sendTextMessage()">전송</button>
             </div>
         </div>

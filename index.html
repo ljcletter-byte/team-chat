@@ -170,15 +170,26 @@
         </div>
     </div>
 
-    <!-- 방 개설 모달 -->
+    <!-- 방 생성 모달 -->
     <div id="create-room-modal" class="modal-overlay" style="display:none;">
-        <div style="background:#fff; padding:20px; border-radius:12px; width:80%; max-width:320px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+        <div style="background:#fff; padding:20px; border-radius:12px; width:85%; max-width:320px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
             <h3 style="margin-top:0; font-size:16px; color:#2D3748;">💬 새 대화방 개설</h3>
+        
+            <!-- 방 제목 입력 -->
             <input type="text" id="new-room-title" placeholder="대화방 이름" style="width:100%; padding:10px; border:1px solid #E2E8F0; border-radius:6px; margin-bottom:10px; box-sizing:border-box; outline:none; font-size:14px;">
-            <input type="password" id="new-room-password" maxlength="4" placeholder="비밀번호 4자리 (선택 사항)" style="width:100%; padding:10px; border:1px solid #E2E8F0; border-radius:6px; margin-bottom:15px; box-sizing:border-box; outline:none; font-size:14px;">
+        
+            <!-- 방 비밀번호 입력 -->
+            <input type="password" id="new-room-password" maxlength="4" placeholder="비밀번호 4자리 (선택)" style="width:100%; padding:10px; border:1px solid #E2E8F0; border-radius:6px; margin-bottom:15px; box-sizing:border-box; outline:none; font-size:14px;">
+        
+            <!-- 👥 초대할 친구 선택 영역 (추가된 부분) -->
+            <div style="font-weight:bold; font-size:12px; color:#4A5568; margin-bottom:6px;">함께 참여할 친구 선택:</div>
+            <div id="create-room-friends-list" style="max-height:120px; overflow-y:auto; border:1px solid #EDF2F7; border-radius:6px; padding:8px; margin-bottom:15px; background:#F7FAFC;">
+                <!-- 자바스크립트로 친구 목록이 들어옵니다 -->
+            </div>
+
             <div style="display:flex; justify-content:flex-end; gap:8px;">
                 <button onclick="toggleCreateRoomModal()" style="padding:8px 12px; background:#E2E8F0; color:#4A5568; border:none; border-radius:6px; cursor:pointer; font-weight:600;">취소</button>
-                <button onclick="createNewChatRoom()" style="padding:8px 12px; background:#3182CE; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">개설하기</button>
+                <button onclick="createRoomWithFriends()" style="padding:8px 12px; background:#3182CE; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">생성하기</button>
             </div>
         </div>
     </div>

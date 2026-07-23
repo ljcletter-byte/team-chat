@@ -233,7 +233,7 @@
         <img id="image-viewer-img" src="" alt="확대 이미지" />
     </div>
 
-    <!-- 관리자 전용 대시보드 모달 -->
+        <!-- 관리자 전용 대시보드 모달 -->
     <div id="admin-modal" class="modal-overlay" style="display:none;">
         <div style="background:white; padding:20px; border-radius:12px; width:380px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #E2E8F0; padding-bottom:12px; margin-bottom:12px;">
@@ -242,10 +242,17 @@
                 </h3>
                 <button onclick="toggleAdminModal()" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:18px;">&times;</button>
             </div>
+
+            <!-- 💡 여기에 새로 추가되는 버튼 -->
+            <button onclick="generateInviteLink()" style="background:#3182CE; color:white; padding:10px; border-radius:6px; border:none; cursor:pointer; font-size:13px; font-weight:600; width:100%; margin-bottom:12px;">
+                🔗 신규 팀원 초대 링크 생성 및 복사
+            </button>
+
             <div style="display:flex; gap:8px; margin-bottom:12px;">
-                <button id="admin-tab-users-btn" onclick="switchAdminTab('users')" style="flex:1; padding:8px; border:none; border-radius:6px; background:#3182CE; color:white; font-weight:600; cursor:pointer; font-size:12px;">👥 회원 관리</button>
-                <button id="admin-tab-rooms-btn" onclick="switchAdminTab('rooms')" style="flex:1; padding:8px; border:none; border-radius:6px; background:#EDF2F7; color:#4A5568; font-weight:600; cursor:pointer; font-size:12px;">💬 대화방 강제 관리</button>
+                <button id="admin-tab-users-btn" onclick="switchAdminTab('users')" style="flex:1; padding:8px; border:none; border-radius:6px; background:#3182CE; color:#FFF;">회원 관리</button>
+                <button id="admin-tab-rooms-btn" onclick="switchAdminTab('rooms')" style="flex:1; padding:8px; border:none; border-radius:6px; background:#EDF2F7; color:#4A5568;">대화방 관리</button>
             </div>
+            
             <div id="admin-tab-users" style="flex:1; overflow-y:auto; max-height:300px; border:1px solid #EDF2F7; border-radius:8px; padding:8px;"></div>
             <div id="admin-tab-rooms" style="display:none; flex:1; overflow-y:auto; max-height:300px; border:1px solid #EDF2F7; border-radius:8px; padding:8px;"></div>
             <div style="margin-top:12px; text-align:right;">

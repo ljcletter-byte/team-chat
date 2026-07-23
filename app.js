@@ -167,11 +167,12 @@ async function handleRegisterWithCode() {
         if (inviteCode === SYSTEM_INVITE_CODE) {
             isValidInvite = true;
         } else {
-            const db = firebase.firestore();
-            const inviteDoc = await db.collection('invites').doc(inviteCode).get();
-            if (inviteDoc.exists && !inviteDoc.data().isUsed) {
+            // Realtime DB에서 초대 코드 조회
+            const inviteSnap = await database.ref(`invites/${inviteCode}`).once('value');
+            if (inviteSnap.exists() && !inviteSnap.val().isUsed) {
                 isValidInvite = true;
-                await db.collection('invites').doc(inviteCode).update({ isUsed: true, usedBy: id });
+                // 초대장 사용 완료 처리
+                await database.ref(`invites/${inviteCode}`).update({ isUsed: true, usedBy: id });
             }
         }
 
@@ -1187,26 +1188,29 @@ async function generateInviteLink() {
     }
 
     try {
-        const db = firebase.firestore();
+        // 8자리 초대 코드 생성 (예: INV-X7K2P9A1)
         const randomCode = Math.random().toString(36).substring(2, 10).toUpperCase();
         const inviteCode = `INV-${randomCode}`;
 
-        await db.collection('invites').doc(inviteCode).set({
+        // Realtime Database에 저장 (Firestore 대신 사용)
+        await database.ref(`invites/${inviteCode}`).set({
             code: inviteCode,
             createdBy: currentUser.id,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            createdAt: Date.now(),
             isUsed: false
         });
 
+        // 초대 URL 생성
         const baseUrl = window.location.origin + window.location.pathname;
         const inviteUrl = `${baseUrl}?invite=${inviteCode}`;
 
+        // 클립보드 복사
         await navigator.clipboard.writeText(inviteUrl);
         alert(`🎉 초대 링크가 복사되었습니다!\n\n📌 초대 코드: ${inviteCode}\n🔗 초대 링크: ${inviteUrl}`);
 
     } catch (error) {
         console.error("초대 링크 생성 오류:", error);
-        alert("초대 링크 생성 실패: 관리자 권한을 확인해 주세요.");
+        alert("초대 링크 생성 실패: 데이터베이스 연결을 확인해 주세요.");
     }
 }
 

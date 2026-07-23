@@ -28,7 +28,7 @@ function escapeHtml(str) {
         .replace(/'/g, "&#039;");
 }
 
-// Inline JS 문자열 이스케이프 (onclick 파라미터 등의 SyntaxError 방지)
+// Inline JS 문자열 이스케이프
 function escapeJsStr(str) {
     if (!str) return '';
     return String(str)
@@ -37,10 +37,15 @@ function escapeJsStr(str) {
         .replace(/"/g, '&quot;');
 }
 
-// 보안 강화: 역할 기반 관리자 권한 체크
+// 👑 관리자 권한 체크 (기존 DB 데이터 하위 호환성 완벽 지원)
 function isAdminUser(user) {
     if (!user) return false;
-    return user.role === 'admin' || user.role === 'super_admin';
+    return (
+        user.role === 'admin' || 
+        user.role === 'super_admin' || 
+        user.id === 'admin' || 
+        user.isAdmin === true
+    );
 }
 
 function getUserAvatarColor(userId) {
@@ -116,7 +121,7 @@ function downloadFile(base64Data, fileName) {
     }
 }
 
-// 사용자의 대화방 마지막 읽은 시간 갱신
+// 읽음 상태 갱신
 async function updateLastReadTimestamp(roomId) {
     if (!roomId || !currentUser) return;
     try {
@@ -126,7 +131,7 @@ async function updateLastReadTimestamp(roomId) {
     }
 }
 
-// 📩 답장 미리보기 바 생성 및 초기화
+// 📩 답장 미리보기 바
 function initReplyPreviewBar() {
     if (document.getElementById('reply-preview-bar')) return;
     
@@ -149,7 +154,6 @@ function initReplyPreviewBar() {
     }
 }
 
-// 📩 답장 대상 설정
 function setReplyTarget(msgId, senderName, text) {
     initReplyPreviewBar();
     replyingTo = { id: msgId, senderName: senderName, text: text };
@@ -163,14 +167,13 @@ function setReplyTarget(msgId, senderName, text) {
     document.getElementById('chat-input-text')?.focus();
 }
 
-// 📩 답장 취소
 function cancelReply() {
     replyingTo = null;
     const previewBar = document.getElementById('reply-preview-bar');
     if (previewBar) previewBar.style.display = 'none';
 }
 
-// ⌨️ 입력 중 상태 알림 UI 생성
+// ⌨️ 입력 중 상태 알림 UI
 function initTypingIndicatorBar() {
     if (document.getElementById('typing-indicator-bar')) return;
     
@@ -186,7 +189,6 @@ function initTypingIndicatorBar() {
     }
 }
 
-// ⌨️ 나의 입력 중 상태 업데이트
 function setTypingStatus(isTyping) {
     if (!currentRoomId || !currentUser) return;
     const typingRef = database.ref(`rooms/${currentRoomId}/typing/${currentUser.id}`);
@@ -197,7 +199,6 @@ function setTypingStatus(isTyping) {
     }
 }
 
-// ⌨️ 키보드 입력 감지 핸들러 (최적화)
 function handleTyping() {
     if (!currentRoomId || !currentUser) return;
     
@@ -213,7 +214,6 @@ function handleTyping() {
     }, 2500);
 }
 
-// ⌨️ 상대방 입력 중 상태 감지 리스너
 function listenTypingStatus(roomId) {
     initTypingIndicatorBar();
     const typingBar = document.getElementById('typing-indicator-bar');
@@ -250,7 +250,6 @@ function listenTypingStatus(roomId) {
     });
 }
 
-// 화면 전환
 function switchScreen(screenId) {
     document.querySelectorAll('.screen').forEach(screen => {
         screen.style.display = 'none';
@@ -262,7 +261,6 @@ function switchScreen(screenId) {
     }
 }
 
-// 사이드바 탭 전환
 function switchSidebarTab(tabName) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
@@ -279,7 +277,7 @@ function switchSidebarTab(tabName) {
 }
 
 // ==========================================
-// 🔐 인증 관련 함수 (Auth Functions)
+// 🔐 인증 관련 함수
 // ==========================================
 
 async function handleLogin() {
@@ -305,8 +303,10 @@ async function handleLogin() {
             return alert('비밀번호가 일치하지 않습니다.');
         }
 
+        // 💡 하위 호환성 지원: role 및 groupId 자동 보완
         currentUser = {
             ...userData,
+            role: userData.role || (userData.id === 'admin' || userData.isAdmin ? 'admin' : 'member'),
             groupId: userData.groupId || 'etc'
         };
         
@@ -393,7 +393,7 @@ async function handleRegisterWithCode() {
             id: id,
             name: name,
             password: hashedPassword,
-            role: 'member',
+            role: id === 'admin' ? 'admin' : 'member',
             groupId: assignedGroup,
             createdAt: Date.now()
         });
@@ -407,7 +407,7 @@ async function handleRegisterWithCode() {
 }
 
 // ==========================================
-// 👥 팀원 목록 함수
+// 👥 팀원 목록 함수 (가입자 정상 표시 수정)
 // ==========================================
 
 function loadFriendsList() {
@@ -424,12 +424,17 @@ function loadFriendsList() {
         }
 
         const isSuperAdmin = isAdminUser(currentUser);
+        const myGroup = currentUser ? (currentUser.groupId || 'etc') : 'etc';
 
         snapshot.forEach((child) => {
             const user = child.val();
+            if (!user) return;
             if (currentUser && user.id === currentUser.id) return;
 
-            if (!isSuperAdmin && user.groupId !== currentUser.groupId) {
+            const userGroup = user.groupId || 'etc';
+
+            // 관리자가 아니고 그룹이 다르면 필터링 (기존 DB 데이터 fallback 지원)
+            if (!isSuperAdmin && userGroup !== myGroup) {
                 return;
             }
 
@@ -438,9 +443,9 @@ function loadFriendsList() {
             const adminBadge = isTargetAdmin ? '<span style="color:#D69E2E; font-size:12px; margin-right:4px;">👑</span>' : '';
             
             const groupMap = { company: '회사', family: '가족', friends: '친구', etc: '기타' };
-            const groupName = groupMap[user.groupId] || '기타';
+            const groupName = groupMap[userGroup] || '기타';
             
-            const groupBadge = isSuperAdmin && user.groupId 
+            const groupBadge = isSuperAdmin 
                 ? `<span style="font-size:10px; background:#EDF2F7; color:#4A5568; padding:2px 6px; border-radius:4px; margin-left:4px;">${groupName}</span>` 
                 : '';
 
@@ -448,13 +453,13 @@ function loadFriendsList() {
             userDiv.style = "padding:10px 12px; border-bottom:1px solid #EDF2F7; display:flex; justify-content:space-between; align-items:center; background:#fff; border-radius:8px; margin-bottom:6px;";
             userDiv.innerHTML = `
                 <div style="display:flex; align-items:center; gap:10px;">
-                    <div class="avatar" style="background:${userColor}; color:white; font-size:14px;">${escapeHtml(user.name.charAt(0))}</div>
+                    <div class="avatar" style="background:${userColor}; color:white; font-size:14px;">${escapeHtml((user.name || user.id).charAt(0))}</div>
                     <div>
-                        <div style="font-weight:600; font-size:13px; color:#2D3748;">${adminBadge}${escapeHtml(user.name)} ${groupBadge}</div>
+                        <div style="font-weight:600; font-size:13px; color:#2D3748;">${adminBadge}${escapeHtml(user.name || user.id)} ${groupBadge}</div>
                         <div style="font-size:11px; color:#A0AEC0;">@${escapeHtml(user.id)}</div>
                     </div>
                 </div>
-                <button onclick="startDirectChat('${escapeJsStr(user.id)}', '${escapeJsStr(user.name)}')" style="background:#EBF8FF; color:#3182CE; border:none; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
+                <button onclick="startDirectChat('${escapeJsStr(user.id)}', '${escapeJsStr(user.name || user.id)}')" style="background:#EBF8FF; color:#3182CE; border:none; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
                     1:1 대화
                 </button>
             `;
@@ -633,7 +638,7 @@ async function enterChatRoom(roomId, roomTitle) {
     }
 }
 
-// 📩 메시지 수신 및 렌더링 (텍스트, 사진, 문서/파일 통합 지원)
+// 📩 메시지 수신 및 렌더링
 function listenMessages(roomId) {
     const msgBox = document.getElementById('msg-box');
     if (!msgBox) return;
@@ -700,10 +705,8 @@ function listenMessages(roomId) {
                 const imgSrc = msg.imageUrl || (msg.type === 'image' ? msg.content : null);
 
                 if (imgSrc) {
-                    // 📷 이미지 메시지
                     contentHtml = `<img src="${imgSrc}" style="max-width:200px; max-height:200px; border-radius:12px; border:1px solid #E2E8F0; cursor:pointer; display:block;" onclick="openImageViewer(this.src)" title="클릭하여 원본 보기">`;
                 } else if (msg.type === 'file') {
-                    // 📁 문서/파일 메시지 (PDF, ZIP, Office 등)
                     const fileIcon = getFileIcon(msg.fileName);
                     const sizeStr = formatFileSize(msg.fileSize);
                     
@@ -722,7 +725,6 @@ function listenMessages(roomId) {
                         </div>
                     `;
                 } else {
-                    // 💬 일반 텍스트 메시지
                     contentHtml = `
                         <div style="background:${isMe ? '#3182CE' : '#FFFFFF'}; color:${isMe ? '#FFF' : '#2D3748'}; padding:8px 12px; border-radius:12px; max-width:220px; word-break:break-word; font-size:13px; line-height:1.4; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:${isMe ? 'none' : '1px solid #E2E8F0'};">
                             ${replyQuoteHtml}
@@ -924,13 +926,11 @@ function sendImageMessage(fileInput) {
     reader.readAsDataURL(file);
 }
 
-// 📁 문서/파일 첨부 버튼 트리거
 function triggerFileUpload() {
     const fileInput = document.getElementById('chat-file-input');
     if (fileInput) fileInput.click();
 }
 
-// 📁 문서/파일 전송 핸들러 (PDF, ZIP, Office 등)
 function sendFileMessage(fileInput) {
     const inputEl = fileInput && fileInput.files ? fileInput : document.getElementById('chat-file-input');
     if (!inputEl || !inputEl.files || !inputEl.files.length) return;
@@ -975,7 +975,7 @@ function sendFileMessage(fileInput) {
 }
 
 // ==========================================
-// 📋 대화방 목록 및 상단 고정 (Pin Room)
+// 📋 대화방 목록
 // ==========================================
 
 async function togglePinRoom(roomId, event) {
@@ -996,7 +996,6 @@ async function togglePinRoom(roomId, event) {
     }
 }
 
-// 대화방 목록 렌더링 성능 최적화 (Promise.all 병렬 처리)
 function loadChatRooms() {
     const chatListEl = document.getElementById('chat-list');
     if (!chatListEl) return;
@@ -1156,6 +1155,7 @@ function loadFriendsForCreateRoom() {
         }
 
         const isSuperAdmin = isAdminUser(currentUser);
+        const myGroup = currentUser ? (currentUser.groupId || 'etc') : 'etc';
 
         let count = 0;
         snapshot.forEach((child) => {
@@ -1164,7 +1164,8 @@ function loadFriendsForCreateRoom() {
 
             if (!user || user.id === myId) return;
 
-            if (!isSuperAdmin && user.groupId !== currentUser.groupId) {
+            const userGroup = user.groupId || 'etc';
+            if (!isSuperAdmin && userGroup !== myGroup) {
                 return;
             }
 
@@ -1176,8 +1177,8 @@ function loadFriendsForCreateRoom() {
             const adminBadge = isAdmin ? '👑 ' : '';
 
             item.innerHTML = `
-                <input type="checkbox" value="${escapeHtml(user.id)}" data-name="${escapeHtml(user.name)}" class="create-room-friend-checkbox">
-                <span>${adminBadge}${escapeHtml(user.name)} (@${escapeHtml(user.id)})</span>
+                <input type="checkbox" value="${escapeHtml(user.id)}" data-name="${escapeHtml(user.name || user.id)}" class="create-room-friend-checkbox">
+                <span>${adminBadge}${escapeHtml(user.name || user.id)} (@${escapeHtml(user.id)})</span>
             `;
             listEl.appendChild(item);
         });
@@ -1259,7 +1260,7 @@ function filterChatRooms() {
 }
 
 // ==========================================
-// 📅 공유 일정 기능 (Schedules)
+// 📅 공유 일정 기능
 // ==========================================
 
 function toggleScheduleModal() {
@@ -1355,7 +1356,7 @@ async function deleteSharedSchedule(schedId) {
 }
 
 // ==========================================
-// 🔲 모달 및 UI 제어 함수
+// 🔲 모달 및 UI 제어
 // ==========================================
 
 function toggleFindAccountModal() {
@@ -1416,7 +1417,7 @@ async function handleChangePassword() {
 }
 
 // ==========================================
-// 👑 관리자 센터
+// 👑 관리자 센터 (관리자 메뉴)
 // ==========================================
 
 function openSettingsOrAdmin() {
@@ -1473,6 +1474,8 @@ function loadAdminUsersList() {
 
         snapshot.forEach((child) => {
             const user = child.val();
+            if (!user) return;
+
             const isMe = currentUser && user.id === currentUser.id;
             const isTargetAdmin = isAdminUser(user);
             const userGroup = user.groupId || 'etc';
@@ -1482,7 +1485,7 @@ function loadAdminUsersList() {
             
             item.innerHTML = `
                 <div>
-                    <span style="font-weight:600; color:#2D3748;">${isTargetAdmin ? '👑 ' : ''}${escapeHtml(user.name)}</span>
+                    <span style="font-weight:600; color:#2D3748;">${isTargetAdmin ? '👑 ' : ''}${escapeHtml(user.name || user.id)}</span>
                     <span style="font-size:10px; color:#A0AEC0;">(@${escapeHtml(user.id)})</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:6px;">
@@ -1495,7 +1498,7 @@ function loadAdminUsersList() {
 
                     ${(isMe || isTargetAdmin) 
                         ? '<span style="font-size:10px; color:#CBD5E0;">(본인/관리자)</span>' 
-                        : `<button onclick="adminKickUser('${escapeJsStr(user.id)}', '${escapeJsStr(user.name)}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:3px 6px; border-radius:4px; font-size:11px; cursor:pointer;">🚫 강퇴</button>`
+                        : `<button onclick="adminKickUser('${escapeJsStr(user.id)}', '${escapeJsStr(user.name || user.id)}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:3px 6px; border-radius:4px; font-size:11px; cursor:pointer;">🚫 강퇴</button>`
                     }
                 </div>
             `;
@@ -1607,6 +1610,8 @@ async function loadFriendsToInvite() {
         let count = 0;
         usersSnap.forEach((child) => {
             const user = child.val();
+            if (!user) return;
+
             const isAlreadyMember = Array.isArray(currentMembers) 
                 ? currentMembers.includes(user.id) 
                 : !!currentMembers[user.id];
@@ -1616,8 +1621,8 @@ async function loadFriendsToInvite() {
                 const item = document.createElement('label');
                 item.style = "display:flex; align-items:center; gap:8px; font-size:12px; margin-bottom:6px; cursor:pointer;";
                 item.innerHTML = `
-                    <input type="checkbox" class="invite-friend-checkbox" value="${escapeHtml(user.id)}" data-name="${escapeHtml(user.name)}">
-                    <span>${escapeHtml(user.name)} (@${escapeHtml(user.id)})</span>
+                    <input type="checkbox" class="invite-friend-checkbox" value="${escapeHtml(user.id)}" data-name="${escapeHtml(user.name || user.id)}">
+                    <span>${escapeHtml(user.name || user.id)} (@${escapeHtml(user.id)})</span>
                 `;
                 listEl.appendChild(item);
             }

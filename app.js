@@ -58,6 +58,16 @@ function formatTime(timestamp) {
     return `${ampm} ${hours}:${minutes}`;
 }
 
+// 📩 [추가] 사용자의 대화방 마지막 읽은 시간 갱신 함수
+async function updateLastReadTimestamp(roomId) {
+    if (!roomId || !currentUser) return;
+    try {
+        await database.ref(`rooms/${roomId}/readStatus/${currentUser.id}`).set(Date.now());
+    } catch (e) {
+        console.error("읽음 상태 갱신 실패:", e);
+    }
+}
+
 // 화면 전환 (최상위 Screen 컨트롤)
 function switchScreen(screenId) {
     document.querySelectorAll('.screen').forEach(screen => {
@@ -371,6 +381,9 @@ async function enterChatRoom(roomId, roomTitle) {
 
     currentRoomId = roomId;
 
+    // 📩 [추가] 방 진입 시 내 읽은 시각 갱신
+    updateLastReadTimestamp(roomId);
+
     // 대화방 액티브 UI 처리
     document.querySelectorAll('.chat-room-item').forEach(item => {
         item.classList.remove('active-room');
@@ -436,6 +449,11 @@ function listenMessages(roomId) {
     msgRef.off();
 
     msgRef.limitToLast(100).on('value', (snapshot) => {
+        // 📩 [추가] 대화방을 보고 있는 상태에서 새 메시지 수신 시 읽은 시간 즉시 업데이트
+        if (currentRoomId === roomId) {
+            updateLastReadTimestamp(roomId);
+        }
+
         msgBox.innerHTML = '';
         if (!snapshot.exists()) return;
 
@@ -662,7 +680,7 @@ function loadChatRooms() {
 
     chatListEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">대화방 목록 불러오는 중...</div>';
 
-    database.ref('rooms').on('value', (snapshot) => {
+    database.ref('rooms').on('value', async (snapshot) => {
         chatListEl.innerHTML = '';
         if (!snapshot.exists()) {
             chatListEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">개설된 대화방이 없습니다.</div>';
@@ -673,9 +691,14 @@ function loadChatRooms() {
         const isSuperAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.id.includes('admin'));
         let roomCount = 0;
 
+        const roomList = [];
         snapshot.forEach((child) => {
-            const room = child.val();
-            const roomId = child.key;
+            roomList.push({ key: child.key, val: child.val() });
+        });
+
+        for (const item of roomList) {
+            const room = item.val;
+            const roomId = item.key;
 
             // 🔒 본인이 대화방에 참여 중인지 확인
             const isMember = room.membersInfo && currentUser && room.membersInfo[currentUser.id];
@@ -687,10 +710,28 @@ function loadChatRooms() {
 
             // 🔒 핵심 격리 조건: 최고 관리자가 아니고, 본인이 참여한 방이 아니라면 목록에서 숨김
             if (!isSuperAdmin && !isJoined) {
-                return;
+                continue;
             }
 
             roomCount++;
+
+            // 📩 [추가] 안 읽은 메시지 카운트 계산
+            let unreadCount = 0;
+            const lastRead = (room.readStatus && currentUser && room.readStatus[currentUser.id]) || 0;
+
+            const msgSnap = await database.ref(`messages/${roomId}`).once('value');
+            if (msgSnap.exists()) {
+                msgSnap.forEach((msgChild) => {
+                    const msg = msgChild.val();
+                    if (msg.senderId !== 'system' && msg.senderId !== currentUser?.id && msg.timestamp > lastRead) {
+                        unreadCount++;
+                    }
+                });
+            }
+
+            const unreadBadgeHtml = unreadCount > 0 
+                ? `<span style="background:#E53E3E; color:white; font-size:11px; font-weight:bold; padding:2px 6px; border-radius:10px; margin-left:6px; flex-shrink:0;">${unreadCount > 99 ? '99+' : unreadCount}</span>` 
+                : '';
 
             const timeStr = formatTime(room.lastTimestamp);
             const isLocked = !!room.password;
@@ -721,16 +762,22 @@ function loadChatRooms() {
                 <div class="avatar" style="background:${roomColor}; color:white; font-size:14px;">${escapeHtml(firstChar)}</div>
                 <div style="flex:1; overflow:hidden;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
-                        <span style="font-weight:600; font-size:13px; color:#2D3748; display:flex; align-items:center; gap:4px;">
+                        <span style="font-weight:600; font-size:13px; color:#2D3748; display:flex; align-items:center; gap:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                             ${escapeHtml(displayTitle)} ${adminBadge}
                             ${isLocked ? '<i class="fa-solid fa-lock" style="font-size:11px; color:#E53E3E;"></i>' : ''}
                         </span>
-                        <span style="font-size:10px; color:#A0AEC0;">${timeStr}</span>
+                        <span style="font-size:10px; color:#A0AEC0; flex-shrink:0;">${timeStr}</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:#718096; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;">
+                            ${escapeHtml(room.lastMessage || '')}
+                        </span>
+                        ${unreadBadgeHtml}
                     </div>
                 </div>
             `;
             chatListEl.appendChild(roomDiv);
-        });
+        }
 
         if (roomCount === 0) {
             chatListEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">참여 중인 대화방이 없습니다.</div>';

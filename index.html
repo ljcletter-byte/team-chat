@@ -15,7 +15,8 @@
 </head>
 <body>
     <div id="app" class="app-container">
-        <!-- 1. 로그인 화면 -->
+        
+        <!-- 🔒 로그인 화면 (인증 전 전체 화면) -->
         <div id="login-screen" class="screen active" style="display:flex; flex-direction:column; justify-content:center; padding: 0 24px;">
             <div style="text-align: center; margin-bottom: 28px;">
                 <div style="width: 68px; height: 68px; background: #EBF8FF; color: #3182CE; border-radius: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 30px; margin-bottom: 14px; box-shadow: 0 4px 12px rgba(49, 130, 206, 0.15);">
@@ -25,7 +26,7 @@
                 <p style="font-size: 13px; color: #A0AEC0; margin-top: 6px;">팀원들과 실시간으로 소통하세요</p>
             </div>
 
-            <div>
+            <div style="max-width: 320px; width:100%; margin: 0 auto;">
                 <input type="text" id="login-id" placeholder="아이디" style="width:100%; padding:13px; margin-bottom:10px; border:1px solid #E2E8F0; border-radius:10px; outline:none; font-size:14px; box-sizing:border-box;">
                 <input type="password" id="login-pw" placeholder="비밀번호" style="width:100%; padding:13px; margin-bottom:12px; border:1px solid #E2E8F0; border-radius:10px; outline:none; font-size:14px; box-sizing:border-box;">
                 
@@ -41,13 +42,13 @@
             </div>
         </div>
 
-        <!-- 2. 회원가입 화면 -->
-        <div id="register-screen" class="screen" style="display:none;">
-            <div class="header" style="display:flex; align-items:center; gap:8px;">
-                <button onclick="switchScreen('login-screen')" style="background:none; border:none; cursor:pointer; font-size:16px; font-weight:bold; color:#4A5568;">&lt;</button>
-                <span>🔒 회원가입</span>
-            </div>
-            <div style="padding: 24px;">
+        <!-- 🔒 회원가입 화면 -->
+        <div id="register-screen" class="screen" style="display:none; justify-content:center; align-items:center;">
+            <div style="max-width:360px; width:100%; padding: 24px;">
+                <div class="header" style="display:flex; align-items:center; gap:8px; background:none; border:none; padding:0 0 16px 0;">
+                    <button onclick="switchScreen('login-screen')" style="background:none; border:none; cursor:pointer; font-size:16px; font-weight:bold; color:#4A5568;">&lt;</button>
+                    <span>🔒 회원가입</span>
+                </div>
                 <input type="text" id="reg-id" placeholder="아이디" style="width:100%; padding:12px; margin-bottom:10px; border:1px solid #E2E8F0; border-radius:8px; outline:none; box-sizing:border-box; font-size:14px;">
                 <input type="password" id="reg-pw" placeholder="비밀번호" style="width:100%; padding:12px; margin-bottom:10px; border:1px solid #E2E8F0; border-radius:8px; outline:none; box-sizing:border-box; font-size:14px;">
                 <input type="text" id="reg-name" placeholder="이름 (닉네임)" style="width:100%; padding:12px; margin-bottom:10px; border:1px solid #E2E8F0; border-radius:8px; outline:none; box-sizing:border-box; font-size:14px;">
@@ -56,140 +57,132 @@
             </div>
         </div>
 
-        <!-- 👥 3. 친구/팀원 목록 화면 -->
-        <div id="friends-screen" class="screen" style="display:none; flex-direction:column; height:100%;">
-            <div class="header" style="display:flex; justify-content:space-between; align-items:center;">
-                <h3 style="margin:0; font-size:18px; font-weight:700;">친구</h3>
-                <button onclick="handleLogout()" style="background:none; border:none; color:#718096; cursor:pointer; font-size:13px; font-weight:600; display:flex; align-items:center; gap:4px;">
-                    <i class="fa-solid fa-right-from-bracket"></i> 로그아웃
-                </button>
-            </div>
-            <div id="friends-list" style="flex:1; overflow-y:auto; padding:12px;"></div>
+        <!-- 🌟 2단 메인 레이아웃 (로그인 완료 후) -->
+        <div id="main-layout" class="screen" style="display:none;">
+            <!-- [1단: 좌측 사이드바] -->
+            <div id="main-sidebar">
+                <!-- 사이드바 상단 헤더 & 메뉴 탭 -->
+                <div class="sidebar-header">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <span id="current-user-display" style="font-weight:700; font-size:16px; color:#2D3748;">메신저</span>
+                        <div style="display:flex; gap:6px;">
+                            <button onclick="openSettingsOrAdmin()" title="설정/관리자" style="background:none; border:none; color:#718096; cursor:pointer; font-size:14px; padding:4px;">
+                                <i class="fa-solid fa-gear"></i>
+                            </button>
+                            <button onclick="handleLogout()" title="로그아웃" style="background:none; border:none; color:#718096; cursor:pointer; font-size:14px; padding:4px;">
+                                <i class="fa-solid fa-right-from-bracket"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <!-- 탭 버튼 (친구 / 채팅) -->
+                    <div class="sidebar-tabs">
+                        <button id="tab-btn-chats" class="tab-btn active" onclick="switchSidebarTab('chats')">
+                            <i class="fa-solid fa-comment"></i> 채팅
+                        </button>
+                        <button id="tab-btn-friends" class="tab-btn" onclick="switchSidebarTab('friends')">
+                            <i class="fa-solid fa-user"></i> 팀원
+                        </button>
+                    </div>
+                </div>
 
-            <!-- 하단 네비게이션 탭바 -->
-            <div style="display:flex; justify-content:space-around; align-items:center; height:60px; background:#FFFFFF; border-top:1px solid #E2E8F0;">
-                <button onclick="switchScreen('friends-screen'); loadFriendsList();" style="background:none; border:none; color:#3182CE; cursor:pointer; display:flex; flex-direction:column; align-items:center; font-size:11px; font-weight:bold; gap:3px;">
-                    <i class="fa-solid fa-user" style="font-size:18px;"></i>친구
-                </button>
-                <button onclick="switchScreen('chats-screen'); loadChatRooms();" style="background:none; border:none; color:#A0AEC0; cursor:pointer; display:flex; flex-direction:column; align-items:center; font-size:11px; gap:3px;">
-                    <i class="fa-regular fa-comment" style="font-size:18px;"></i>채팅
-                </button>
-                <button onclick="alert('설정 기능 준비 중입니다.')" style="background:none; border:none; color:#A0AEC0; cursor:pointer; display:flex; flex-direction:column; align-items:center; font-size:11px; gap:3px;">
-                    <i class="fa-solid fa-gear" style="font-size:18px;"></i>설정
-                </button>
-            </div>
-        </div>
+                <!-- 탭 1: 채팅 목록 패널 -->
+                <div id="panel-chats" class="tab-panel active">
+                    <div style="padding:8px 12px; background:#FFF; border-bottom:1px solid #E2E8F0; display:flex; gap:6px;">
+                        <div style="flex:1; display:flex; align-items:center; background:#F7FAFC; border:1px solid #E2E8F0; border-radius:8px; padding:0 10px;">
+                            <i class="fa-solid fa-magnifying-glass" style="color:#A0AEC0; font-size:12px; margin-right:6px;"></i>
+                            <input type="text" id="chat-search-input" placeholder="대화방 검색..." onkeyup="filterChatRooms()" style="width:100%; padding:6px 0; border:none; background:transparent; outline:none; font-size:12px;">
+                        </div>
+                        <button onclick="toggleCreateRoomModal()" style="background:#EBF8FF; color:#3182CE; border:none; padding:6px 10px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap;">
+                            <i class="fa-solid fa-plus"></i> 개설
+                        </button>
+                    </div>
+                    <div id="chat-list" style="flex:1; overflow-y:auto;"></div>
+                </div>
 
-        <!-- 💬 4. 채팅 목록 화면 -->
-        <div id="chats-screen" class="screen" style="display:none; flex-direction:column; height:100%;">
-            <div class="header" style="display:flex; justify-content:space-between; align-items:center;">
-                <h3 style="margin:0; font-size:18px; font-weight:700;">채팅</h3>
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <button onclick="toggleCreateRoomModal()" style="background:#EBF8FF; color:#3182CE; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">
-                        <i class="fa-solid fa-plus"></i> 방 개설
-                    </button>
-                    <button onclick="handleLogout()" style="background:none; border:none; color:#718096; cursor:pointer; font-size:13px; font-weight:600; padding:4px 8px;">
-                        <i class="fa-solid fa-right-from-bracket"></i>
-                    </button>
-                    <button onclick="toggleChangePwModal()" title="비밀번호 변경" style="background:none; border:none; color:#718096; cursor:pointer; font-size:14px; padding:4px 8px;">
-                        <i class="fa-solid fa-key"></i>
-                    </button>
+                <!-- 탭 2: 팀원/친구 목록 패널 -->
+                <div id="panel-friends" class="tab-panel">
+                    <div id="friends-list" style="flex:1; overflow-y:auto; padding:12px;"></div>
                 </div>
             </div>
 
-            <!-- 대화방 검색 -->
-            <div style="padding: 8px 12px; background: #FFF; border-bottom: 1px solid #E2E8F0;">
-                <div style="display:flex; align-items:center; background:#F7FAFC; border:1px solid #E2E8F0; border-radius:8px; padding:0 10px;">
-                    <i class="fa-solid fa-magnifying-glass" style="color:#A0AEC0; font-size:13px; margin-right:8px;"></i>
-                    <input type="text" id="chat-search-input" placeholder="대화방 이름 검색..." onkeyup="filterChatRooms()" style="width:100%; padding:8px 0; border:none; background:transparent; outline:none; font-size:13px;">
+            <!-- [2단: 우측 대화창 상세 영역] -->
+            <div id="main-chat-content">
+                <!-- 1) 대화방 미선택 시 기본 화면 -->
+                <div id="no-chat-selected" class="no-chat-selected">
+                    <i class="fa-regular fa-comments" style="font-size:48px; margin-bottom:12px; color:#CBD5E0;"></i>
+                    <p>대화방을 선택하여 메시지를 시작하세요.</p>
                 </div>
-            </div>
 
-            <!-- 실시간 대화방 목록 -->
-            <div id="chat-list" style="flex:1; overflow-y:auto;"></div>
-
-            <!-- 하단 네비게이션 탭바 -->
-            <div style="display:flex; justify-content:space-around; align-items:center; height:60px; background:#FFFFFF; border-top:1px solid #E2E8F0;">
-                <button onclick="switchScreen('friends-screen'); loadFriendsList();" style="background:none; border:none; color:#A0AEC0; cursor:pointer; display:flex; flex-direction:column; align-items:center; font-size:11px; gap:3px;">
-                    <i class="fa-regular fa-user" style="font-size:18px;"></i>친구
-                </button>
-                <button onclick="switchScreen('chats-screen'); loadChatRooms();" style="background:none; border:none; color:#3182CE; cursor:pointer; display:flex; flex-direction:column; align-items:center; font-size:11px; font-weight:bold; gap:3px;">
-                    <i class="fa-solid fa-comment" style="font-size:18px;"></i>채팅
-                </button>
-                <button onclick="openSettingsOrAdmin()" style="background:none; border:none; color:#A0AEC0; cursor:pointer; display:flex; flex-direction:column; align-items:center; font-size:11px; gap:3px;">
-                    <i class="fa-solid fa-gear" style="font-size:18px;"></i>설정
-                </button>
-            </div>
-        </div>
-
-        <!-- 5. 실시간 대화방 화면 -->
-        <div id="chat-room-screen" class="screen" style="display:none;">
-            <div class="header">
-                <div style="display:flex; align-items:center; width:100%; justify-content:space-between;">
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <button onclick="leaveChatRoom()" style="background:none; border:none; cursor:pointer; font-weight:bold; font-size:16px; color:#4A5568;">&lt;</button>
+                <!-- 2) 대화방 선택 시 활성화되는 대화창 UI -->
+                <div id="active-chat-view" style="display:none; flex-direction:column; height:100%;">
+                    <!-- 채팅방 헤더 -->
+                    <div class="header" style="justify-content:space-between;">
                         <span id="chat-room-title" style="font-weight:600;">대화방</span>
+                        <div id="chat-header-actions" style="display:flex; align-items:center; gap:6px;">
+                            <!-- JS를 통해 초대/일정/삭제 버튼 동적 삽입 -->
+                        </div>
                     </div>
-<div id="chat-header-actions" style="display:flex; align-items:center; gap:8px;">
-    <button onclick="toggleScheduleModal()" style="background:#EBF8FF; color:#3182CE; border:none; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
-        🗓️ 일정
-    </button>
-</div>
+
+                    <!-- 일정 공유 모달/팝업 -->
+                    <div id="schedule-modal" class="hidden">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:2px solid #3182CE; padding-bottom:8px;">
+                            <h3 style="font-size:15px; color:#2D3748; margin:0;">🗓️ 우리 방 공유 일정</h3>
+                            <button onclick="toggleScheduleModal()" style="background:none; border:none; font-size:13px; cursor:pointer; color:#718096; font-weight:600;">닫기 ✖</button>
+                        </div>
+                        <div style="background:#F7FAFC; padding:10px; border-radius:8px; border:1px solid #E2E8F0; margin-bottom:12px;">
+                            <input type="text" id="sched-title" placeholder="일정 제목을 입력하세요" style="width:100%; padding:8px; border:1px solid #E2E8F0; border-radius:4px; margin-bottom:6px; font-size:12px; outline:none; box-sizing:border-box;">
+                            <div style="display:flex; gap:6px;">
+                                <input type="date" id="sched-date" style="flex:1; padding:6px; border:1px solid #E2E8F0; border-radius:4px; font-size:12px; outline:none;">
+                                <button onclick="addSharedSchedule()" style="background:#3182CE; color:white; border:none; padding:0 12px; border-radius:4px; font-size:12px; cursor:pointer; font-weight:600;">등록</button>
+                            </div>
+                        </div>
+                        <div id="schedule-list" style="flex:1; overflow-y:auto; font-size:13px;"></div>
+                    </div>
+
+                    <!-- 메시지 보드 -->
+                    <div class="message-area" id="msg-box"></div>
+
+                    <!-- Input 박스 영역 -->
+                    <div class="chat-input-area">
+                        <label for="chat-image-input" style="cursor:pointer; color:#718096; padding:6px 8px; font-size:18px;">
+                            <i class="fa-regular fa-image"></i>
+                        </label>
+                        <input type="file" id="chat-image-input" accept="image/*" style="display:none;" onchange="sendImageMessage(this)">
+                        
+                        <input type="text" id="chat-input-text" placeholder="메시지를 입력하세요..." onkeypress="if(event.key === 'Enter') sendTextMessage()">
+                        <button class="chat-input-btn" onclick="sendTextMessage()">전송</button>
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <!-- 일정 공유 모달 -->
-            <div id="schedule-modal" class="hidden">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:2px solid #3182CE; padding-bottom:8px;">
-                    <h3 style="font-size:16px; color:#2D3748; margin:0;">🗓️ 우리 방 공유 일정</h3>
-                    <button onclick="toggleScheduleModal()" style="background:none; border:none; font-size:14px; cursor:pointer; color:#718096; font-weight:600;">닫기 ✖</button>
-                </div>
-                <div style="background:#F7FAFC; padding:12px; border-radius:8px; border:1px solid #E2E8F0; margin-bottom:15px;">
-                    <input type="text" id="sched-title" placeholder="일정 제목을 입력하세요" style="width:100%; padding:8px; border:1px solid #E2E8F0; border-radius:4px; margin-bottom:8px; font-size:13px; outline:none; box-sizing:border-box;">
-                    <div style="display:flex; gap:8px;">
-                        <input type="date" id="sched-date" style="flex:1; padding:6px; border:1px solid #E2E8F0; border-radius:4px; font-size:13px; outline:none;">
-                        <button onclick="addSharedSchedule()" style="background:#3182CE; color:white; border:none; padding:0 15px; border-radius:4px; font-size:13px; cursor:pointer; font-weight:600;">등록</button>
-                    </div>
-                </div>
-                <div id="schedule-list" style="flex:1; overflow-y:auto; font-size:14px;"></div>
-            </div>
+    </div>
 
-            <!-- 메시지 수신 영역 -->
-            <div class="message-area" id="msg-box"></div>
+    <!-- 팝업 모달 모음 -->
 
-            <!-- 입력 영역 -->
-            <div class="chat-input-area">
-                <label for="chat-image-input" style="cursor:pointer; color:#718096; padding:6px 8px; font-size:18px;">
-                    <i class="fa-regular fa-image"></i>
-                </label>
-                <input type="file" id="chat-image-input" accept="image/*" style="display:none;" onchange="sendImageMessage(this)">
-                
-                <input type="text" id="chat-input-text" placeholder="메시지를 입력하세요..." onkeypress="if(event.key === 'Enter') sendTextMessage()">
-                <button class="chat-input-btn" onclick="sendTextMessage()">전송</button>
+    <!-- 방 개설 모달 -->
+    <div id="create-room-modal" class="modal-overlay" style="display:none;">
+        <div style="background:#fff; padding:20px; border-radius:12px; width:85%; max-width:320px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+            <h3 style="margin-top:0; font-size:16px; color:#2D3748;">💬 새 대화방 개설</h3>
+            <input type="text" id="new-room-title" placeholder="대화방 이름" style="width:100%; padding:10px; border:1px solid #E2E8F0; border-radius:6px; margin-bottom:10px; box-sizing:border-box; outline:none; font-size:14px;">
+            <input type="password" id="new-room-password" maxlength="4" placeholder="비밀번호 4자리 (선택)" style="width:100%; padding:10px; border:1px solid #E2E8F0; border-radius:6px; margin-bottom:15px; box-sizing:border-box; outline:none; font-size:14px;">
+            <div style="font-weight:bold; font-size:12px; color:#4A5568; margin-bottom:6px;">함께 참여할 팀원 선택:</div>
+            <div id="create-room-friends-list" style="max-height:120px; overflow-y:auto; border:1px solid #EDF2F7; border-radius:6px; padding:8px; margin-bottom:15px; background:#F7FAFC;"></div>
+            <div style="display:flex; justify-content:flex-end; gap:8px;">
+                <button onclick="toggleCreateRoomModal()" style="padding:8px 12px; background:#E2E8F0; color:#4A5568; border:none; border-radius:6px; cursor:pointer; font-weight:600;">취소</button>
+                <button onclick="createRoomWithFriends()" style="padding:8px 12px; background:#3182CE; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">생성하기</button>
             </div>
         </div>
     </div>
 
-    <!-- 방 생성 모달 -->
-    <div id="create-room-modal" class="modal-overlay" style="display:none;">
+    <!-- 대화방 멤버 초대 모달 -->
+    <div id="invite-member-modal" class="modal-overlay" style="display:none;">
         <div style="background:#fff; padding:20px; border-radius:12px; width:85%; max-width:320px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
-            <h3 style="margin-top:0; font-size:16px; color:#2D3748;">💬 새 대화방 개설</h3>
-        
-            <!-- 방 제목 입력 -->
-            <input type="text" id="new-room-title" placeholder="대화방 이름" style="width:100%; padding:10px; border:1px solid #E2E8F0; border-radius:6px; margin-bottom:10px; box-sizing:border-box; outline:none; font-size:14px;">
-        
-            <!-- 방 비밀번호 입력 -->
-            <input type="password" id="new-room-password" maxlength="4" placeholder="비밀번호 4자리 (선택)" style="width:100%; padding:10px; border:1px solid #E2E8F0; border-radius:6px; margin-bottom:15px; box-sizing:border-box; outline:none; font-size:14px;">
-        
-            <!-- 👥 초대할 친구 선택 영역 (추가된 부분) -->
-            <div style="font-weight:bold; font-size:12px; color:#4A5568; margin-bottom:6px;">함께 참여할 친구 선택:</div>
-            <div id="create-room-friends-list" style="max-height:120px; overflow-y:auto; border:1px solid #EDF2F7; border-radius:6px; padding:8px; margin-bottom:15px; background:#F7FAFC;">
-                <!-- 자바스크립트로 친구 목록이 들어옵니다 -->
-            </div>
-
+            <h3 style="margin-top:0; font-size:16px; color:#2D3748;">➕ 대화방 멤버 초대</h3>
+            <div id="invite-friends-list" style="max-height:180px; overflow-y:auto; border:1px solid #EDF2F7; border-radius:6px; padding:8px; margin-bottom:15px; background:#F7FAFC;"></div>
             <div style="display:flex; justify-content:flex-end; gap:8px;">
-                <button onclick="toggleCreateRoomModal()" style="padding:8px 12px; background:#E2E8F0; color:#4A5568; border:none; border-radius:6px; cursor:pointer; font-weight:600;">취소</button>
-                <button onclick="createRoomWithFriends()" style="padding:8px 12px; background:#3182CE; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">생성하기</button>
+                <button onclick="toggleInviteMemberModal()" style="padding:8px 12px; background:#E2E8F0; color:#4A5568; border:none; border-radius:6px; cursor:pointer; font-weight:600;">취소</button>
+                <button onclick="inviteSelectedFriends()" style="padding:8px 12px; background:#3182CE; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">초대하기</button>
             </div>
         </div>
     </div>
@@ -208,16 +201,14 @@
         </div>
     </div>
 
-    <!-- 🔑 비밀번호 변경 모달 -->
+    <!-- 비밀번호 변경 모달 -->
     <div id="change-pw-modal" class="modal-overlay" style="display:none;">
         <div style="background:#fff; padding:24px; border-radius:12px; width:90%; max-width:320px; text-align:center;">
             <div style="font-size:32px; color:#3182CE; margin-bottom:10px;"><i class="fa-solid fa-key"></i></div>
             <h3 style="font-size:18px; color:#2D3748; margin-bottom:6px;">비밀번호 변경</h3>
             <p style="font-size:12px; color:#718096; margin-bottom:16px;">새롭게 사용할 비밀번호를 입력해 주세요.</p>
-            
             <input type="password" id="new-password-input" placeholder="새 비밀번호 입력" style="width:100%; padding:10px; border:1px solid #E2E8F0; border-radius:6px; margin-bottom:8px; outline:none; box-sizing:border-box;">
             <input type="password" id="new-password-confirm" placeholder="새 비밀번호 재입력" style="width:100%; padding:10px; border:1px solid #E2E8F0; border-radius:6px; margin-bottom:16px; outline:none; box-sizing:border-box;">
-            
             <div style="display:flex; gap:8px;">
                 <button onclick="toggleChangePwModal()" style="flex:1; padding:10px; background:#EDF2F7; color:#4A5568; border:none; border-radius:6px; font-weight:600; cursor:pointer;">취소</button>
                 <button onclick="handleChangePassword()" style="flex:1; padding:10px; background:#3182CE; color:white; border:none; border-radius:6px; font-weight:600; cursor:pointer;">변경하기</button>
@@ -237,50 +228,32 @@
         </div>
     </div>
 
-    <!-- 🖼️ 이미지 뷰어 모달 -->
+    <!-- 이미지 뷰어 모달 -->
     <div id="image-viewer-modal" onclick="closeImageViewer()">
         <img id="image-viewer-img" src="" alt="확대 이미지" />
     </div>
 
-    <!-- 👑 관리자 전용 대시보드 모달 -->
-<div id="admin-modal" class="modal-overlay" style="display:none;">
-    <div style="background:white; padding:20px; border-radius:12px; width:380px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
-        
-        <!-- 모달 헤더 -->
-        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #E2E8F0; padding-bottom:12px; margin-bottom:12px;">
-            <h3 style="margin:0; color:#2D3748; font-size:16px; display:flex; align-items:center; gap:6px;">
-                <span style="color:#D69E2E;">👑</span> 시스템 관리자 센터
-            </h3>
-            <button onclick="toggleAdminModal()" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:18px;">&times;</button>
-        </div>
-
-        <!-- 탭 버튼 (회원 관리 / 대화방 관리) -->
-        <div style="display:flex; gap:8px; margin-bottom:12px;">
-            <button id="admin-tab-users-btn" onclick="switchAdminTab('users')" style="flex:1; padding:8px; border:none; border-radius:6px; background:#3182CE; color:white; font-weight:600; cursor:pointer; font-size:12px;">
-                👥 회원 관리
-            </button>
-            <button id="admin-tab-rooms-btn" onclick="switchAdminTab('rooms')" style="flex:1; padding:8px; border:none; border-radius:6px; background:#EDF2F7; color:#4A5568; font-weight:600; cursor:pointer; font-size:12px;">
-                💬 대화방 강제 관리
-            </button>
-        </div>
-
-        <!-- 탭 1: 전체 회원 관리 목록 -->
-        <div id="admin-tab-users" style="flex:1; overflow-y:auto; max-height:300px; border:1px solid #EDF2F7; border-radius:8px; padding:8px;">
-            <div style="text-align:center; padding:20px; color:#888; font-size:12px;">회원 목록 불러오는 중...</div>
-        </div>
-
-        <!-- 탭 2: 전체 대화방 관리 목록 -->
-        <div id="admin-tab-rooms" style="display:none; flex:1; overflow-y:auto; max-height:300px; border:1px solid #EDF2F7; border-radius:8px; padding:8px;">
-            <div style="text-align:center; padding:20px; color:#888; font-size:12px;">대화방 목록 불러오는 중...</div>
-        </div>
-
-        <!-- 모달 푸터 -->
-        <div style="margin-top:12px; text-align:right;">
-            <button onclick="toggleAdminModal()" style="background:#EDF2F7; color:#4A5568; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">닫기</button>
+    <!-- 관리자 전용 대시보드 모달 -->
+    <div id="admin-modal" class="modal-overlay" style="display:none;">
+        <div style="background:white; padding:20px; border-radius:12px; width:380px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #E2E8F0; padding-bottom:12px; margin-bottom:12px;">
+                <h3 style="margin:0; color:#2D3748; font-size:16px; display:flex; align-items:center; gap:6px;">
+                    <span style="color:#D69E2E;">👑</span> 시스템 관리자 센터
+                </h3>
+                <button onclick="toggleAdminModal()" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:18px;">&times;</button>
+            </div>
+            <div style="display:flex; gap:8px; margin-bottom:12px;">
+                <button id="admin-tab-users-btn" onclick="switchAdminTab('users')" style="flex:1; padding:8px; border:none; border-radius:6px; background:#3182CE; color:white; font-weight:600; cursor:pointer; font-size:12px;">👥 회원 관리</button>
+                <button id="admin-tab-rooms-btn" onclick="switchAdminTab('rooms')" style="flex:1; padding:8px; border:none; border-radius:6px; background:#EDF2F7; color:#4A5568; font-weight:600; cursor:pointer; font-size:12px;">💬 대화방 강제 관리</button>
+            </div>
+            <div id="admin-tab-users" style="flex:1; overflow-y:auto; max-height:300px; border:1px solid #EDF2F7; border-radius:8px; padding:8px;"></div>
+            <div id="admin-tab-rooms" style="display:none; flex:1; overflow-y:auto; max-height:300px; border:1px solid #EDF2F7; border-radius:8px; padding:8px;"></div>
+            <div style="margin-top:12px; text-align:right;">
+                <button onclick="toggleAdminModal()" style="background:#EDF2F7; color:#4A5568; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">닫기</button>
+            </div>
         </div>
     </div>
-</div>
-    
+       
     <!-- Firebase 초기화 및 연동 -->
     <script>
         // ⚠️ 아래 firebaseConfig 안에 본인의 진짜 Firebase 키 정보가 들어가야 합니다!

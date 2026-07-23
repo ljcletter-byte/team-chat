@@ -25,25 +25,21 @@ body {
 
 #app {
     width: 100%;
-    max-width: 400px;
-    height: 100vh;
-    max-height: 750px;
+    max-width: 1000px;
+    height: 90vh;
+    max-height: 720px;
     background: var(--card-bg);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
     border-radius: 16px;
     overflow: hidden;
     position: relative;
-    display: flex;
-    flex-direction: column;
 }
 
-/* 화면 공통 */
+/* 화면 전환 공통 */
 .screen {
     width: 100%;
     height: 100%;
     display: flex;
-    flex-direction: column;
-    background: var(--card-bg);
 }
 
 .header {
@@ -58,28 +54,106 @@ body {
     color: var(--text-main);
 }
 
-/* 아바타 스타일 */
+/* 🌟 2단 고정 분할 (Split-Pane) 레이아웃 */
+#main-layout {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    height: 100%;
+}
+
+/* [좌측] 메인 사이드바 */
+#main-sidebar {
+    width: 320px;
+    min-width: 320px;
+    height: 100%;
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    background: #FFFFFF;
+}
+
+.sidebar-header {
+    padding: 16px 16px 8px 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-tabs {
+    display: flex;
+    gap: 4px;
+    background: #EDF2F7;
+    padding: 4px;
+    border-radius: 8px;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 6px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-sub);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tab-btn.active {
+    background: #FFFFFF;
+    color: var(--primary-color);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.tab-panel {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.tab-panel.active {
+    display: flex;
+}
+
+/* [우측] 대화창 상세 영역 */
+#main-chat-content {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: #F7FAFC;
+    position: relative;
+}
+
+.no-chat-selected {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #A0AEC0;
+    font-size: 14px;
+}
+
+/* 대화방 선택 액티브 효과 */
+.chat-room-item.active-room {
+    background-color: #EBF8FF !important;
+    border-left: 4px solid var(--primary-color);
+}
+
+/* 아바타 & 메시지 영역 */
 .avatar {
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
-    background: #E2E8F0;
-    color: #4A5568;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
     font-weight: bold;
     flex-shrink: 0;
 }
 
-.avatar-sm {
-    width: 32px;
-    height: 32px;
-    font-size: 13px;
-}
-
-/* 메시지 영역 */
 .message-area {
     flex: 1;
     padding: 16px;
@@ -126,7 +200,7 @@ body {
     background: var(--primary-hover);
 }
 
-/* 일정 및 안내 모달 공통 */
+/* 모달 공통 */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -157,7 +231,7 @@ body {
     display: none !important;
 }
 
-/* 🖼️ 이미지 뷰어 모달 (화면 전체 가리기 수정) */
+/* 이미지 뷰어 모달 */
 #image-viewer-modal {
     display: none;
     position: fixed !important;
@@ -178,60 +252,4 @@ body {
     border-radius: 8px;
     box-shadow: 0 10px 25px rgba(0,0,0,0.5);
     object-fit: contain;
-}
-
-/* ==========================================
-   2단 고정 분할 (Split-Pane) 레이아웃
-   ========================================== */
-
-/* 메인 애플리케이션 프레임워크 (2단 가로 배치) */
-.app-container {
-    display: flex !important;
-    flex-direction: row !important; /* 가로로 2단 배치 */
-    width: 100%;
-    max-width: 1050px;             /* 화면 너비 확장 */
-    height: 700px;                 /* 높이 고정 */
-    background: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-    overflow: hidden;
-    margin: 20px auto;
-}
-
-/* [좌측 영역] 대화방 및 친구 목록 (너비 고정) */
-#main-sidebar {
-    width: 320px;
-    min-width: 320px;
-    height: 100%;
-    border-right: 1px solid #E2E8F0;
-    display: flex;
-    flex-direction: column;
-    background: #FFFFFF;
-}
-
-/* [우측 영역] 실시간 대화창 (남은 공간 모두 차지) */
-#main-chat-content {
-    flex: 1;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    background: #F7FAFC;
-    position: relative;
-}
-
-/* 방을 선택하지 않았을 때 나오는 기본 안내 화면 */
-.no-chat-selected {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: #A0AEC0;
-    font-size: 14px;
-}
-
-/* 현재 선택된 대화방 강조 효과 */
-.chat-room-item.active-room {
-    background-color: #EBF8FF !important;
-    border-left: 4px solid #3182CE;
 }

@@ -113,7 +113,10 @@ async function handleLogin() {
             return alert('비밀번호가 일치하지 않습니다.');
         }
 
-        currentUser = userData;
+        currentUser = {
+            ...userData,
+            groupId: userData.groupId || 'etc'
+        };
         
         // 로그인 성공 UI 세팅
         const userDisplay = document.getElementById('current-user-display');
@@ -195,7 +198,7 @@ async function handleRegisterWithCode() {
             name: name,
             password: hashedPassword,
             role: 'member',
-            groupId: assignedGroup, // 👈 해당 유저의 소속 그룹 저장
+            groupId: assignedGroup,
             createdAt: Date.now()
         });
 
@@ -225,7 +228,7 @@ function loadFriendsList() {
         }
 
         // 최고 관리자 여부 확인
-        const isSuperAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.id.includes('admin'));
+        const isSuperAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.id.includes('admin'));
 
         snapshot.forEach((child) => {
             const user = child.val();
@@ -392,7 +395,6 @@ async function enterChatRoom(roomId, roomTitle) {
         const titleEl = document.getElementById('chat-room-title');
         if (titleEl) titleEl.innerText = displayTitle || '대화방';
 
-        // 오류 수정: HTML ID명 'chat-header-actions' 적용
         const headerActions = document.getElementById('chat-header-actions');
         if (headerActions) {
             const actionBtnHtml = isOwner ? `
@@ -455,7 +457,7 @@ function listenMessages(roomId) {
                 msgDiv.style = "display:flex; justify-content:center; margin:10px 0;";
                 msgDiv.innerHTML = `
                     <div style="background:#EDF2F7; color:#4A5568; padding:5px 12px; border-radius:12px; font-size:11px; text-align:center; max-width:85%;">
-                        ${escapeHtml(msg.text || '')}
+                        ${escapeHtml(msg.text || msg.content || '')}
                     </div>
                 `;
                 lastSenderId = 'system';
@@ -472,12 +474,14 @@ function listenMessages(roomId) {
                 }
 
                 let contentHtml = '';
-                if (msg.imageUrl) {
-                    contentHtml = `<img src="${msg.imageUrl}" style="max-width:180px; border-radius:12px; border:1px solid #E2E8F0; cursor:pointer;" onclick="openImageViewer(this.src)">`;
+                const imgSrc = msg.imageUrl || (msg.type === 'image' ? msg.content : null);
+
+                if (imgSrc) {
+                    contentHtml = `<img src="${imgSrc}" style="max-width:200px; max-height:200px; border-radius:12px; border:1px solid #E2E8F0; cursor:pointer; display:block;" onclick="openImageViewer(this.src)" title="클릭하여 원본 보기">`;
                 } else {
                     contentHtml = `
                         <div style="background:${isMe ? '#3182CE' : '#FFFFFF'}; color:${isMe ? '#FFF' : '#2D3748'}; padding:8px 12px; border-radius:12px; max-width:210px; word-break:break-word; font-size:13px; line-height:1.4; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:${isMe ? 'none' : '1px solid #E2E8F0'};">
-                            ${escapeHtml(msg.text || '')}
+                            ${escapeHtml(msg.text || msg.content || '')}
                         </div>
                     `;
                 }
@@ -560,6 +564,7 @@ async function leaveChatRoom() {
         });
 
         await database.ref(`rooms/${roomId}/members/${currentUser.id}`).remove();
+        await database.ref(`rooms/${roomId}/membersInfo/${currentUser.id}`).remove();
 
         database.ref(`messages/${roomId}`).off();
         currentRoomId = null;
@@ -599,14 +604,23 @@ async function sendTextMessage() {
     }
 }
 
-function sendImageMessage(fileInput) {
-    if (!fileInput || !fileInput.files.length) return;
-    const file = fileInput.files[0];
-    if (!file || !currentRoomId || !currentUser) return;
+// 📷 사진 파일 선택창 제어
+function triggerImageUpload() {
+    const fileInput = document.getElementById('chat-image-input');
+    if (fileInput) fileInput.click();
+}
 
-    if (file.size > 1024 * 1024) {
-        alert("이미지는 1MB 이하로 선택해 주세요.");
-        fileInput.value = '';
+// 📷 사진/이미지 전송 (2MB 제한)
+function sendImageMessage(fileInput) {
+    const inputEl = fileInput && fileInput.files ? fileInput : document.getElementById('chat-image-input');
+    if (!inputEl || !inputEl.files || !inputEl.files.length) return;
+
+    const file = inputEl.files[0];
+    if (!file || !currentRoomId || !currentUser) return alert("대화방에 먼저 입장해 주세요.");
+
+    if (file.size > 2 * 1024 * 1024) {
+        alert("이미지는 2MB 이하만 전송 가능합니다.");
+        inputEl.value = '';
         return;
     }
 
@@ -619,7 +633,9 @@ function sendImageMessage(fileInput) {
             await database.ref(`messages/${currentRoomId}`).push({
                 senderId: currentUser.id,
                 senderName: currentUser.name,
+                type: 'image',
                 imageUrl: base64Image,
+                content: base64Image,
                 timestamp: now
             });
 
@@ -628,7 +644,7 @@ function sendImageMessage(fileInput) {
                 lastTimestamp: now
             });
 
-            fileInput.value = '';
+            inputEl.value = '';
         } catch (err) {
             console.error("이미지 전송 실패:", err);
         }
@@ -729,8 +745,10 @@ function toggleCreateRoomModal() {
     modal.style.display = isHidden ? 'flex' : 'none';
 
     if (isHidden) {
-        document.getElementById('new-room-title').value = '';
-        document.getElementById('new-room-password').value = '';
+        const titleInput = document.getElementById('new-room-title');
+        const pwInput = document.getElementById('new-room-password');
+        if (titleInput) titleInput.value = '';
+        if (pwInput) pwInput.value = '';
         loadFriendsForCreateRoom();
     }
 }
@@ -748,7 +766,6 @@ function loadFriendsForCreateRoom() {
             return;
         }
 
-        // 최고 관리자 여부 확인
         const isSuperAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.id.includes('admin'));
 
         let count = 0;
@@ -756,10 +773,9 @@ function loadFriendsForCreateRoom() {
             const user = child.val();
             const myId = currentUser ? currentUser.id : null;
 
-            // 본인은 초대 목록에서 제외
             if (!user || user.id === myId) return;
 
-            // 🔒 그룹 격리 핵심 조건: 최고 관리자가 아니고, 소속 그룹이 다르면 선택 목록에서 제외
+            // 🔒 그룹 격리: 최고 관리자가 아니고 소속 그룹이 다르면 제외
             if (!isSuperAdmin && user.groupId !== currentUser.groupId) {
                 return;
             }
@@ -772,7 +788,7 @@ function loadFriendsForCreateRoom() {
             const adminBadge = isAdmin ? '👑 ' : '';
 
             item.innerHTML = `
-                <input type="checkbox" value="${escapeHtml(user.id)}" class="create-room-user-check">
+                <input type="checkbox" value="${escapeHtml(user.id)}" data-name="${escapeHtml(user.name)}" class="create-room-friend-checkbox">
                 <span>${adminBadge}${escapeHtml(user.name)} (@${escapeHtml(user.id)})</span>
             `;
             listEl.appendChild(item);
@@ -797,13 +813,22 @@ async function createRoomWithFriends() {
     const myId = currentUser ? currentUser.id : 'unknown';
     const myName = currentUser ? currentUser.name : '사용자';
 
-    const selectedMembers = [myId];
-    checkedBoxes.forEach(box => selectedMembers.push(box.value));
+    const membersObj = {};
+    const membersInfoObj = {};
+
+    membersObj[myId] = true;
+    membersInfoObj[myId] = myName;
+
+    checkedBoxes.forEach(box => {
+        const userId = box.value;
+        const userName = box.getAttribute('data-name') || userId;
+        membersObj[userId] = true;
+        membersInfoObj[userId] = userName;
+    });
 
     try {
         const now = Date.now();
         const newRoomRef = database.ref('rooms').push();
-
         let hashedPw = roomPassword ? await sha256(roomPassword) : null;
 
         const roomData = {
@@ -813,7 +838,8 @@ async function createRoomWithFriends() {
             createdAt: now,
             lastMessage: "대화방이 생성되었습니다.",
             lastTimestamp: now,
-            members: selectedMembers,
+            members: membersObj,
+            membersInfo: membersInfoObj,
             password: hashedPw
         };
 
@@ -955,6 +981,8 @@ function openImageViewer(src) {
     if (modal && img) {
         img.src = src;
         modal.style.display = 'flex';
+    } else {
+        window.open(src, '_blank');
     }
 }
 
@@ -970,8 +998,10 @@ function toggleChangePwModal() {
     modal.style.display = isHidden ? 'flex' : 'none';
 
     if (isHidden) {
-        document.getElementById('new-password-input').value = '';
-        document.getElementById('new-password-confirm').value = '';
+        const input1 = document.getElementById('new-password-input');
+        const input2 = document.getElementById('new-password-confirm');
+        if (input1) input1.value = '';
+        if (input2) input2.value = '';
     }
 }
 
@@ -1003,7 +1033,7 @@ async function handleChangePassword() {
 
 function openSettingsOrAdmin() {
     if (!currentUser) return alert("로그인이 필요합니다.");
-    const isAdmin = currentUser.role === 'admin' || currentUser.id.includes('admin');
+    const isAdmin = currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.id.includes('admin');
     if (isAdmin) {
         toggleAdminModal();
     } else {

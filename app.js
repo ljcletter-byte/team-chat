@@ -649,13 +649,33 @@ function loadChatRooms() {
     database.ref('rooms').on('value', (snapshot) => {
         chatListEl.innerHTML = '';
         if (!snapshot.exists()) {
-            chatListEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888; font-size:13px;">개설된 대화방이 없습니다.</div>';
+            chatListEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">개설된 대화방이 없습니다.</div>';
             return;
         }
+
+        // 최고 관리자 권한 확인
+        const isSuperAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.id.includes('admin'));
+        let roomCount = 0;
 
         snapshot.forEach((child) => {
             const room = child.val();
             const roomId = child.key;
+
+            // 🔒 본인이 대화방에 참여 중인지 확인
+            const isMember = room.membersInfo && currentUser && room.membersInfo[currentUser.id];
+            const isMemberOld = room.members && currentUser && room.members[currentUser.id];
+            const isPart = room.participants && currentUser && (
+                Array.isArray(room.participants) ? room.participants.includes(currentUser.id) : room.participants[currentUser.id]
+            );
+            const isJoined = isMember || isMemberOld || isPart;
+
+            // 🔒 핵심 격리 조건: 최고 관리자가 아니고, 본인이 참여한 방이 아니라면 목록에서 숨김
+            if (!isSuperAdmin && !isJoined) {
+                return;
+            }
+
+            roomCount++;
+
             const timeStr = formatTime(room.lastTimestamp);
             const isLocked = !!room.password;
 
@@ -665,6 +685,11 @@ function loadChatRooms() {
                 if (partnerId) displayTitle = room.membersInfo[partnerId];
             }
 
+            // 최고 관리자 관전 표시 배지 (본인이 미참여한 방일 때만 표시)
+            const adminBadge = (isSuperAdmin && !isJoined) 
+                ? '<span style="font-size:10px; background:#EDF2F7; color:#718096; padding:2px 5px; border-radius:4px; font-weight:normal;">관전</span>' 
+                : '';
+
             const firstChar = displayTitle.charAt(0);
             const roomColor = getUserAvatarColor(roomId);
 
@@ -672,25 +697,28 @@ function loadChatRooms() {
             roomDiv.className = `chat-room-item ${currentRoomId === roomId ? 'active-room' : ''}`;
             roomDiv.id = `room-item-${roomId}`;
             roomDiv.setAttribute("data-title", displayTitle);
-            roomDiv.style = "padding:10px 12px; border-bottom:1px solid #E2E8F0; cursor:pointer; display:flex; gap:10px; align-items:center; background:#fff;";
-            
+            roomDiv.style = "padding:10px 12px; border-bottom:1px solid #E2E8F0; cursor:pointer; display:flex; align-items:center; gap:10px; background:#fff;";
+
             roomDiv.onclick = () => attemptEnterRoom(roomId, displayTitle, room.password);
-            
+
             roomDiv.innerHTML = `
                 <div class="avatar" style="background:${roomColor}; color:white; font-size:14px;">${escapeHtml(firstChar)}</div>
                 <div style="flex:1; overflow:hidden;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
                         <span style="font-weight:600; font-size:13px; color:#2D3748; display:flex; align-items:center; gap:4px;">
-                            ${escapeHtml(displayTitle)}
+                            ${escapeHtml(displayTitle)} ${adminBadge}
                             ${isLocked ? '<i class="fa-solid fa-lock" style="font-size:11px; color:#E53E3E;"></i>' : ''}
                         </span>
                         <span style="font-size:10px; color:#A0AEC0;">${timeStr}</span>
                     </div>
-                    <div style="font-size:12px; color:#718096; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(room.lastMessage || '이전 메시지가 없습니다.')}</div>
                 </div>
             `;
             chatListEl.appendChild(roomDiv);
         });
+
+        if (roomCount === 0) {
+            chatListEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">참여 중인 대화방이 없습니다.</div>';
+        }
     });
 }
 

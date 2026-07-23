@@ -163,15 +163,17 @@ async function handleRegisterWithCode() {
 
     try {
         let isValidInvite = false;
+        let assignedGroup = 'etc'; // 기본 그룹
 
         if (inviteCode === SYSTEM_INVITE_CODE) {
             isValidInvite = true;
+            assignedGroup = 'etc';
         } else {
-            // Realtime DB에서 초대 코드 조회
+            // Realtime Database에서 초대 코드 조회
             const inviteSnap = await database.ref(`invites/${inviteCode}`).once('value');
             if (inviteSnap.exists() && !inviteSnap.val().isUsed) {
                 isValidInvite = true;
-                // 초대장 사용 완료 처리
+                assignedGroup = inviteSnap.val().groupId || 'etc';
                 await database.ref(`invites/${inviteCode}`).update({ isUsed: true, usedBy: id });
             }
         }
@@ -193,6 +195,7 @@ async function handleRegisterWithCode() {
             name: name,
             password: hashedPassword,
             role: 'member',
+            groupId: assignedGroup, // 👈 해당 유저의 소속 그룹 저장
             createdAt: Date.now()
         });
 
@@ -221,13 +224,29 @@ function loadFriendsList() {
             return;
         }
 
+        // 최고 관리자 여부 확인
+        const isSuperAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.id.includes('admin'));
+
         snapshot.forEach((child) => {
             const user = child.val();
             if (currentUser && user.id === currentUser.id) return;
 
+            // 🔒 그룹 격리 핵심 조건: 최고 관리자가 아니고, 소속 그룹이 다른 경우 목록에서 숨김
+            if (!isSuperAdmin && user.groupId !== currentUser.groupId) {
+                return;
+            }
+
             const userColor = getUserAvatarColor(user.id);
-            const isTargetAdmin = user.role === 'admin' || user.id.includes('admin');
+            const isTargetAdmin = user.role === 'admin' || user.role === 'super_admin' || user.id.includes('admin');
             const adminBadge = isTargetAdmin ? '<span style="color:#D69E2E; font-size:12px; margin-right:4px;">👑</span>' : '';
+            
+            // 그룹 명칭 한글 변환 (최고 관리자 전용 표시)
+            const groupMap = { company: '회사', family: '가족', friends: '친구', etc: '기타' };
+            const groupName = groupMap[user.groupId] || '기타';
+            
+            const groupBadge = isSuperAdmin && user.groupId 
+                ? `<span style="font-size:10px; background:#EDF2F7; color:#4A5568; padding:2px 6px; border-radius:4px; margin-left:4px;">${groupName}</span>` 
+                : '';
 
             const userDiv = document.createElement('div');
             userDiv.style = "padding:10px 12px; border-bottom:1px solid #EDF2F7; display:flex; justify-content:space-between; align-items:center; background:#fff; border-radius:8px; margin-bottom:6px;";
@@ -235,7 +254,7 @@ function loadFriendsList() {
                 <div style="display:flex; align-items:center; gap:10px;">
                     <div class="avatar" style="background:${userColor}; color:white; font-size:14px;">${escapeHtml(user.name.charAt(0))}</div>
                     <div>
-                        <div style="font-weight:600; font-size:13px; color:#2D3748;">${adminBadge}${escapeHtml(user.name)}</div>
+                        <div style="font-weight:600; font-size:13px; color:#2D3748;">${adminBadge}${escapeHtml(user.name)} ${groupBadge}</div>
                         <div style="font-size:11px; color:#A0AEC0;">@${escapeHtml(user.id)}</div>
                     </div>
                 </div>
@@ -1182,31 +1201,34 @@ async function inviteSelectedFriends() {
 async function generateInviteLink() {
     if (!currentUser) return alert("로그인이 필요합니다.");
 
-    const isAdmin = currentUser.role === 'admin' || currentUser.id.includes('admin');
+    const isAdmin = currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.id.includes('admin');
     if (!isAdmin) {
         return alert("초대 링크 생성을 위한 관리자 권한이 없습니다.");
     }
 
     try {
-        // 8자리 초대 코드 생성 (예: INV-X7K2P9A1)
+        const selectedGroup = document.getElementById('invite-group-select')?.value || 'etc';
+        
+        const groupNames = { company: '회사', family: '가족', friends: '친구', etc: '기타' };
+        const groupLabel = groupNames[selectedGroup] || '기타';
+
         const randomCode = Math.random().toString(36).substring(2, 10).toUpperCase();
         const inviteCode = `INV-${randomCode}`;
 
-        // Realtime Database에 저장 (Firestore 대신 사용)
+        // Realtime Database 'invites' 경로에 groupId를 함께 저장
         await database.ref(`invites/${inviteCode}`).set({
             code: inviteCode,
+            groupId: selectedGroup,
             createdBy: currentUser.id,
             createdAt: Date.now(),
             isUsed: false
         });
 
-        // 초대 URL 생성
         const baseUrl = window.location.origin + window.location.pathname;
         const inviteUrl = `${baseUrl}?invite=${inviteCode}`;
 
-        // 클립보드 복사
         await navigator.clipboard.writeText(inviteUrl);
-        alert(`🎉 초대 링크가 복사되었습니다!\n\n📌 초대 코드: ${inviteCode}\n🔗 초대 링크: ${inviteUrl}`);
+        alert(`🎉 [${groupLabel}] 그룹 초대 링크가 복사되었습니다!\n\n📌 초대 코드: ${inviteCode}\n🏷️ 소속 그룹: ${groupLabel}\n🔗 초대 링크: ${inviteUrl}`);
 
     } catch (error) {
         console.error("초대 링크 생성 오류:", error);

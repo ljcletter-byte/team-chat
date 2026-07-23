@@ -5,6 +5,7 @@ let currentUser = null;
 let currentRoomId = null;
 let pendingRoom = null;
 let scheduleListener = null;
+let replyingTo = null; // 📩 [추가] 답장 대상 메시지 { id, senderName, text }
 
 const SYSTEM_INVITE_CODE = "SECRET2026"; 
 
@@ -58,7 +59,7 @@ function formatTime(timestamp) {
     return `${ampm} ${hours}:${minutes}`;
 }
 
-// 📩 [추가] 사용자의 대화방 마지막 읽은 시간 갱신 함수
+// 📩 사용자의 대화방 마지막 읽은 시간 갱신 함수
 async function updateLastReadTimestamp(roomId) {
     if (!roomId || !currentUser) return;
     try {
@@ -68,7 +69,51 @@ async function updateLastReadTimestamp(roomId) {
     }
 }
 
-// 화면 전환 (최상위 Screen 컨트롤)
+// 📩 [추가] 답장 미리보기 바 자동 생성 및 초기화
+function initReplyPreviewBar() {
+    if (document.getElementById('reply-preview-bar')) return;
+    
+    const inputEl = document.getElementById('chat-input-text');
+    if (!inputEl) return;
+
+    const container = inputEl.parentElement;
+    if (container) {
+        const bar = document.createElement('div');
+        bar.id = 'reply-preview-bar';
+        bar.style = "display:none; justify-content:space-between; align-items:center; background:#EDF2F7; padding:6px 12px; font-size:12px; border-radius:6px; margin-bottom:6px; color:#4A5568;";
+        bar.innerHTML = `
+            <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:85%;">
+                <span style="font-weight:bold; color:#3182CE;">↪ 답장: </span>
+                <span id="reply-preview-text"></span>
+            </div>
+            <button onclick="cancelReply()" style="background:none; border:none; color:#E53E3E; cursor:pointer; font-weight:bold; padding:0 4px;">✕</button>
+        `;
+        container.insertBefore(bar, inputEl);
+    }
+}
+
+// 📩 [추가] 답장 대상 설정
+function setReplyTarget(msgId, senderName, text) {
+    initReplyPreviewBar();
+    replyingTo = { id: msgId, senderName: senderName, text: text };
+    
+    const previewBar = document.getElementById('reply-preview-bar');
+    const previewText = document.getElementById('reply-preview-text');
+    if (previewBar && previewText) {
+        previewText.innerText = `${senderName} - "${text}"`;
+        previewBar.style.display = 'flex';
+    }
+    document.getElementById('chat-input-text')?.focus();
+}
+
+// 📩 [추가] 답장 취소
+function cancelReply() {
+    replyingTo = null;
+    const previewBar = document.getElementById('reply-preview-bar');
+    if (previewBar) previewBar.style.display = 'none';
+}
+
+// 화면 전환
 function switchScreen(screenId) {
     document.querySelectorAll('.screen').forEach(screen => {
         screen.style.display = 'none';
@@ -80,7 +125,7 @@ function switchScreen(screenId) {
     }
 }
 
-// 사이드바 탭 전환 (친구 / 채팅)
+// 사이드바 탭 전환
 function switchSidebarTab(tabName) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
@@ -128,7 +173,6 @@ async function handleLogin() {
             groupId: userData.groupId || 'etc'
         };
         
-        // 로그인 성공 UI 세팅
         const userDisplay = document.getElementById('current-user-display');
         if (userDisplay) userDisplay.innerText = `${currentUser.name} 님`;
 
@@ -176,13 +220,12 @@ async function handleRegisterWithCode() {
 
     try {
         let isValidInvite = false;
-        let assignedGroup = 'etc'; // 기본 그룹
+        let assignedGroup = 'etc';
 
         if (inviteCode === SYSTEM_INVITE_CODE) {
             isValidInvite = true;
             assignedGroup = 'etc';
         } else {
-            // Realtime Database에서 초대 코드 조회
             const inviteSnap = await database.ref(`invites/${inviteCode}`).once('value');
             if (inviteSnap.exists() && !inviteSnap.val().isUsed) {
                 isValidInvite = true;
@@ -237,14 +280,12 @@ function loadFriendsList() {
             return;
         }
 
-        // 최고 관리자 여부 확인
         const isSuperAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.id.includes('admin'));
 
         snapshot.forEach((child) => {
             const user = child.val();
             if (currentUser && user.id === currentUser.id) return;
 
-            // 🔒 그룹 격리 핵심 조건: 최고 관리자가 아니고, 소속 그룹이 다른 경우 목록에서 숨김
             if (!isSuperAdmin && user.groupId !== currentUser.groupId) {
                 return;
             }
@@ -253,7 +294,6 @@ function loadFriendsList() {
             const isTargetAdmin = user.role === 'admin' || user.role === 'super_admin' || user.id.includes('admin');
             const adminBadge = isTargetAdmin ? '<span style="color:#D69E2E; font-size:12px; margin-right:4px;">👑</span>' : '';
             
-            // 그룹 명칭 한글 변환 (최고 관리자 전용 표시)
             const groupMap = { company: '회사', family: '가족', friends: '친구', etc: '기타' };
             const groupName = groupMap[user.groupId] || '기타';
             
@@ -331,7 +371,7 @@ async function startDirectChat(targetId, targetName) {
 }
 
 // ==========================================
-// 💬 대화방 입장 및 조작 (2단 우측 영역 제어)
+// 💬 대화방 입장 및 조작
 // ==========================================
 
 function attemptEnterRoom(roomId, roomTitle, roomPassword) {
@@ -380,11 +420,9 @@ async function enterChatRoom(roomId, roomTitle) {
     }
 
     currentRoomId = roomId;
-
-    // 📩 [추가] 방 진입 시 내 읽은 시각 갱신
+    cancelReply(); // 방 입장 시 답장 상태 초기화
     updateLastReadTimestamp(roomId);
 
-    // 대화방 액티브 UI 처리
     document.querySelectorAll('.chat-room-item').forEach(item => {
         item.classList.remove('active-room');
     });
@@ -431,7 +469,6 @@ async function enterChatRoom(roomId, roomTitle) {
             `;
         }
 
-        // 우측 패널 채팅창 보이기
         document.getElementById('no-chat-selected').style.display = 'none';
         document.getElementById('active-chat-view').style.display = 'flex';
 
@@ -449,7 +486,6 @@ function listenMessages(roomId) {
     msgRef.off();
 
     msgRef.limitToLast(100).on('value', (snapshot) => {
-        // 📩 [추가] 대화방을 보고 있는 상태에서 새 메시지 수신 시 읽은 시간 즉시 업데이트
         if (currentRoomId === roomId) {
             updateLastReadTimestamp(roomId);
         }
@@ -491,6 +527,16 @@ function listenMessages(roomId) {
                     }
                 }
 
+                // 📩 [추가] 답장 인용 박스 렌더링
+                let replyQuoteHtml = '';
+                if (msg.replyTo) {
+                    replyQuoteHtml = `
+                        <div style="background:${isMe ? 'rgba(255,255,255,0.2)' : '#EDF2F7'}; padding:4px 8px; border-radius:6px; font-size:11px; margin-bottom:4px; border-left:3px solid ${isMe ? '#FFF' : '#3182CE'}; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                            <span style="font-weight:bold;">↪ ${escapeHtml(msg.replyTo.senderName)}</span>: ${escapeHtml(msg.replyTo.text)}
+                        </div>
+                    `;
+                }
+
                 let contentHtml = '';
                 const imgSrc = msg.imageUrl || (msg.type === 'image' ? msg.content : null);
 
@@ -498,11 +544,20 @@ function listenMessages(roomId) {
                     contentHtml = `<img src="${imgSrc}" style="max-width:200px; max-height:200px; border-radius:12px; border:1px solid #E2E8F0; cursor:pointer; display:block;" onclick="openImageViewer(this.src)" title="클릭하여 원본 보기">`;
                 } else {
                     contentHtml = `
-                        <div style="background:${isMe ? '#3182CE' : '#FFFFFF'}; color:${isMe ? '#FFF' : '#2D3748'}; padding:8px 12px; border-radius:12px; max-width:210px; word-break:break-word; font-size:13px; line-height:1.4; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:${isMe ? 'none' : '1px solid #E2E8F0'};">
+                        <div style="background:${isMe ? '#3182CE' : '#FFFFFF'}; color:${isMe ? '#FFF' : '#2D3748'}; padding:8px 12px; border-radius:12px; max-width:220px; word-break:break-word; font-size:13px; line-height:1.4; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:${isMe ? 'none' : '1px solid #E2E8F0'};">
+                            ${replyQuoteHtml}
                             ${escapeHtml(msg.text || msg.content || '')}
                         </div>
                     `;
                 }
+
+                // 📩 [추가] 답장 버튼 (↪)
+                const safeText = escapeHtml(msg.text || '사진 메시지').replace(/'/g, "\\'");
+                const replyBtnHtml = `
+                    <button onclick="setReplyTarget('${msgId}', '${escapeHtml(msg.senderName || '알 수 없음')}', '${safeText}')" title="답장" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:11px; padding:2px;" onmouseover="this.style.color='#3182CE'" onmouseout="this.style.color='#A0AEC0'">
+                        <i class="fa-solid fa-reply"></i>
+                    </button>
+                `;
 
                 const deleteBtnHtml = isMe ? `
                     <button onclick="deleteMessage('${msgId}')" title="메시지 삭제" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:11px; padding:2px;" onmouseover="this.style.color='#E53E3E'" onmouseout="this.style.color='#A0AEC0'">
@@ -517,7 +572,10 @@ function listenMessages(roomId) {
                             ${contentHtml}
                             <div style="display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'}; gap:1px;">
                                 <span style="font-size:10px; color:#A0AEC0; white-space:nowrap;">${timeStr}</span>
-                                ${deleteBtnHtml}
+                                <div style="display:flex; gap:2px;">
+                                    ${replyBtnHtml}
+                                    ${deleteBtnHtml}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -604,12 +662,23 @@ async function sendTextMessage() {
 
     try {
         const now = Date.now();
-        await database.ref(`messages/${currentRoomId}`).push({
+        const msgPayload = {
             senderId: currentUser.id,
             senderName: currentUser.name,
             text: text,
             timestamp: now
-        });
+        };
+
+        // 📩 [추가] 답장 데이터 포함
+        if (replyingTo) {
+            msgPayload.replyTo = {
+                id: replyingTo.id,
+                senderName: replyingTo.senderName,
+                text: replyingTo.text
+            };
+        }
+
+        await database.ref(`messages/${currentRoomId}`).push(msgPayload);
 
         await database.ref(`rooms/${currentRoomId}`).update({
             lastMessage: text,
@@ -617,18 +686,17 @@ async function sendTextMessage() {
         });
 
         input.value = '';
+        cancelReply(); // 전송 후 답장 상태 해제
     } catch (error) {
         console.error("메시지 전송 실패:", error);
     }
 }
 
-// 📷 사진 파일 선택창 제어
 function triggerImageUpload() {
     const fileInput = document.getElementById('chat-image-input');
     if (fileInput) fileInput.click();
 }
 
-// 📷 사진/이미지 전송 (2MB 제한)
 function sendImageMessage(fileInput) {
     const inputEl = fileInput && fileInput.files ? fileInput : document.getElementById('chat-image-input');
     if (!inputEl || !inputEl.files || !inputEl.files.length) return;
@@ -671,8 +739,27 @@ function sendImageMessage(fileInput) {
 }
 
 // ==========================================
-// 📋 대화방 목록 및 생성 (Rooms Management)
+// 📋 대화방 목록 및 상단 고정 (Pin Room)
 // ==========================================
+
+// 📌 [추가] 대화방 상단 고정 / 해제 토글 함수
+async function togglePinRoom(roomId, event) {
+    if (event) event.stopPropagation(); // 대화방 클릭 이벤트 중단
+    if (!currentUser || !roomId) return;
+
+    try {
+        const pinRef = database.ref(`rooms/${roomId}/pinnedBy/${currentUser.id}`);
+        const snap = await pinRef.once('value');
+
+        if (snap.exists() && snap.val() === true) {
+            await pinRef.remove();
+        } else {
+            await pinRef.set(true);
+        }
+    } catch (e) {
+        console.error("상단 고정 실패:", e);
+    }
+}
 
 function loadChatRooms() {
     const chatListEl = document.getElementById('chat-list');
@@ -687,20 +774,30 @@ function loadChatRooms() {
             return;
         }
 
-        // 최고 관리자 권한 확인
         const isSuperAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.id.includes('admin'));
-        let roomCount = 0;
 
-        const roomList = [];
+        const rawList = [];
         snapshot.forEach((child) => {
-            roomList.push({ key: child.key, val: child.val() });
+            rawList.push({ key: child.key, val: child.val() });
         });
 
-        for (const item of roomList) {
+        // 📌 [추가] 정렬 로직: 1순위 상단 고정(isPinned), 2순위 최신 메시지 시각
+        rawList.sort((a, b) => {
+            const isPinnedA = a.val.pinnedBy && currentUser && a.val.pinnedBy[currentUser.id] ? 1 : 0;
+            const isPinnedB = b.val.pinnedBy && currentUser && b.val.pinnedBy[currentUser.id] ? 1 : 0;
+
+            if (isPinnedA !== isPinnedB) {
+                return isPinnedB - isPinnedA; // 고정된 방을 상단으로
+            }
+            return (b.val.lastTimestamp || 0) - (a.val.lastTimestamp || 0); // 최신 시각순
+        });
+
+        let roomCount = 0;
+
+        for (const item of rawList) {
             const room = item.val;
             const roomId = item.key;
 
-            // 🔒 본인이 대화방에 참여 중인지 확인
             const isMember = room.membersInfo && currentUser && room.membersInfo[currentUser.id];
             const isMemberOld = room.members && currentUser && room.members[currentUser.id];
             const isPart = room.participants && currentUser && (
@@ -708,14 +805,16 @@ function loadChatRooms() {
             );
             const isJoined = isMember || isMemberOld || isPart;
 
-            // 🔒 핵심 격리 조건: 최고 관리자가 아니고, 본인이 참여한 방이 아니라면 목록에서 숨김
             if (!isSuperAdmin && !isJoined) {
                 continue;
             }
 
             roomCount++;
 
-            // 📩 [추가] 안 읽은 메시지 카운트 계산
+            // 📌 [추가] 상단 고정 여부 확인
+            const isPinned = room.pinnedBy && currentUser && room.pinnedBy[currentUser.id];
+
+            // 📩 안 읽은 메시지 카운트 계산
             let unreadCount = 0;
             const lastRead = (room.readStatus && currentUser && room.readStatus[currentUser.id]) || 0;
 
@@ -742,7 +841,6 @@ function loadChatRooms() {
                 if (partnerId) displayTitle = room.membersInfo[partnerId];
             }
 
-            // 최고 관리자 관전 표시 배지 (본인이 미참여한 방일 때만 표시)
             const adminBadge = (isSuperAdmin && !isJoined) 
                 ? '<span style="font-size:10px; background:#EDF2F7; color:#718096; padding:2px 5px; border-radius:4px; font-weight:normal;">관전</span>' 
                 : '';
@@ -754,19 +852,27 @@ function loadChatRooms() {
             roomDiv.className = `chat-room-item ${currentRoomId === roomId ? 'active-room' : ''}`;
             roomDiv.id = `room-item-${roomId}`;
             roomDiv.setAttribute("data-title", displayTitle);
-            roomDiv.style = "padding:10px 12px; border-bottom:1px solid #E2E8F0; cursor:pointer; display:flex; align-items:center; gap:10px; background:#fff;";
+            roomDiv.style = `padding:10px 12px; border-bottom:1px solid #E2E8F0; cursor:pointer; display:flex; align-items:center; gap:10px; background:${isPinned ? '#F7FAFC' : '#fff'};`;
 
             roomDiv.onclick = () => attemptEnterRoom(roomId, displayTitle, room.password);
 
             roomDiv.innerHTML = `
-                <div class="avatar" style="background:${roomColor}; color:white; font-size:14px;">${escapeHtml(firstChar)}</div>
+                <div class="avatar" style="background:${roomColor}; color:white; font-size:14px; position:relative;">
+                    ${escapeHtml(firstChar)}
+                </div>
                 <div style="flex:1; overflow:hidden;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
                         <span style="font-weight:600; font-size:13px; color:#2D3748; display:flex; align-items:center; gap:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                            ${isPinned ? '<span style="color:#DD6B20; font-size:12px;">📌</span>' : ''}
                             ${escapeHtml(displayTitle)} ${adminBadge}
                             ${isLocked ? '<i class="fa-solid fa-lock" style="font-size:11px; color:#E53E3E;"></i>' : ''}
                         </span>
-                        <span style="font-size:10px; color:#A0AEC0; flex-shrink:0;">${timeStr}</span>
+                        <div style="display:flex; align-items:center; gap:4px;">
+                            <span style="font-size:10px; color:#A0AEC0; flex-shrink:0;">${timeStr}</span>
+                            <button onclick="togglePinRoom('${roomId}', event)" title="${isPinned ? '상단 고정 해제' : '상단 고정'}" style="background:none; border:none; color:${isPinned ? '#DD6B20' : '#CBD5E0'}; cursor:pointer; font-size:12px; padding:0 2px;" onmouseover="this.style.color='#DD6B20'" onmouseout="this.style.color='${isPinned ? '#DD6B20' : '#CBD5E0'}'">
+                                📌
+                            </button>
+                        </div>
                     </div>
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size:12px; color:#718096; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;">
@@ -822,7 +928,6 @@ function loadFriendsForCreateRoom() {
 
             if (!user || user.id === myId) return;
 
-            // 🔒 그룹 격리: 최고 관리자가 아니고 소속 그룹이 다르면 제외
             if (!isSuperAdmin && user.groupId !== currentUser.groupId) {
                 return;
             }
@@ -1146,7 +1251,6 @@ function loadAdminUsersList() {
                     <span style="font-size:10px; color:#A0AEC0;">(@${escapeHtml(user.id)})</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:6px;">
-                    <!-- 🎯 기존 회원 소속 그룹 변경 드롭다운 -->
                     <select onchange="changeUserGroup('${escapeHtml(user.id)}', this.value)" style="padding:3px 5px; font-size:11px; border-radius:4px; border:1px solid #CBD5E0; background:#fff; color:#4A5568;">
                         <option value="company" ${userGroup === 'company' ? 'selected' : ''}>🏢 회사</option>
                         <option value="family" ${userGroup === 'family' ? 'selected' : ''}>🏠 가족</option>
@@ -1329,7 +1433,7 @@ async function inviteSelectedFriends() {
 }
 
 // ==========================================
-// 📩 Firestore 팀원 초대 링크 생성 & 검증 (Admin 전용)
+// 📩 팀원 초대 링크 생성 & 검증 (Admin 전용)
 // ==========================================
 
 async function generateInviteLink() {
@@ -1349,7 +1453,6 @@ async function generateInviteLink() {
         const randomCode = Math.random().toString(36).substring(2, 10).toUpperCase();
         const inviteCode = `INV-${randomCode}`;
 
-        // Realtime Database 'invites' 경로에 groupId를 함께 저장
         await database.ref(`invites/${inviteCode}`).set({
             code: inviteCode,
             groupId: selectedGroup,
@@ -1386,7 +1489,6 @@ function checkInviteUrlParam() {
 
 window.addEventListener('DOMContentLoaded', checkInviteUrlParam);
 
-// 👑 관리자가 회원 그룹 변경 기능
 async function changeUserGroup(targetUserId, newGroup) {
     if (!currentUser) return;
     
@@ -1394,7 +1496,6 @@ async function changeUserGroup(targetUserId, newGroup) {
     if (!isAdmin) return alert("권한이 없습니다.");
 
     try {
-        // Realtime DB의 해당 회원 groupId 업데이트
         await database.ref(`users/${targetUserId}`).update({
             groupId: newGroup
         });
@@ -1402,7 +1503,6 @@ async function changeUserGroup(targetUserId, newGroup) {
         const groupNames = { company: '회사', family: '가족', friends: '친구', etc: '기타' };
         alert(`✅ @${targetUserId} 님의 그룹이 [${groupNames[newGroup]}] (으)로 변경되었습니다.`);
 
-        // 팀원 목록 실시간 새로고침
         if (typeof loadFriendsList === 'function') loadFriendsList();
     } catch (error) {
         console.error("그룹 변경 오류:", error);

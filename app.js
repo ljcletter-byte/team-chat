@@ -161,11 +161,24 @@ async function handleRegisterWithCode() {
         return alert('모든 항목과 초대 코드를 입력해 주세요.');
     }
 
-    if (inviteCode !== SYSTEM_INVITE_CODE) {
-        return alert('유효하지 않은 가입 초대 코드입니다.');
-    }
-
     try {
+        let isValidInvite = false;
+
+        if (inviteCode === SYSTEM_INVITE_CODE) {
+            isValidInvite = true;
+        } else {
+            const db = firebase.firestore();
+            const inviteDoc = await db.collection('invites').doc(inviteCode).get();
+            if (inviteDoc.exists && !inviteDoc.data().isUsed) {
+                isValidInvite = true;
+                await db.collection('invites').doc(inviteCode).update({ isUsed: true, usedBy: id });
+            }
+        }
+
+        if (!isValidInvite) {
+            return alert('유효하지 않거나 이미 사용된 초대 코드입니다.');
+        }
+
         const userRef = database.ref('users/' + id);
         const snapshot = await userRef.once('value');
         
@@ -1160,3 +1173,55 @@ async function inviteSelectedFriends() {
         console.error("친구 초대 실패:", error);
     }
 }
+
+// ==========================================
+// 📩 Firestore 팀원 초대 링크 생성 & 검증 (Admin 전용)
+// ==========================================
+
+async function generateInviteLink() {
+    if (!currentUser) return alert("로그인이 필요합니다.");
+
+    const isAdmin = currentUser.role === 'admin' || currentUser.id.includes('admin');
+    if (!isAdmin) {
+        return alert("초대 링크 생성을 위한 관리자 권한이 없습니다.");
+    }
+
+    try {
+        const db = firebase.firestore();
+        const randomCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+        const inviteCode = `INV-${randomCode}`;
+
+        await db.collection('invites').doc(inviteCode).set({
+            code: inviteCode,
+            createdBy: currentUser.id,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            isUsed: false
+        });
+
+        const baseUrl = window.location.origin + window.location.pathname;
+        const inviteUrl = `${baseUrl}?invite=${inviteCode}`;
+
+        await navigator.clipboard.writeText(inviteUrl);
+        alert(`🎉 초대 링크가 복사되었습니다!\n\n📌 초대 코드: ${inviteCode}\n🔗 초대 링크: ${inviteUrl}`);
+
+    } catch (error) {
+        console.error("초대 링크 생성 오류:", error);
+        alert("초대 링크 생성 실패: 관리자 권한을 확인해 주세요.");
+    }
+}
+
+function checkInviteUrlParam() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const inviteCode = urlParams.get('invite');
+
+    if (inviteCode) {
+        const inviteInput = document.getElementById('reg-invite-code');
+        if (inviteInput) {
+            inviteInput.value = inviteCode;
+        }
+        switchScreen('register-screen');
+        alert(`💌 초대 코드가 자동으로 입력되었습니다! (${inviteCode})\n비밀번호와 이름을 입력해 주세요.`);
+    }
+}
+
+window.addEventListener('DOMContentLoaded', checkInviteUrlParam);

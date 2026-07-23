@@ -11,6 +11,7 @@ let typingListener = null; // ⌨️ 입력 중 상태 리스너
 let currentRenderId = 0; // 📌 방 목록 비동기 중복 렌더링 방지용 토큰
 let currentRoomReadStatus = {}; // 📌 개별 메시지 안 읽은 수 계산용 상태
 let currentRoomMembers = {};
+let currentRoomMembersJoinedAt = {}; // 🛠️ [신규] 유저별 대화방 입장 시각 관리
 
 const SYSTEM_INVITE_CODE = "SECRET2026"; 
 
@@ -466,6 +467,11 @@ async function startDirectChat(targetId, targetName) {
         const newRoomRef = database.ref('rooms').push();
         const membersObj = {}; membersObj[currentUser.id] = true; membersObj[targetId] = true;
         const membersInfoObj = {}; membersInfoObj[currentUser.id] = currentUser.name; membersInfoObj[targetId] = targetName;
+        
+        // 🛠️ [수정] 1:1 대화방 생성 시 참여 시각(membersJoinedAt) 기록
+        const membersJoinedAtObj = {}; 
+        membersJoinedAtObj[currentUser.id] = now; 
+        membersJoinedAtObj[targetId] = now;
 
         await newRoomRef.set({
             title: `${currentUser.name}, ${targetName}`,
@@ -475,7 +481,8 @@ async function startDirectChat(targetId, targetName) {
             lastTimestamp: now,
             isDirect: true,
             members: membersObj,
-            membersInfo: membersInfoObj
+            membersInfo: membersInfoObj,
+            membersJoinedAt: membersJoinedAtObj
         });
 
         enterChatRoom(newRoomRef.key, targetName);
@@ -563,6 +570,7 @@ async function enterChatRoom(roomId, roomTitle) {
             const room = roomSnap.val();
             currentRoomReadStatus = room.readStatus || {};
             currentRoomMembers = room.membersInfo || room.members || {};
+            currentRoomMembersJoinedAt = room.membersJoinedAt || {}; // 🛠️ [수정] 대화방 멤버별 입장 시각 불러오기
 
             if (room.createdBy === currentUser.id) isOwner = true;
             if (room.isDirect && room.membersInfo) {
@@ -604,7 +612,7 @@ async function enterChatRoom(roomId, roomTitle) {
     }
 }
 
-// 💬 메시지 리스너 (복구: 날짜 구분선 + 개별 메시지 안 읽은 수 표시)
+// 💬 메시지 리스너 (수정: 입장 시점 필터링 + 날짜 구분선 + 안 읽은 수 표시)
 function listenMessages(roomId) {
     const msgBox = document.getElementById('msg-box');
     if (!msgBox) return;
@@ -623,16 +631,27 @@ function listenMessages(roomId) {
         let lastSenderId = null;
         let lastDateHeader = '';
 
+        // 🛠️ [수정] 유저가 대화방에 들어온 시각(myJoinedAt) 계산
+        const myJoinedAt = (currentUser && currentRoomMembersJoinedAt[currentUser.id]) 
+            ? currentRoomMembersJoinedAt[currentUser.id] 
+            : 0;
+
         snapshot.forEach((child) => {
             const msg = child.val();
             const msgId = child.key;
+
+            // 🛠️ [핵심 수정] 유저의 입장 시점(myJoinedAt) 이전의 과거 대화 메시지는 렌더링하지 않음
+            if (msg.senderId !== 'system' && myJoinedAt > 0 && msg.timestamp < myJoinedAt) {
+                return;
+            }
+
             const isMe = msg.senderId === (currentUser ? currentUser.id : '');
             const isSystem = msg.senderId === 'system';
             const timeStr = formatTime(msg.timestamp);
             const dateHeaderStr = formatDateHeader(msg.timestamp);
             const userColor = getUserAvatarColor(msg.senderId || 'unknown');
 
-            // 📅 1. 날짜 구분선 복구
+            // 📅 1. 날짜 구분선
             if (dateHeaderStr && dateHeaderStr !== lastDateHeader) {
                 const dateDiv = document.createElement('div');
                 dateDiv.style = "text-align:center; margin:14px 0 8px 0; font-size:11px; color:#718096;";
@@ -641,7 +660,7 @@ function listenMessages(roomId) {
                 lastDateHeader = dateHeaderStr;
             }
 
-            // 🔢 2. 메시지 안 읽은 수 계산 복구 ('1' 표시)
+            // 🔢 2. 메시지 안 읽은 수 계산 ('1' 표시)
             let unreadCount = 0;
             if (currentRoomMembers) {
                 Object.keys(currentRoomMembers).forEach(memberId => {
@@ -778,8 +797,10 @@ async function leaveChatRoom() {
             timestamp: Date.now()
         });
 
+        // 🛠️ [수정] 대화방 퇴장 시 멤버 정보 및 입장 시각 정보 제거
         await database.ref(`rooms/${roomId}/members/${currentUser.id}`).remove();
         await database.ref(`rooms/${roomId}/membersInfo/${currentUser.id}`).remove();
+        await database.ref(`rooms/${roomId}/membersJoinedAt/${currentUser.id}`).remove();
 
         database.ref(`messages/${roomId}`).off();
         if (typingListener) database.ref(`rooms/${roomId}/typing`).off('value', typingListener);
@@ -1121,21 +1142,24 @@ async function createRoomWithFriends() {
     const myId = currentUser ? currentUser.id : 'unknown';
     const myName = currentUser ? currentUser.name : '사용자';
 
+    const now = Date.now();
     const membersObj = {};
     const membersInfoObj = {};
+    const membersJoinedAtObj = {}; // 🛠️ [수정] 대화방 생성 시 참여 유저들의 입장 시각 저장
 
     membersObj[myId] = true;
     membersInfoObj[myId] = myName;
+    membersJoinedAtObj[myId] = now;
 
     checkedBoxes.forEach(box => {
         const userId = box.value;
         const userName = box.getAttribute('data-name') || userId;
         membersObj[userId] = true;
         membersInfoObj[userId] = userName;
+        membersJoinedAtObj[userId] = now;
     });
 
     try {
-        const now = Date.now();
         const newRoomRef = database.ref('rooms').push();
         let hashedPw = roomPassword ? await sha256(roomPassword) : null;
 
@@ -1148,6 +1172,7 @@ async function createRoomWithFriends() {
             lastTimestamp: now,
             members: membersObj,
             membersInfo: membersInfoObj,
+            membersJoinedAt: membersJoinedAtObj,
             password: hashedPw
         });
 
@@ -1508,7 +1533,7 @@ async function loadFriendsToInvite() {
 
         if (!usersSnap.exists()) return;
 
-        snapshot.forEach((child) => {
+        usersSnap.forEach((child) => {
             const user = child.val();
             const isAlreadyMember = !!currentMembers[user.id];
 
@@ -1537,12 +1562,14 @@ async function inviteSelectedFriends() {
         const roomRef = database.ref(`rooms/${currentRoomId}`);
         const invitedNames = [];
         const updateMembersInfo = {};
+        const now = Date.now();
 
         checkedBoxes.forEach(box => {
             const userId = box.value;
             const userName = box.getAttribute('data-name');
             updateMembersInfo[`membersInfo/${userId}`] = userName;
             updateMembersInfo[`members/${userId}`] = true;
+            updateMembersInfo[`membersJoinedAt/${userId}`] = now; // 🛠️ [수정] 초대받은 팀원의 입장 시각 기록
             invitedNames.push(userName);
         });
 
@@ -1553,7 +1580,7 @@ async function inviteSelectedFriends() {
             senderId: 'system',
             senderName: '시스템',
             text: `📢 [${currentUser.name}]님이 [${namesStr}]님을 초대했습니다.`,
-            timestamp: Date.now()
+            timestamp: now
         });
 
         alert(`${invitedNames.length}명의 팀원을 초대했습니다!`);

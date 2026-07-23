@@ -9,6 +9,8 @@ let replyingTo = null; // 📩 답장 대상 메시지 { id, senderName, text }
 let typingTimeout = null; // ⌨️ 입력 중 상태 디바운스 타임아웃
 let typingListener = null; // ⌨️ 입력 중 상태 리스너
 let currentRenderId = 0; // 📌 방 목록 비동기 중복 렌더링 방지용 토큰
+let currentRoomReadStatus = {}; // 📌 개별 메시지 안 읽은 수 계산용 상태
+let currentRoomMembers = {};
 
 const SYSTEM_INVITE_CODE = "SECRET2026"; 
 
@@ -73,6 +75,18 @@ function formatTime(timestamp) {
     return `${ampm} ${hours}:${minutes}`;
 }
 
+// 📅 날짜 구분선용 날짜 포맷 함수
+function formatDateHeader(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('ko-KR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long'
+    });
+}
+
 // 📩 사용자의 대화방 마지막 읽은 시간 갱신 함수
 async function updateLastReadTimestamp(roomId) {
     if (!roomId || !currentUser) return;
@@ -87,7 +101,6 @@ async function updateLastReadTimestamp(roomId) {
 function backToRoomList() {
     currentRoomId = null;
     
-    // 모바일 전용 스타일 초기화
     const sidebar = document.querySelector('.sidebar') || document.querySelector('.sidebar-panel') || document.getElementById('panel-chats')?.parentElement;
     if (sidebar) sidebar.style.display = 'flex';
 
@@ -100,7 +113,7 @@ function backToRoomList() {
     document.querySelectorAll('.chat-room-item').forEach(item => item.classList.remove('active-room'));
 }
 
-// 📩 답장 미리보기 바 자동 생성 및 초기화
+// 📩 답장 미리보기 바
 function initReplyPreviewBar() {
     if (document.getElementById('reply-preview-bar')) return;
     
@@ -123,7 +136,6 @@ function initReplyPreviewBar() {
     }
 }
 
-// 📩 답장 대상 설정
 function setReplyTarget(msgId, senderName, text) {
     initReplyPreviewBar();
     replyingTo = { id: msgId, senderName: senderName, text: text };
@@ -137,14 +149,13 @@ function setReplyTarget(msgId, senderName, text) {
     document.getElementById('chat-input-text')?.focus();
 }
 
-// 📩 답장 취소
 function cancelReply() {
     replyingTo = null;
     const previewBar = document.getElementById('reply-preview-bar');
     if (previewBar) previewBar.style.display = 'none';
 }
 
-// ⌨️ 입력 중 상태 알림 UI 요소 생성
+// ⌨️ 입력 중 상태 알림 UI
 function initTypingIndicatorBar() {
     if (document.getElementById('typing-indicator-bar')) return;
     
@@ -160,7 +171,6 @@ function initTypingIndicatorBar() {
     }
 }
 
-// ⌨️ 나의 입력 중 상태 업데이트
 function setTypingStatus(isTyping) {
     if (!currentRoomId || !currentUser) return;
     const typingRef = database.ref(`rooms/${currentRoomId}/typing/${currentUser.id}`);
@@ -171,19 +181,13 @@ function setTypingStatus(isTyping) {
     }
 }
 
-// ⌨️ 키보드 입력 감지 핸들러
 function handleTyping() {
     if (!currentRoomId || !currentUser) return;
-    
     setTypingStatus(true);
-
     if (typingTimeout) clearTimeout(typingTimeout);
-    typingTimeout = setTimeout(() => {
-        setTypingStatus(false);
-    }, 2500);
+    typingTimeout = setTimeout(() => { setTypingStatus(false); }, 2500);
 }
 
-// ⌨️ 상대방 입력 중 상태 감지 리스너
 function listenTypingStatus(roomId) {
     initTypingIndicatorBar();
     const typingBar = document.getElementById('typing-indicator-bar');
@@ -220,19 +224,12 @@ function listenTypingStatus(roomId) {
     });
 }
 
-// 화면 전환
 function switchScreen(screenId) {
-    document.querySelectorAll('.screen').forEach(screen => {
-        screen.style.display = 'none';
-    });
-
+    document.querySelectorAll('.screen').forEach(screen => screen.style.display = 'none');
     const targetScreen = document.getElementById(screenId);
-    if (targetScreen) {
-        targetScreen.style.display = 'flex';
-    }
+    if (targetScreen) targetScreen.style.display = 'flex';
 }
 
-// 사이드바 탭 전환
 function switchSidebarTab(tabName) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
@@ -264,9 +261,7 @@ async function handleLogin() {
 
     try {
         const snapshot = await database.ref('users/' + id).once('value');
-        if (!snapshot.exists()) {
-            return alert('존재하지 않는 아이디입니다.');
-        }
+        if (!snapshot.exists()) return alert('존재하지 않는 아이디입니다.');
 
         const userData = snapshot.val();
         const hashedPassword = await sha256(pw);
@@ -275,10 +270,7 @@ async function handleLogin() {
             return alert('비밀번호가 일치하지 않습니다.');
         }
 
-        currentUser = {
-            ...userData,
-            groupId: userData.groupId || 'etc'
-        };
+        currentUser = { ...userData, groupId: userData.groupId || 'etc' };
         
         const userDisplay = document.getElementById('current-user-display');
         if (userDisplay) userDisplay.innerText = `${currentUser.name} 님`;
@@ -317,27 +309,19 @@ function handleLogout() {
     alert("로그아웃 되었습니다.");
 }
 
-// 🛠️ 회원가입 함수 (중복 체크 후 초대 코드 업데이트)
 async function handleRegisterWithCode() {
     const id = document.getElementById('reg-id')?.value.trim();
     const pw = document.getElementById('reg-pw')?.value.trim();
     const name = document.getElementById('reg-name')?.value.trim();
     const inviteCode = document.getElementById('reg-invite-code')?.value.trim();
 
-    if (!id || !pw || !name || !inviteCode) {
-        return alert('모든 항목과 초대 코드를 입력해 주세요.');
-    }
+    if (!id || !pw || !name || !inviteCode) return alert('모든 항목과 초대 코드를 입력해 주세요.');
 
     try {
-        // 1. 아이디 중복 검사 먼저 실행
         const userRef = database.ref('users/' + id);
         const userSnap = await userRef.once('value');
-        
-        if (userSnap.exists()) {
-            return alert('이미 존재하는 아이디입니다.');
-        }
+        if (userSnap.exists()) return alert('이미 존재하는 아이디입니다.');
 
-        // 2. 초대 코드 검증
         let isValidInvite = false;
         let assignedGroup = 'etc';
         let inviteRefToUpdate = null;
@@ -354,11 +338,8 @@ async function handleRegisterWithCode() {
             }
         }
 
-        if (!isValidInvite) {
-            return alert('유효하지 않거나 이미 사용된 초대 코드입니다.');
-        }
+        if (!isValidInvite) return alert('유효하지 않거나 이미 사용된 초대 코드입니다.');
 
-        // 3. 사용자 계정 생성
         const hashedPassword = await sha256(pw);
         await userRef.set({
             id: id,
@@ -369,7 +350,6 @@ async function handleRegisterWithCode() {
             createdAt: Date.now()
         });
 
-        // 4. 가입 성공 시 초대 코드 사용 처리
         if (inviteRefToUpdate) {
             await inviteRefToUpdate.update({ isUsed: true, usedBy: id });
         }
@@ -379,6 +359,32 @@ async function handleRegisterWithCode() {
     } catch (error) {
         console.error("회원가입 오류:", error);
         alert("회원가입 처리 중 오류가 발생했습니다.");
+    }
+}
+
+// 🔍 복구된 기능: 아이디 찾기 함수
+async function handleFindAccount() {
+    const nameInput = document.getElementById('find-name')?.value.trim();
+    if (!nameInput) return alert("등록된 이름을 입력해 주세요.");
+
+    try {
+        const snap = await database.ref('users').once('value');
+        if (!snap.exists()) return alert("등록된 회원 정보가 없습니다.");
+
+        let foundUser = null;
+        snap.forEach((child) => {
+            const u = child.val();
+            if (u.name === nameInput) foundUser = u;
+        });
+
+        if (foundUser) {
+            alert(`🎉 [${nameInput}] 님의 아이디는 [ ${foundUser.id} ] 입니다.`);
+            toggleFindAccountModal();
+        } else {
+            alert("일치하는 이름의 회원 계정을 찾을 수 없습니다.");
+        }
+    } catch (e) {
+        console.error("아이디 찾기 오류:", e);
     }
 }
 
@@ -404,10 +410,7 @@ function loadFriendsList() {
         snapshot.forEach((child) => {
             const user = child.val();
             if (currentUser && user.id === currentUser.id) return;
-
-            if (!isSuperAdmin && user.groupId !== currentUser.groupId) {
-                return;
-            }
+            if (!isSuperAdmin && user.groupId !== currentUser.groupId) return;
 
             const userColor = getUserAvatarColor(user.id);
             const isTargetAdmin = checkIsAdmin(user);
@@ -415,7 +418,6 @@ function loadFriendsList() {
             
             const groupMap = { company: '회사', family: '가족', friends: '친구', etc: '기타' };
             const groupName = groupMap[user.groupId] || '기타';
-            
             const groupBadge = isSuperAdmin && user.groupId 
                 ? `<span style="font-size:10px; background:#EDF2F7; color:#4A5568; padding:2px 6px; border-radius:4px; margin-left:4px;">${groupName}</span>` 
                 : '';
@@ -449,10 +451,8 @@ async function startDirectChat(targetId, targetName) {
         if (snapshot.exists()) {
             snapshot.forEach((child) => {
                 const room = child.val();
-                if (room.isDirect && room.members) {
-                    if (room.members[currentUser.id] && room.members[targetId]) {
-                        existingRoomId = child.key;
-                    }
+                if (room.isDirect && room.members && room.members[currentUser.id] && room.members[targetId]) {
+                    existingRoomId = child.key;
                 }
             });
         }
@@ -464,13 +464,8 @@ async function startDirectChat(targetId, targetName) {
 
         const now = Date.now();
         const newRoomRef = database.ref('rooms').push();
-        const membersObj = {};
-        membersObj[currentUser.id] = true;
-        membersObj[targetId] = true;
-
-        const membersInfoObj = {};
-        membersInfoObj[currentUser.id] = currentUser.name;
-        membersInfoObj[targetId] = targetName;
+        const membersObj = {}; membersObj[currentUser.id] = true; membersObj[targetId] = true;
+        const membersInfoObj = {}; membersInfoObj[currentUser.id] = currentUser.name; membersInfoObj[targetId] = targetName;
 
         await newRoomRef.set({
             title: `${currentUser.name}, ${targetName}`,
@@ -544,19 +539,15 @@ async function enterChatRoom(roomId, roomTitle) {
     cancelReply();
     updateLastReadTimestamp(roomId);
 
-    document.querySelectorAll('.chat-room-item').forEach(item => {
-        item.classList.remove('active-room');
-    });
+    document.querySelectorAll('.chat-room-item').forEach(item => item.classList.remove('active-room'));
     const activeItem = document.getElementById(`room-item-${roomId}`);
     if (activeItem) activeItem.classList.add('active-room');
 
-    // 📱 모바일 대응: 대화방 선택 시 목록 숨기고 대화창 표시
     if (window.innerWidth <= 768) {
         const sidebar = document.querySelector('.sidebar') || document.querySelector('.sidebar-panel') || document.getElementById('panel-chats')?.parentElement;
         if (sidebar) sidebar.style.display = 'none';
     }
 
-    // ⌨️ 입력창 이벤트 연결
     const inputEl = document.getElementById('chat-input-text');
     if (inputEl && !inputEl.dataset.typingBound) {
         inputEl.addEventListener('input', handleTyping);
@@ -570,6 +561,9 @@ async function enterChatRoom(roomId, roomTitle) {
 
         if (roomSnap.exists()) {
             const room = roomSnap.val();
+            currentRoomReadStatus = room.readStatus || {};
+            currentRoomMembers = room.membersInfo || room.members || {};
+
             if (room.createdBy === currentUser.id) isOwner = true;
             if (room.isDirect && room.membersInfo) {
                 const partnerId = Object.keys(room.membersInfo).find(id => id !== currentUser.id);
@@ -583,39 +577,25 @@ async function enterChatRoom(roomId, roomTitle) {
         const headerActions = document.getElementById('chat-header-actions');
         if (headerActions) {
             const actionBtnHtml = isOwner ? `
-                <button onclick="deleteChatRoom('${currentRoomId}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">
-                    🗑️ 삭제
-                </button>
+                <button onclick="deleteChatRoom('${currentRoomId}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">🗑️ 삭제</button>
             ` : `
-                <button onclick="leaveChatRoom()" style="background:#EDF2F7; color:#4A5568; border:none; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">
-                    🚪 나가기
-                </button>
+                <button onclick="leaveChatRoom()" style="background:#EDF2F7; color:#4A5568; border:none; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">🚪 나가기</button>
             `;
 
-            // 📱 모바일 전용 [← 목록] 뒤로가기 버튼
             const mobileBackBtnHtml = `
-                <button onclick="backToRoomList()" style="background:#EDF2F7; color:#2B6CB0; border:none; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold; margin-right:auto;">
-                    ← 목록
-                </button>
+                <button onclick="backToRoomList()" style="background:#EDF2F7; color:#2B6CB0; border:none; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold; margin-right:auto;">← 목록</button>
             `;
 
             headerActions.innerHTML = `
                 ${mobileBackBtnHtml}
-                <button onclick="toggleInviteMemberModal()" style="background:#EBF8FF; color:#3182CE; border:none; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
-                    ➕ 초대
-                </button>
-                <button onclick="toggleScheduleModal()" style="background:#EBF8FF; color:#3182CE; border:none; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
-                    🗓️ 일정
-                </button>
+                <button onclick="toggleInviteMemberModal()" style="background:#EBF8FF; color:#3182CE; border:none; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">➕ 초대</button>
+                <button onclick="toggleScheduleModal()" style="background:#EBF8FF; color:#3182CE; border:none; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">🗓️ 일정</button>
                 ${actionBtnHtml}
             `;
         }
 
-        const noChatSelected = document.getElementById('no-chat-selected');
-        if (noChatSelected) noChatSelected.style.display = 'none';
-
-        const activeChatView = document.getElementById('active-chat-view');
-        if (activeChatView) activeChatView.style.display = 'flex';
+        document.getElementById('no-chat-selected').style.display = 'none';
+        document.getElementById('active-chat-view').style.display = 'flex';
 
         listenMessages(currentRoomId);
         listenTypingStatus(currentRoomId);
@@ -624,6 +604,7 @@ async function enterChatRoom(roomId, roomTitle) {
     }
 }
 
+// 💬 메시지 리스너 (복구: 날짜 구분선 + 개별 메시지 안 읽은 수 표시)
 function listenMessages(roomId) {
     const msgBox = document.getElementById('msg-box');
     if (!msgBox) return;
@@ -640,6 +621,7 @@ function listenMessages(roomId) {
         if (!snapshot.exists()) return;
 
         let lastSenderId = null;
+        let lastDateHeader = '';
 
         snapshot.forEach((child) => {
             const msg = child.val();
@@ -647,9 +629,33 @@ function listenMessages(roomId) {
             const isMe = msg.senderId === (currentUser ? currentUser.id : '');
             const isSystem = msg.senderId === 'system';
             const timeStr = formatTime(msg.timestamp);
+            const dateHeaderStr = formatDateHeader(msg.timestamp);
             const userColor = getUserAvatarColor(msg.senderId || 'unknown');
-            const isContinuous = (lastSenderId === msg.senderId) && !isSystem;
 
+            // 📅 1. 날짜 구분선 복구
+            if (dateHeaderStr && dateHeaderStr !== lastDateHeader) {
+                const dateDiv = document.createElement('div');
+                dateDiv.style = "text-align:center; margin:14px 0 8px 0; font-size:11px; color:#718096;";
+                dateDiv.innerHTML = `<span style="background:#E2E8F0; padding:4px 12px; border-radius:12px; font-weight:500;">${dateHeaderStr}</span>`;
+                msgBox.appendChild(dateDiv);
+                lastDateHeader = dateHeaderStr;
+            }
+
+            // 🔢 2. 메시지 안 읽은 수 계산 복구 ('1' 표시)
+            let unreadCount = 0;
+            if (currentRoomMembers) {
+                Object.keys(currentRoomMembers).forEach(memberId => {
+                    if (memberId !== msg.senderId) {
+                        const lastRead = currentRoomReadStatus[memberId] || 0;
+                        if (lastRead < msg.timestamp) unreadCount++;
+                    }
+                });
+            }
+            const unreadBadgeHtml = unreadCount > 0 
+                ? `<span style="font-size:10px; color:#3182CE; font-weight:bold; margin-bottom:1px;">${unreadCount}</span>` 
+                : '';
+
+            const isContinuous = (lastSenderId === msg.senderId) && !isSystem;
             const msgDiv = document.createElement('div');
             msgDiv.id = `msg-${msgId}`;
             
@@ -686,11 +692,11 @@ function listenMessages(roomId) {
                 const imgSrc = msg.imageUrl || (msg.type === 'image' ? msg.content : null);
 
                 if (imgSrc) {
-                    contentHtml = `<img src="${imgSrc}" style="max-width:200px; max-height:200px; border-radius:12px; border:1px solid #E2E8F0; cursor:pointer; display:block;" onclick="openImageViewer(this.src)" title="클릭하여 원본 보기">`;
+                    contentHtml = `<img src="${imgSrc}" style="max-width:200px; max-height:200px; border-radius:12px; border:1px solid #E2E8F0; cursor:pointer; display:block;" onclick="openImageViewer(this.src)">`;
                 } else if (msg.type === 'file') {
                     contentHtml = `
                         <div style="background:${isMe ? '#3182CE' : '#FFFFFF'}; color:${isMe ? '#FFF' : '#2D3748'}; padding:10px 12px; border-radius:12px; max-width:220px; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:${isMe ? 'none' : '1px solid #E2E8F0'};">
-                            <div style="font-weight:bold; font-size:12px; margin-bottom:4px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;" title="${escapeHtml(msg.fileName || '첨부파일')}">📁 ${escapeHtml(msg.fileName || '첨부파일')}</div>
+                            <div style="font-weight:bold; font-size:12px; margin-bottom:4px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">📁 ${escapeHtml(msg.fileName || '첨부파일')}</div>
                             <a href="${msg.fileData}" download="${escapeHtml(msg.fileName || 'file')}" style="color:${isMe ? '#EBF8FF' : '#3182CE'}; font-size:11px; text-decoration:underline; font-weight:600;">다운로드</a>
                         </div>
                     `;
@@ -704,17 +710,8 @@ function listenMessages(roomId) {
                 }
 
                 const safeText = escapeHtml(msg.text || msg.fileName || '첨부 메시지').replace(/'/g, "\\'");
-                const replyBtnHtml = `
-                    <button onclick="setReplyTarget('${msgId}', '${escapeHtml(msg.senderName || '알 수 없음')}', '${safeText}')" title="답장" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:11px; padding:2px;">
-                        ↪
-                    </button>
-                `;
-
-                const deleteBtnHtml = isMe ? `
-                    <button onclick="deleteMessage('${msgId}')" title="삭제" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:11px; padding:2px;">
-                        🗑️
-                    </button>
-                ` : '';
+                const replyBtnHtml = `<button onclick="setReplyTarget('${msgId}', '${escapeHtml(msg.senderName || '알 수 없음')}', '${safeText}')" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:11px; padding:2px;">↪</button>`;
+                const deleteBtnHtml = isMe ? `<button onclick="deleteMessage('${msgId}')" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:11px; padding:2px;">🗑️</button>` : '';
 
                 const bubbleHtml = `
                     <div style="display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'};">
@@ -722,6 +719,7 @@ function listenMessages(roomId) {
                         <div style="display:flex; align-items:flex-end; gap:5px; flex-direction:${isMe ? 'row-reverse' : 'row'};">
                             ${contentHtml}
                             <div style="display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'}; gap:1px;">
+                                ${unreadBadgeHtml}
                                 <span style="font-size:10px; color:#A0AEC0; white-space:nowrap;">${timeStr}</span>
                                 <div style="display:flex; gap:2px;">
                                     ${replyBtnHtml}
@@ -743,32 +741,23 @@ function listenMessages(roomId) {
 
 function deleteMessage(msgId) {
     if (!currentRoomId || !msgId) return;
-
     if (confirm("이 메시지를 삭제하시겠습니까?")) {
         database.ref(`messages/${currentRoomId}/${msgId}`).remove()
-            .then(() => {
-                const targetEl = document.getElementById(`msg-${msgId}`);
-                if (targetEl) targetEl.remove();
-            })
+            .then(() => document.getElementById(`msg-${msgId}`)?.remove())
             .catch((error) => console.error("메시지 삭제 오류:", error));
     }
 }
 
 async function deleteChatRoom(roomId) {
     const targetRoomId = roomId || currentRoomId;
-    if (!targetRoomId) return;
-    if (!confirm("정말로 이 대화방을 삭제하시겠습니까?")) return;
+    if (!targetRoomId || !confirm("정말로 이 대화방을 삭제하시겠습니까?")) return;
 
     try {
         setTypingStatus(false);
         await database.ref(`messages/${targetRoomId}`).remove();
         await database.ref(`rooms/${targetRoomId}`).remove();
-
         alert("대화방이 삭제되었습니다.");
-        
-        if (currentRoomId === targetRoomId) {
-            backToRoomList();
-        }
+        if (currentRoomId === targetRoomId) backToRoomList();
         loadChatRooms();
     } catch (error) {
         console.error("방 삭제 오류:", error);
@@ -776,8 +765,7 @@ async function deleteChatRoom(roomId) {
 }
 
 async function leaveChatRoom() {
-    if (!currentRoomId || !currentUser) return;
-    if (!confirm("대화방에서 나가시겠습니까?")) return;
+    if (!currentRoomId || !currentUser || !confirm("대화방에서 나가시겠습니까?")) return;
 
     try {
         const roomId = currentRoomId;
@@ -823,19 +811,11 @@ async function sendTextMessage() {
         };
 
         if (replyingTo) {
-            msgPayload.replyTo = {
-                id: replyingTo.id,
-                senderName: replyingTo.senderName,
-                text: replyingTo.text
-            };
+            msgPayload.replyTo = { id: replyingTo.id, senderName: replyingTo.senderName, text: replyingTo.text };
         }
 
         await database.ref(`messages/${currentRoomId}`).push(msgPayload);
-
-        await database.ref(`rooms/${currentRoomId}`).update({
-            lastMessage: text,
-            lastTimestamp: now
-        });
+        await database.ref(`rooms/${currentRoomId}`).update({ lastMessage: text, lastTimestamp: now });
 
         input.value = '';
         cancelReply();
@@ -845,8 +825,7 @@ async function sendTextMessage() {
 }
 
 function triggerImageUpload() {
-    const fileInput = document.getElementById('chat-image-input');
-    if (fileInput) fileInput.click();
+    document.getElementById('chat-image-input')?.click();
 }
 
 function sendImageMessage(fileInput) {
@@ -891,8 +870,7 @@ function sendImageMessage(fileInput) {
 }
 
 function triggerFileUpload() {
-    const fileInput = document.getElementById('chat-file-input');
-    if (fileInput) fileInput.click();
+    document.getElementById('chat-file-input')?.click();
 }
 
 function sendFileMessage(fileInput) {
@@ -966,7 +944,7 @@ function loadChatRooms() {
     chatListEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">대화방 목록 불러오는 중...</div>';
 
     database.ref('rooms').on('value', async (snapshot) => {
-        const renderId = ++currentRenderId; // 📌 중복 비동기 요청 캔슬용 토큰
+        const renderId = ++currentRenderId;
 
         if (!snapshot.exists()) {
             chatListEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">개설된 대화방이 없습니다.</div>';
@@ -980,28 +958,21 @@ function loadChatRooms() {
             rawList.push({ key: child.key, val: child.val() });
         });
 
-        // 📌 정렬: 상단 고정 우선, 최신 메시지 시각 순
         rawList.sort((a, b) => {
             const isPinnedA = a.val.pinnedBy && currentUser && a.val.pinnedBy[currentUser.id] ? 1 : 0;
             const isPinnedB = b.val.pinnedBy && currentUser && b.val.pinnedBy[currentUser.id] ? 1 : 0;
 
-            if (isPinnedA !== isPinnedB) {
-                return isPinnedB - isPinnedA;
-            }
+            if (isPinnedA !== isPinnedB) return isPinnedB - isPinnedA;
             return (b.val.lastTimestamp || 0) - (a.val.lastTimestamp || 0);
         });
 
-        // 병렬로 안 읽은 개수 미리 연산 (중복 방지 핵심)
         const roomDataPromises = rawList.map(async (item) => {
             const room = item.val;
             const roomId = item.key;
 
             const isMember = room.membersInfo && currentUser && room.membersInfo[currentUser.id];
             const isMemberOld = room.members && currentUser && room.members[currentUser.id];
-            const isPart = room.participants && currentUser && (
-                Array.isArray(room.participants) ? room.participants.includes(currentUser.id) : room.participants[currentUser.id]
-            );
-            const isJoined = isMember || isMemberOld || isPart;
+            const isJoined = isMember || isMemberOld;
 
             if (!isSuperAdmin && !isJoined) return null;
 
@@ -1023,7 +994,6 @@ function loadChatRooms() {
 
         const validRooms = (await Promise.all(roomDataPromises)).filter(Boolean);
 
-        // 이전 비동기 렌더링이 뒤늦게 완료된 경우 중복 출력을 방지
         if (renderId !== currentRenderId) return;
 
         chatListEl.innerHTML = '';
@@ -1077,7 +1047,7 @@ function loadChatRooms() {
                         </span>
                         <div style="display:flex; align-items:center; gap:4px;">
                             <span style="font-size:10px; color:#A0AEC0; flex-shrink:0;">${timeStr}</span>
-                            <button onclick="togglePinRoom('${roomId}', event)" title="${isPinned ? '상단 고정 해제' : '상단 고정'}" style="background:none; border:none; color:${isPinned ? '#DD6B20' : '#CBD5E0'}; cursor:pointer; font-size:12px; padding:0 2px;">
+                            <button onclick="togglePinRoom('${roomId}', event)" style="background:none; border:none; color:${isPinned ? '#DD6B20' : '#CBD5E0'}; cursor:pointer; font-size:12px; padding:0 2px;">
                                 📌
                             </button>
                         </div>
@@ -1104,10 +1074,8 @@ function toggleCreateRoomModal() {
     modal.style.display = isHidden ? 'flex' : 'none';
 
     if (isHidden) {
-        const titleInput = document.getElementById('new-room-title');
-        const pwInput = document.getElementById('new-room-password');
-        if (titleInput) titleInput.value = '';
-        if (pwInput) pwInput.value = '';
+        document.getElementById('new-room-title').value = '';
+        document.getElementById('new-room-password').value = '';
         loadFriendsForCreateRoom();
     }
 }
@@ -1120,41 +1088,23 @@ function loadFriendsForCreateRoom() {
 
     database.ref('users').once('value').then((snapshot) => {
         listEl.innerHTML = '';
-        if (!snapshot.exists()) {
-            listEl.innerHTML = '<div style="font-size:12px; color:#888; text-align:center;">초대할 친구가 없습니다.</div>';
-            return;
-        }
+        if (!snapshot.exists()) return;
 
         const isSuperAdmin = checkIsAdmin(currentUser);
 
-        let count = 0;
         snapshot.forEach((child) => {
             const user = child.val();
-            const myId = currentUser ? currentUser.id : null;
+            if (!user || user.id === currentUser?.id) return;
+            if (!isSuperAdmin && user.groupId !== currentUser.groupId) return;
 
-            if (!user || user.id === myId) return;
-
-            if (!isSuperAdmin && user.groupId !== currentUser.groupId) {
-                return;
-            }
-
-            count++;
             const item = document.createElement('label');
             item.style = "display:flex; align-items:center; gap:8px; font-size:12px; margin-bottom:6px; cursor:pointer;";
-            
-            const isAdmin = checkIsAdmin(user);
-            const adminBadge = isAdmin ? '👑 ' : '';
-
             item.innerHTML = `
                 <input type="checkbox" value="${escapeHtml(user.id)}" data-name="${escapeHtml(user.name)}" class="create-room-friend-checkbox">
-                <span>${adminBadge}${escapeHtml(user.name)} (@${escapeHtml(user.id)})</span>
+                <span>${escapeHtml(user.name)} (@${escapeHtml(user.id)})</span>
             `;
             listEl.appendChild(item);
         });
-
-        if (count === 0) {
-            listEl.innerHTML = '<div style="font-size:12px; color:#888; text-align:center;">같은 그룹에 초대 가능한 팀원이 없습니다.</div>';
-        }
     });
 }
 
@@ -1189,7 +1139,7 @@ async function createRoomWithFriends() {
         const newRoomRef = database.ref('rooms').push();
         let hashedPw = roomPassword ? await sha256(roomPassword) : null;
 
-        const roomData = {
+        await newRoomRef.set({
             title: roomTitle,
             createdBy: myId,
             creatorName: myName,
@@ -1199,9 +1149,7 @@ async function createRoomWithFriends() {
             members: membersObj,
             membersInfo: membersInfoObj,
             password: hashedPw
-        };
-
-        await newRoomRef.set(roomData);
+        });
 
         await database.ref(`messages/${newRoomRef.key}`).push({
             senderId: 'system',
@@ -1220,9 +1168,7 @@ async function createRoomWithFriends() {
 
 function filterChatRooms() {
     const query = document.getElementById('chat-search-input')?.value.toLowerCase().trim() || '';
-    const items = document.querySelectorAll('.chat-room-item');
-
-    items.forEach((item) => {
+    document.querySelectorAll('.chat-room-item').forEach((item) => {
         const title = item.getAttribute('data-title')?.toLowerCase() || '';
         item.style.display = title.includes(query) ? 'flex' : 'none';
     });
@@ -1251,7 +1197,6 @@ function toggleScheduleModal() {
 function listenSharedSchedules() {
     const listEl = document.getElementById('schedule-list');
     if (!listEl) return;
-    listEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">일정 불러오는 중...</div>';
 
     scheduleListener = database.ref(`rooms/${currentRoomId}/schedules`).on('value', (snapshot) => {
         listEl.innerHTML = '';
@@ -1270,8 +1215,7 @@ function listenSharedSchedules() {
                 <div>
                     <div style="font-weight:600; color:#333; font-size:13px;">${escapeHtml(sched.title)}</div>
                     <div style="font-size:11px; color:#666; margin-top:2px;">
-                        📅 ${escapeHtml(sched.date)} 
-                        <span style="margin-left:6px; color:#3182CE;">by ${escapeHtml(sched.creatorName)}</span>
+                        📅 ${escapeHtml(sched.date)} <span style="margin-left:6px; color:#3182CE;">by ${escapeHtml(sched.creatorName)}</span>
                     </div>
                 </div>
                 <button onclick="deleteSharedSchedule('${schedId}')" style="background:none; border:none; color:#E53E3E; cursor:pointer; font-size:12px; padding:4px;">🗑️</button>
@@ -1354,13 +1298,6 @@ function toggleChangePwModal() {
     if (!modal) return;
     const isHidden = modal.style.display === 'none' || modal.style.display === '';
     modal.style.display = isHidden ? 'flex' : 'none';
-
-    if (isHidden) {
-        const input1 = document.getElementById('new-password-input');
-        const input2 = document.getElementById('new-password-confirm');
-        if (input1) input1.value = '';
-        if (input2) input2.value = '';
-    }
 }
 
 async function handleChangePassword() {
@@ -1436,10 +1373,7 @@ function loadAdminUsersList() {
 
     database.ref('users').once('value', (snapshot) => {
         listEl.innerHTML = '';
-        if (!snapshot.exists()) {
-            listEl.innerHTML = '<div style="text-align:center; padding:15px; color:#888;">등록된 회원이 없습니다.</div>';
-            return;
-        }
+        if (!snapshot.exists()) return;
 
         snapshot.forEach((child) => {
             const user = child.val();
@@ -1491,7 +1425,7 @@ function loadAdminRoomsList() {
 
     database.ref('rooms').once('value', (snapshot) => {
         listEl.innerHTML = '';
-        if (!snapshot.exists()) return listEl.innerHTML = '<div style="text-align:center; padding:15px; color:#888;">개설된 대화방이 없습니다.</div>';
+        if (!snapshot.exists()) return;
 
         snapshot.forEach((child) => {
             const room = child.val();
@@ -1574,15 +1508,11 @@ async function loadFriendsToInvite() {
 
         if (!usersSnap.exists()) return;
 
-        let count = 0;
-        usersSnap.forEach((child) => {
+        snapshot.forEach((child) => {
             const user = child.val();
-            const isAlreadyMember = Array.isArray(currentMembers) 
-                ? currentMembers.includes(user.id) 
-                : !!currentMembers[user.id];
+            const isAlreadyMember = !!currentMembers[user.id];
 
             if (!isAlreadyMember) {
-                count++;
                 const item = document.createElement('label');
                 item.style = "display:flex; align-items:center; gap:8px; font-size:12px; margin-bottom:6px; cursor:pointer;";
                 item.innerHTML = `
@@ -1592,10 +1522,6 @@ async function loadFriendsToInvite() {
                 listEl.appendChild(item);
             }
         });
-
-        if (count === 0) {
-            listEl.innerHTML = '<div style="font-size:12px; color:#888; text-align:center;">모든 팀원이 대화방에 있습니다.</div>';
-        }
     } catch (err) {
         console.error("초대 목록 로딩 오류:", err);
     }
@@ -1643,14 +1569,10 @@ async function inviteSelectedFriends() {
 
 async function generateInviteLink() {
     if (!currentUser) return alert("로그인이 필요합니다.");
-
-    if (!checkIsAdmin(currentUser)) {
-        return alert("초대 링크 생성을 위한 관리자 권한이 없습니다.");
-    }
+    if (!checkIsAdmin(currentUser)) return alert("초대 링크 생성을 위한 관리자 권한이 없습니다.");
 
     try {
         const selectedGroup = document.getElementById('invite-group-select')?.value || 'etc';
-        
         const groupNames = { company: '회사', family: '가족', friends: '친구', etc: '기타' };
         const groupLabel = groupNames[selectedGroup] || '기타';
 
@@ -1670,7 +1592,6 @@ async function generateInviteLink() {
 
         await navigator.clipboard.writeText(inviteUrl);
         alert(`🎉 [${groupLabel}] 그룹 초대 링크가 복사되었습니다!\n\n📌 초대 코드: ${inviteCode}\n🏷️ 소속 그룹: ${groupLabel}\n🔗 초대 링크: ${inviteUrl}`);
-
     } catch (error) {
         console.error("초대 링크 생성 오류:", error);
         alert("초대 링크 생성 실패: 데이터베이스 연결을 확인해 주세요.");
@@ -1683,9 +1604,7 @@ function checkInviteUrlParam() {
 
     if (inviteCode) {
         const inviteInput = document.getElementById('reg-invite-code');
-        if (inviteInput) {
-            inviteInput.value = inviteCode;
-        }
+        if (inviteInput) inviteInput.value = inviteCode;
         switchScreen('register-screen');
         alert(`💌 초대 코드가 자동으로 입력되었습니다! (${inviteCode})\n비밀번호와 이름을 입력해 주세요.`);
     }
@@ -1694,21 +1613,14 @@ function checkInviteUrlParam() {
 window.addEventListener('DOMContentLoaded', checkInviteUrlParam);
 
 async function changeUserGroup(targetUserId, newGroup) {
-    if (!currentUser) return;
-    
-    if (!checkIsAdmin(currentUser)) return alert("권한이 없습니다.");
+    if (!currentUser || !checkIsAdmin(currentUser)) return alert("권한이 없습니다.");
 
     try {
-        await database.ref(`users/${targetUserId}`).update({
-            groupId: newGroup
-        });
-
+        await database.ref(`users/${targetUserId}`).update({ groupId: newGroup });
         const groupNames = { company: '회사', family: '가족', friends: '친구', etc: '기타' };
         alert(`✅ @${targetUserId} 님의 그룹이 [${groupNames[newGroup]}] (으)로 변경되었습니다.`);
-
         if (typeof loadFriendsList === 'function') loadFriendsList();
     } catch (error) {
         console.error("그룹 변경 오류:", error);
-        alert("그룹 변경 실패: 데이터베이스 연결을 확인해 주세요.");
     }
 }

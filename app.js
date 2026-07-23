@@ -748,25 +748,38 @@ function loadFriendsForCreateRoom() {
             return;
         }
 
+        // 최고 관리자 여부 확인
+        const isSuperAdmin = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'admin' || currentUser.id.includes('admin'));
+
         let count = 0;
         snapshot.forEach((child) => {
             const user = child.val();
             const myId = currentUser ? currentUser.id : null;
 
-            if (user && user.id !== myId) {
-                count++;
-                const item = document.createElement('label');
-                item.style = "display:flex; align-items:center; gap:8px; font-size:12px; margin-bottom:6px; cursor:pointer;";
-                item.innerHTML = `
-                    <input type="checkbox" class="create-room-friend-checkbox" value="${escapeHtml(user.id)}">
-                    <span>${escapeHtml(user.name)} (@${escapeHtml(user.id)})</span>
-                `;
-                listEl.appendChild(item);
+            // 본인은 초대 목록에서 제외
+            if (!user || user.id === myId) return;
+
+            // 🔒 그룹 격리 핵심 조건: 최고 관리자가 아니고, 소속 그룹이 다르면 선택 목록에서 제외
+            if (!isSuperAdmin && user.groupId !== currentUser.groupId) {
+                return;
             }
+
+            count++;
+            const item = document.createElement('label');
+            item.style = "display:flex; align-items:center; gap:8px; font-size:12px; margin-bottom:6px; cursor:pointer;";
+            
+            const isAdmin = user.role === 'admin' || user.role === 'super_admin' || user.id.includes('admin');
+            const adminBadge = isAdmin ? '👑 ' : '';
+
+            item.innerHTML = `
+                <input type="checkbox" value="${escapeHtml(user.id)}" class="create-room-user-check">
+                <span>${adminBadge}${escapeHtml(user.name)} (@${escapeHtml(user.id)})</span>
+            `;
+            listEl.appendChild(item);
         });
 
         if (count === 0) {
-            listEl.innerHTML = '<div style="font-size:12px; color:#888; text-align:center;">초대할 친구가 없습니다.</div>';
+            listEl.innerHTML = '<div style="font-size:12px; color:#888; text-align:center;">같은 그룹에 초대 가능한 팀원이 없습니다.</div>';
         }
     });
 }

@@ -8,6 +8,7 @@ let scheduleListener = null;
 let replyingTo = null; // 📩 답장 대상 메시지 { id, senderName, text }
 let typingTimeout = null; // ⌨️ 입력 중 상태 디바운스 타임아웃
 let typingListener = null; // ⌨️ 입력 중 상태 리스너
+let currentRenderId = 0; // 📌 방 목록 비동기 중복 렌더링 방지용 토큰
 
 const SYSTEM_INVITE_CODE = "SECRET2026"; 
 
@@ -80,6 +81,23 @@ async function updateLastReadTimestamp(roomId) {
     } catch (e) {
         console.error("읽음 상태 갱신 실패:", e);
     }
+}
+
+// 📱 스마트폰(모바일) 전용: 대화방 목록으로 돌아가기
+function backToRoomList() {
+    currentRoomId = null;
+    
+    // 모바일 전용 스타일 초기화
+    const sidebar = document.querySelector('.sidebar') || document.querySelector('.sidebar-panel') || document.getElementById('panel-chats')?.parentElement;
+    if (sidebar) sidebar.style.display = 'flex';
+
+    const activeView = document.getElementById('active-chat-view');
+    if (activeView) activeView.style.display = 'none';
+
+    const noChatView = document.getElementById('no-chat-selected');
+    if (noChatView) noChatView.style.display = 'flex';
+
+    document.querySelectorAll('.chat-room-item').forEach(item => item.classList.remove('active-room'));
 }
 
 // 📩 답장 미리보기 바 자동 생성 및 초기화
@@ -162,7 +180,7 @@ function handleTyping() {
     if (typingTimeout) clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => {
         setTypingStatus(false);
-    }, 2500); // 2.5초간 추가 입력이 없으면 해제
+    }, 2500);
 }
 
 // ⌨️ 상대방 입력 중 상태 감지 리스너
@@ -299,7 +317,7 @@ function handleLogout() {
     alert("로그아웃 되었습니다.");
 }
 
-// 🛠️ 회원가입 함수 (중복 체크 후 초대 코드 업데이트 순서 보완 완료)
+// 🛠️ 회원가입 함수 (중복 체크 후 초대 코드 업데이트)
 async function handleRegisterWithCode() {
     const id = document.getElementById('reg-id')?.value.trim();
     const pw = document.getElementById('reg-pw')?.value.trim();
@@ -351,7 +369,7 @@ async function handleRegisterWithCode() {
             createdAt: Date.now()
         });
 
-        // 4. 회원가입이 최종 성공한 경우에만 초대 코드 사용 처리
+        // 4. 가입 성공 시 초대 코드 사용 처리
         if (inviteRefToUpdate) {
             await inviteRefToUpdate.update({ isUsed: true, usedBy: id });
         }
@@ -517,13 +535,13 @@ async function enterChatRoom(roomId, roomTitle) {
     if (!currentUser) return;
 
     if (currentRoomId) {
-        setTypingStatus(false); // 이전 방 입력 상태 해제
+        setTypingStatus(false);
         database.ref(`messages/${currentRoomId}`).off();
         if (typingListener) database.ref(`rooms/${currentRoomId}/typing`).off('value', typingListener);
     }
 
     currentRoomId = roomId;
-    cancelReply(); // 방 입장 시 답장 상태 초기화
+    cancelReply();
     updateLastReadTimestamp(roomId);
 
     document.querySelectorAll('.chat-room-item').forEach(item => {
@@ -531,6 +549,12 @@ async function enterChatRoom(roomId, roomTitle) {
     });
     const activeItem = document.getElementById(`room-item-${roomId}`);
     if (activeItem) activeItem.classList.add('active-room');
+
+    // 📱 모바일 대응: 대화방 선택 시 목록 숨기고 대화창 표시
+    if (window.innerWidth <= 768) {
+        const sidebar = document.querySelector('.sidebar') || document.querySelector('.sidebar-panel') || document.getElementById('panel-chats')?.parentElement;
+        if (sidebar) sidebar.style.display = 'none';
+    }
 
     // ⌨️ 입력창 이벤트 연결
     const inputEl = document.getElementById('chat-input-text');
@@ -568,7 +592,15 @@ async function enterChatRoom(roomId, roomTitle) {
                 </button>
             `;
 
+            // 📱 모바일 전용 [← 목록] 뒤로가기 버튼
+            const mobileBackBtnHtml = `
+                <button onclick="backToRoomList()" style="background:#EDF2F7; color:#2B6CB0; border:none; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold; margin-right:auto;">
+                    ← 목록
+                </button>
+            `;
+
             headerActions.innerHTML = `
+                ${mobileBackBtnHtml}
                 <button onclick="toggleInviteMemberModal()" style="background:#EBF8FF; color:#3182CE; border:none; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
                     ➕ 초대
                 </button>
@@ -579,11 +611,14 @@ async function enterChatRoom(roomId, roomTitle) {
             `;
         }
 
-        document.getElementById('no-chat-selected').style.display = 'none';
-        document.getElementById('active-chat-view').style.display = 'flex';
+        const noChatSelected = document.getElementById('no-chat-selected');
+        if (noChatSelected) noChatSelected.style.display = 'none';
+
+        const activeChatView = document.getElementById('active-chat-view');
+        if (activeChatView) activeChatView.style.display = 'flex';
 
         listenMessages(currentRoomId);
-        listenTypingStatus(currentRoomId); // ⌨️ 입력 중 상태 실시간 수신
+        listenTypingStatus(currentRoomId);
     } catch (err) {
         console.error("방 진입 실패:", err);
     }
@@ -638,7 +673,6 @@ function listenMessages(roomId) {
                     }
                 }
 
-                // 📩 답장 인용 박스 렌더링
                 let replyQuoteHtml = '';
                 if (msg.replyTo) {
                     replyQuoteHtml = `
@@ -651,7 +685,6 @@ function listenMessages(roomId) {
                 let contentHtml = '';
                 const imgSrc = msg.imageUrl || (msg.type === 'image' ? msg.content : null);
 
-                // 📎 일반 파일 및 이미지 UI 분기 처리
                 if (imgSrc) {
                     contentHtml = `<img src="${imgSrc}" style="max-width:200px; max-height:200px; border-radius:12px; border:1px solid #E2E8F0; cursor:pointer; display:block;" onclick="openImageViewer(this.src)" title="클릭하여 원본 보기">`;
                 } else if (msg.type === 'file') {
@@ -670,17 +703,16 @@ function listenMessages(roomId) {
                     `;
                 }
 
-                // 📩 답장 버튼 (↪)
                 const safeText = escapeHtml(msg.text || msg.fileName || '첨부 메시지').replace(/'/g, "\\'");
                 const replyBtnHtml = `
-                    <button onclick="setReplyTarget('${msgId}', '${escapeHtml(msg.senderName || '알 수 없음')}', '${safeText}')" title="답장" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:11px; padding:2px;" onmouseover="this.style.color='#3182CE'" onmouseout="this.style.color='#A0AEC0'">
-                        <i class="fa-solid fa-reply"></i>
+                    <button onclick="setReplyTarget('${msgId}', '${escapeHtml(msg.senderName || '알 수 없음')}', '${safeText}')" title="답장" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:11px; padding:2px;">
+                        ↪
                     </button>
                 `;
 
                 const deleteBtnHtml = isMe ? `
-                    <button onclick="deleteMessage('${msgId}')" title="메시지 삭제" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:11px; padding:2px;" onmouseover="this.style.color='#E53E3E'" onmouseout="this.style.color='#A0AEC0'">
-                        <i class="fa-regular fa-trash-can"></i>
+                    <button onclick="deleteMessage('${msgId}')" title="삭제" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:11px; padding:2px;">
+                        🗑️
                     </button>
                 ` : '';
 
@@ -735,9 +767,7 @@ async function deleteChatRoom(roomId) {
         alert("대화방이 삭제되었습니다.");
         
         if (currentRoomId === targetRoomId) {
-            currentRoomId = null;
-            document.getElementById('active-chat-view').style.display = 'none';
-            document.getElementById('no-chat-selected').style.display = 'flex';
+            backToRoomList();
         }
         loadChatRooms();
     } catch (error) {
@@ -765,10 +795,8 @@ async function leaveChatRoom() {
 
         database.ref(`messages/${roomId}`).off();
         if (typingListener) database.ref(`rooms/${roomId}/typing`).off('value', typingListener);
-        currentRoomId = null;
 
-        document.getElementById('active-chat-view').style.display = 'none';
-        document.getElementById('no-chat-selected').style.display = 'flex';
+        backToRoomList();
         loadChatRooms();
     } catch (error) {
         console.error("방 나가기 실패:", error);
@@ -783,7 +811,7 @@ async function sendTextMessage() {
     if (!text || !currentRoomId || !currentUser) return;
 
     try {
-        setTypingStatus(false); // ⌨️ 전송 시 입력 중 상태 해제
+        setTypingStatus(false);
         if (typingTimeout) clearTimeout(typingTimeout);
 
         const now = Date.now();
@@ -794,7 +822,6 @@ async function sendTextMessage() {
             timestamp: now
         };
 
-        // 📩 답장 데이터 포함
         if (replyingTo) {
             msgPayload.replyTo = {
                 id: replyingTo.id,
@@ -811,7 +838,7 @@ async function sendTextMessage() {
         });
 
         input.value = '';
-        cancelReply(); // 전송 후 답장 상태 해제
+        cancelReply();
     } catch (error) {
         console.error("메시지 전송 실패:", error);
     }
@@ -863,7 +890,6 @@ function sendImageMessage(fileInput) {
     reader.readAsDataURL(file);
 }
 
-// 📎 일반 파일 트리거 및 전송 함수
 function triggerFileUpload() {
     const fileInput = document.getElementById('chat-file-input');
     if (fileInput) fileInput.click();
@@ -912,10 +938,9 @@ function sendFileMessage(fileInput) {
 }
 
 // ==========================================
-// 📋 대화방 목록 및 상단 고정 (Pin Room)
+// 📋 대화방 목록 (중복 방지 & 상단 고정 적용)
 // ==========================================
 
-// 📌 대화방 상단 고정 / 해제 토글 함수
 async function togglePinRoom(roomId, event) {
     if (event) event.stopPropagation();
     if (!currentUser || !roomId) return;
@@ -941,7 +966,8 @@ function loadChatRooms() {
     chatListEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">대화방 목록 불러오는 중...</div>';
 
     database.ref('rooms').on('value', async (snapshot) => {
-        chatListEl.innerHTML = '';
+        const renderId = ++currentRenderId; // 📌 중복 비동기 요청 캔슬용 토큰
+
         if (!snapshot.exists()) {
             chatListEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">개설된 대화방이 없습니다.</div>';
             return;
@@ -954,7 +980,7 @@ function loadChatRooms() {
             rawList.push({ key: child.key, val: child.val() });
         });
 
-        // 📌 정렬 로직: 1순위 상단 고정(isPinned), 2순위 최신 메시지 시각
+        // 📌 정렬: 상단 고정 우선, 최신 메시지 시각 순
         rawList.sort((a, b) => {
             const isPinnedA = a.val.pinnedBy && currentUser && a.val.pinnedBy[currentUser.id] ? 1 : 0;
             const isPinnedB = b.val.pinnedBy && currentUser && b.val.pinnedBy[currentUser.id] ? 1 : 0;
@@ -965,9 +991,8 @@ function loadChatRooms() {
             return (b.val.lastTimestamp || 0) - (a.val.lastTimestamp || 0);
         });
 
-        let roomCount = 0;
-
-        for (const item of rawList) {
+        // 병렬로 안 읽은 개수 미리 연산 (중복 방지 핵심)
+        const roomDataPromises = rawList.map(async (item) => {
             const room = item.val;
             const roomId = item.key;
 
@@ -978,15 +1003,8 @@ function loadChatRooms() {
             );
             const isJoined = isMember || isMemberOld || isPart;
 
-            if (!isSuperAdmin && !isJoined) {
-                continue;
-            }
+            if (!isSuperAdmin && !isJoined) return null;
 
-            roomCount++;
-
-            const isPinned = room.pinnedBy && currentUser && room.pinnedBy[currentUser.id];
-
-            // 📩 안 읽은 메시지 카운트 계산
             let unreadCount = 0;
             const lastRead = (room.readStatus && currentUser && room.readStatus[currentUser.id]) || 0;
 
@@ -1000,6 +1018,24 @@ function loadChatRooms() {
                 });
             }
 
+            return { roomId, room, unreadCount, isJoined };
+        });
+
+        const validRooms = (await Promise.all(roomDataPromises)).filter(Boolean);
+
+        // 이전 비동기 렌더링이 뒤늦게 완료된 경우 중복 출력을 방지
+        if (renderId !== currentRenderId) return;
+
+        chatListEl.innerHTML = '';
+        if (validRooms.length === 0) {
+            chatListEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">참여 중인 대화방이 없습니다.</div>';
+            return;
+        }
+
+        const fragment = document.createDocumentFragment();
+
+        validRooms.forEach(({ roomId, room, unreadCount, isJoined }) => {
+            const isPinned = room.pinnedBy && currentUser && room.pinnedBy[currentUser.id];
             const unreadBadgeHtml = unreadCount > 0 
                 ? `<span style="background:#E53E3E; color:white; font-size:11px; font-weight:bold; padding:2px 6px; border-radius:10px; margin-left:6px; flex-shrink:0;">${unreadCount > 99 ? '99+' : unreadCount}</span>` 
                 : '';
@@ -1037,11 +1073,11 @@ function loadChatRooms() {
                         <span style="font-weight:600; font-size:13px; color:#2D3748; display:flex; align-items:center; gap:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                             ${isPinned ? '<span style="color:#DD6B20; font-size:12px;">📌</span>' : ''}
                             ${escapeHtml(displayTitle)} ${adminBadge}
-                            ${isLocked ? '<i class="fa-solid fa-lock" style="font-size:11px; color:#E53E3E;"></i>' : ''}
+                            ${isLocked ? '🔒' : ''}
                         </span>
                         <div style="display:flex; align-items:center; gap:4px;">
                             <span style="font-size:10px; color:#A0AEC0; flex-shrink:0;">${timeStr}</span>
-                            <button onclick="togglePinRoom('${roomId}', event)" title="${isPinned ? '상단 고정 해제' : '상단 고정'}" style="background:none; border:none; color:${isPinned ? '#DD6B20' : '#CBD5E0'}; cursor:pointer; font-size:12px; padding:0 2px;" onmouseover="this.style.color='#DD6B20'" onmouseout="this.style.color='${isPinned ? '#DD6B20' : '#CBD5E0'}'">
+                            <button onclick="togglePinRoom('${roomId}', event)" title="${isPinned ? '상단 고정 해제' : '상단 고정'}" style="background:none; border:none; color:${isPinned ? '#DD6B20' : '#CBD5E0'}; cursor:pointer; font-size:12px; padding:0 2px;">
                                 📌
                             </button>
                         </div>
@@ -1054,12 +1090,10 @@ function loadChatRooms() {
                     </div>
                 </div>
             `;
-            chatListEl.appendChild(roomDiv);
-        }
+            fragment.appendChild(roomDiv);
+        });
 
-        if (roomCount === 0) {
-            chatListEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">참여 중인 대화방이 없습니다.</div>';
-        }
+        chatListEl.appendChild(fragment);
     });
 }
 
@@ -1236,11 +1270,11 @@ function listenSharedSchedules() {
                 <div>
                     <div style="font-weight:600; color:#333; font-size:13px;">${escapeHtml(sched.title)}</div>
                     <div style="font-size:11px; color:#666; margin-top:2px;">
-                        <i class="fa-regular fa-calendar" style="margin-right:4px;"></i>${escapeHtml(sched.date)} 
+                        📅 ${escapeHtml(sched.date)} 
                         <span style="margin-left:6px; color:#3182CE;">by ${escapeHtml(sched.creatorName)}</span>
                     </div>
                 </div>
-                <button onclick="deleteSharedSchedule('${schedId}')" style="background:none; border:none; color:#E53E3E; cursor:pointer; font-size:12px; padding:4px;"><i class="fa-regular fa-trash-can"></i></button>
+                <button onclick="deleteSharedSchedule('${schedId}')" style="background:none; border:none; color:#E53E3E; cursor:pointer; font-size:12px; padding:4px;">🗑️</button>
             `;
             listEl.appendChild(item);
         });
@@ -1604,7 +1638,7 @@ async function inviteSelectedFriends() {
 }
 
 // ==========================================
-// 📩 팀원 초대 링크 생성 & 검증 (Admin 전용)
+// 📩 팀원 초대 링크 생성 & 검증
 // ==========================================
 
 async function generateInviteLink() {

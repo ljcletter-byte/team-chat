@@ -5,7 +5,9 @@ let currentUser = null;
 let currentRoomId = null;
 let pendingRoom = null;
 let scheduleListener = null;
-let replyingTo = null; // 📩 [추가] 답장 대상 메시지 { id, senderName, text }
+let replyingTo = null; // 📩 답장 대상 메시지 { id, senderName, text }
+let typingTimeout = null; // ⌨️ [추가] 입력 중 상태 디바운스 타임아웃
+let typingListener = null; // ⌨️ [추가] 입력 중 상태 리스너
 
 const SYSTEM_INVITE_CODE = "SECRET2026"; 
 
@@ -69,7 +71,7 @@ async function updateLastReadTimestamp(roomId) {
     }
 }
 
-// 📩 [추가] 답장 미리보기 바 자동 생성 및 초기화
+// 📩 답장 미리보기 바 자동 생성 및 초기화
 function initReplyPreviewBar() {
     if (document.getElementById('reply-preview-bar')) return;
     
@@ -92,7 +94,7 @@ function initReplyPreviewBar() {
     }
 }
 
-// 📩 [추가] 답장 대상 설정
+// 📩 답장 대상 설정
 function setReplyTarget(msgId, senderName, text) {
     initReplyPreviewBar();
     replyingTo = { id: msgId, senderName: senderName, text: text };
@@ -106,11 +108,87 @@ function setReplyTarget(msgId, senderName, text) {
     document.getElementById('chat-input-text')?.focus();
 }
 
-// 📩 [추가] 답장 취소
+// 📩 답장 취소
 function cancelReply() {
     replyingTo = null;
     const previewBar = document.getElementById('reply-preview-bar');
     if (previewBar) previewBar.style.display = 'none';
+}
+
+// ⌨️ [추가] 입력 중 상태 알림 UI 요소 생성
+function initTypingIndicatorBar() {
+    if (document.getElementById('typing-indicator-bar')) return;
+    
+    const inputEl = document.getElementById('chat-input-text');
+    if (!inputEl) return;
+
+    const inputContainer = inputEl.parentElement;
+    if (inputContainer && inputContainer.parentElement) {
+        const bar = document.createElement('div');
+        bar.id = 'typing-indicator-bar';
+        bar.style = "display:none; font-size:11px; color:#4A5568; padding:4px 12px; font-style:italic; background:#EDF2F7; border-radius:6px; margin-bottom:6px; transition: all 0.2s ease;";
+        inputContainer.parentElement.insertBefore(bar, inputContainer);
+    }
+}
+
+// ⌨️ [추가] 나의 입력 중 상태 업데이트
+function setTypingStatus(isTyping) {
+    if (!currentRoomId || !currentUser) return;
+    const typingRef = database.ref(`rooms/${currentRoomId}/typing/${currentUser.id}`);
+    if (isTyping) {
+        typingRef.set(currentUser.name);
+    } else {
+        typingRef.remove();
+    }
+}
+
+// ⌨️ [추가] 키보드 입력 감지 핸들러
+function handleTyping() {
+    if (!currentRoomId || !currentUser) return;
+    
+    setTypingStatus(true);
+
+    if (typingTimeout) clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+        setTypingStatus(false);
+    }, 2500); // 2.5초간 추가 입력이 없으면 해제
+}
+
+// ⌨️ [추가] 상대방 입력 중 상태 감지 리스너
+function listenTypingStatus(roomId) {
+    initTypingIndicatorBar();
+    const typingBar = document.getElementById('typing-indicator-bar');
+
+    if (typingListener && currentRoomId) {
+        database.ref(`rooms/${currentRoomId}/typing`).off('value', typingListener);
+    }
+
+    typingListener = database.ref(`rooms/${roomId}/typing`).on('value', (snapshot) => {
+        if (!typingBar) return;
+        if (!snapshot.exists()) {
+            typingBar.style.display = 'none';
+            typingBar.innerText = '';
+            return;
+        }
+
+        const typers = [];
+        snapshot.forEach((child) => {
+            if (currentUser && child.key !== currentUser.id) {
+                typers.push(child.val());
+            }
+        });
+
+        if (typers.length > 0) {
+            const text = typers.length === 1 
+                ? `💬 ${typers[0]}님이 입력 중입니다...` 
+                : `💬 ${typers.join(', ')}님이 입력 중입니다...`;
+            typingBar.innerText = text;
+            typingBar.style.display = 'block';
+        } else {
+            typingBar.style.display = 'none';
+            typingBar.innerText = '';
+        }
+    });
 }
 
 // 화면 전환
@@ -189,7 +267,9 @@ function handleLogout() {
     if (!confirm("로그아웃 하시겠습니까?")) return;
 
     if (currentRoomId) {
+        setTypingStatus(false);
         database.ref(`messages/${currentRoomId}`).off();
+        if (typingListener) database.ref(`rooms/${currentRoomId}/typing`).off('value', typingListener);
         currentRoomId = null;
     }
 
@@ -416,7 +496,9 @@ async function enterChatRoom(roomId, roomTitle) {
     if (!currentUser) return;
 
     if (currentRoomId) {
+        setTypingStatus(false); // 이전 방 입력 상태 해제
         database.ref(`messages/${currentRoomId}`).off();
+        if (typingListener) database.ref(`rooms/${currentRoomId}/typing`).off('value', typingListener);
     }
 
     currentRoomId = roomId;
@@ -428,6 +510,13 @@ async function enterChatRoom(roomId, roomTitle) {
     });
     const activeItem = document.getElementById(`room-item-${roomId}`);
     if (activeItem) activeItem.classList.add('active-room');
+
+    // ⌨️ [추가] 입력창 이벤트 연결
+    const inputEl = document.getElementById('chat-input-text');
+    if (inputEl && !inputEl.dataset.typingBound) {
+        inputEl.addEventListener('input', handleTyping);
+        inputEl.dataset.typingBound = "true";
+    }
 
     try {
         const roomSnap = await database.ref(`rooms/${roomId}`).once('value');
@@ -473,6 +562,7 @@ async function enterChatRoom(roomId, roomTitle) {
         document.getElementById('active-chat-view').style.display = 'flex';
 
         listenMessages(currentRoomId);
+        listenTypingStatus(currentRoomId); // ⌨️ [추가] 입력 중 상태 실시간 수신
     } catch (err) {
         console.error("방 진입 실패:", err);
     }
@@ -527,7 +617,7 @@ function listenMessages(roomId) {
                     }
                 }
 
-                // 📩 [추가] 답장 인용 박스 렌더링
+                // 📩 답장 인용 박스 렌더링
                 let replyQuoteHtml = '';
                 if (msg.replyTo) {
                     replyQuoteHtml = `
@@ -551,7 +641,7 @@ function listenMessages(roomId) {
                     `;
                 }
 
-                // 📩 [추가] 답장 버튼 (↪)
+                // 📩 답장 버튼 (↪)
                 const safeText = escapeHtml(msg.text || '사진 메시지').replace(/'/g, "\\'");
                 const replyBtnHtml = `
                     <button onclick="setReplyTarget('${msgId}', '${escapeHtml(msg.senderName || '알 수 없음')}', '${safeText}')" title="답장" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:11px; padding:2px;" onmouseover="this.style.color='#3182CE'" onmouseout="this.style.color='#A0AEC0'">
@@ -609,6 +699,7 @@ async function deleteChatRoom(roomId) {
     if (!confirm("정말로 이 대화방을 삭제하시겠습니까?")) return;
 
     try {
+        setTypingStatus(false);
         await database.ref(`messages/${targetRoomId}`).remove();
         await database.ref(`rooms/${targetRoomId}`).remove();
 
@@ -631,6 +722,7 @@ async function leaveChatRoom() {
 
     try {
         const roomId = currentRoomId;
+        setTypingStatus(false);
 
         await database.ref(`messages/${roomId}`).push({
             senderId: 'system',
@@ -643,6 +735,7 @@ async function leaveChatRoom() {
         await database.ref(`rooms/${roomId}/membersInfo/${currentUser.id}`).remove();
 
         database.ref(`messages/${roomId}`).off();
+        if (typingListener) database.ref(`rooms/${roomId}/typing`).off('value', typingListener);
         currentRoomId = null;
 
         document.getElementById('active-chat-view').style.display = 'none';
@@ -661,6 +754,9 @@ async function sendTextMessage() {
     if (!text || !currentRoomId || !currentUser) return;
 
     try {
+        setTypingStatus(false); // ⌨️ 전송 시 입력 중 상태 해제
+        if (typingTimeout) clearTimeout(typingTimeout);
+
         const now = Date.now();
         const msgPayload = {
             senderId: currentUser.id,
@@ -669,7 +765,7 @@ async function sendTextMessage() {
             timestamp: now
         };
 
-        // 📩 [추가] 답장 데이터 포함
+        // 📩 답장 데이터 포함
         if (replyingTo) {
             msgPayload.replyTo = {
                 id: replyingTo.id,
@@ -742,7 +838,7 @@ function sendImageMessage(fileInput) {
 // 📋 대화방 목록 및 상단 고정 (Pin Room)
 // ==========================================
 
-// 📌 [추가] 대화방 상단 고정 / 해제 토글 함수
+// 📌 대화방 상단 고정 / 해제 토글 함수
 async function togglePinRoom(roomId, event) {
     if (event) event.stopPropagation(); // 대화방 클릭 이벤트 중단
     if (!currentUser || !roomId) return;
@@ -781,7 +877,7 @@ function loadChatRooms() {
             rawList.push({ key: child.key, val: child.val() });
         });
 
-        // 📌 [추가] 정렬 로직: 1순위 상단 고정(isPinned), 2순위 최신 메시지 시각
+        // 📌 정렬 로직: 1순위 상단 고정(isPinned), 2순위 최신 메시지 시각
         rawList.sort((a, b) => {
             const isPinnedA = a.val.pinnedBy && currentUser && a.val.pinnedBy[currentUser.id] ? 1 : 0;
             const isPinnedB = b.val.pinnedBy && currentUser && b.val.pinnedBy[currentUser.id] ? 1 : 0;
@@ -811,7 +907,7 @@ function loadChatRooms() {
 
             roomCount++;
 
-            // 📌 [추가] 상단 고정 여부 확인
+            // 📌 상단 고정 여부 확인
             const isPinned = room.pinnedBy && currentUser && room.pinnedBy[currentUser.id];
 
             // 📩 안 읽은 메시지 카운트 계산
@@ -861,7 +957,7 @@ function loadChatRooms() {
                     ${escapeHtml(firstChar)}
                 </div>
                 <div style="flex:1; overflow:hidden;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                    <div style="display:flex; justify-space-between; align-items:center; margin-bottom:2px;">
                         <span style="font-weight:600; font-size:13px; color:#2D3748; display:flex; align-items:center; gap:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                             ${isPinned ? '<span style="color:#DD6B20; font-size:12px;">📌</span>' : ''}
                             ${escapeHtml(displayTitle)} ${adminBadge}

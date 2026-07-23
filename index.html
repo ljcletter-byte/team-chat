@@ -243,10 +243,23 @@
                 <button onclick="toggleAdminModal()" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:18px;">&times;</button>
             </div>
 
-            <!-- 💡 여기에 새로 추가되는 버튼 -->
-            <button onclick="generateInviteLink()" style="background:#3182CE; color:white; padding:10px; border-radius:6px; border:none; cursor:pointer; font-size:13px; font-weight:600; width:100%; margin-bottom:12px;">
-                🔗 신규 팀원 초대 링크 생성 및 복사
-            </button>
+            <!-- 🎯 그룹 지정 초대 링크 생성 구역 -->
+        <div style="background:#F7FAFC; padding:12px; border-radius:8px; border:1px solid #E2E8F0; margin-bottom:12px;">
+            <label style="font-size:12px; font-weight:600; color:#4A5568; display:block; margin-bottom:6px;">
+                🎯 초대할 그룹 선택
+            </label>
+            <div style="display:flex; gap:6px;">
+                <select id="invite-group-select" style="flex:1; padding:8px; border-radius:6px; border:1px solid #CBD5E0; font-size:13px; color:#2D3748; background:#fff;">
+                    <option value="company">🏢 회사</option>
+                    <option value="family">🏠 가족</option>
+                    <option value="friends">🎓 친구</option>
+                    <option value="etc">🌐 기타</option>
+                </select>
+                <button onclick="generateInviteLink()" style="background:#3182CE; color:white; padding:8px 12px; border-radius:6px; border:none; cursor:pointer; font-size:13px; font-weight:600; white-space:nowrap;">
+                    🔗 초대 링크 생성
+                </button>
+            </div>
+        </div>
 
             <div style="display:flex; gap:8px; margin-bottom:12px;">
                 <button id="admin-tab-users-btn" onclick="switchAdminTab('users')" style="flex:1; padding:8px; border:none; border-radius:6px; background:#3182CE; color:#FFF;">회원 관리</button>

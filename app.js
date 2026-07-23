@@ -1004,27 +1004,43 @@ function loadAdminUsersList() {
     const listEl = document.getElementById('admin-tab-users');
     if (!listEl) return;
 
+    listEl.innerHTML = '<div style="text-align:center; padding:15px; color:#888;">회원 목록 불러오는 중...</div>';
+
     database.ref('users').once('value', (snapshot) => {
         listEl.innerHTML = '';
-        if (!snapshot.exists()) return listEl.innerHTML = '<div style="text-align:center; padding:15px; color:#888;">등록된 회원이 없습니다.</div>';
+        if (!snapshot.exists()) {
+            listEl.innerHTML = '<div style="text-align:center; padding:15px; color:#888;">등록된 회원이 없습니다.</div>';
+            return;
+        }
 
         snapshot.forEach((child) => {
             const user = child.val();
-            const isMe = user.id === currentUser.id;
-            const isTargetAdmin = user.role === 'admin' || user.id.includes('admin');
+            const isMe = currentUser && user.id === currentUser.id;
+            const isTargetAdmin = user.role === 'admin' || user.role === 'super_admin' || user.id.includes('admin');
+            const userGroup = user.groupId || 'etc';
 
             const item = document.createElement('div');
-            item.style = "display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #EDF2F7; font-size:12px;";
+            item.style = "display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #EDF2F7; font-size:12px;";
+            
             item.innerHTML = `
                 <div>
-                    <span style="font-weight:600; color:#2D3748;">${isTargetAdmin ? '👑 ' : ''}${escapeHtml(user.name)}</span> 
+                    <span style="font-weight:600; color:#2D3748;">${isTargetAdmin ? '👑 ' : ''}${escapeHtml(user.name)}</span>
                     <span style="font-size:10px; color:#A0AEC0;">(@${escapeHtml(user.id)})</span>
                 </div>
-                ${!isMe && !isTargetAdmin ? `
-                    <button onclick="adminKickUser('${escapeHtml(user.id)}', '${escapeHtml(user.name)}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:3px 6px; border-radius:4px; font-size:11px; cursor:pointer;">
-                        🚫 삭제
-                    </button>
-                ` : '<span style="font-size:10px; color:#CBD5E0;">(본인/관리자)</span>'}
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <!-- 🎯 기존 회원 소속 그룹 변경 드롭다운 -->
+                    <select onchange="changeUserGroup('${escapeHtml(user.id)}', this.value)" style="padding:3px 5px; font-size:11px; border-radius:4px; border:1px solid #CBD5E0; background:#fff; color:#4A5568;">
+                        <option value="company" ${userGroup === 'company' ? 'selected' : ''}>🏢 회사</option>
+                        <option value="family" ${userGroup === 'family' ? 'selected' : ''}>🏠 가족</option>
+                        <option value="friends" ${userGroup === 'friends' ? 'selected' : ''}>🎓 친구</option>
+                        <option value="etc" ${userGroup === 'etc' ? 'selected' : ''}>🌐 기타</option>
+                    </select>
+
+                    ${(isMe || isTargetAdmin) 
+                        ? '<span style="font-size:10px; color:#CBD5E0;">(본인/관리자)</span>' 
+                        : `<button onclick="adminKickUser('${escapeHtml(user.id)}', '${escapeHtml(user.name)}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:3px 6px; border-radius:4px; font-size:11px; cursor:pointer;">🚫 강퇴</button>`
+                    }
+                </div>
             `;
             listEl.appendChild(item);
         });
@@ -1251,3 +1267,27 @@ function checkInviteUrlParam() {
 }
 
 window.addEventListener('DOMContentLoaded', checkInviteUrlParam);
+
+// 👑 관리자가 회원 그룹 변경 기능
+async function changeUserGroup(targetUserId, newGroup) {
+    if (!currentUser) return;
+    
+    const isAdmin = currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.id.includes('admin');
+    if (!isAdmin) return alert("권한이 없습니다.");
+
+    try {
+        // Realtime DB의 해당 회원 groupId 업데이트
+        await database.ref(`users/${targetUserId}`).update({
+            groupId: newGroup
+        });
+
+        const groupNames = { company: '회사', family: '가족', friends: '친구', etc: '기타' };
+        alert(`✅ @${targetUserId} 님의 그룹이 [${groupNames[newGroup]}] (으)로 변경되었습니다.`);
+
+        // 팀원 목록 실시간 새로고침
+        if (typeof loadFriendsList === 'function') loadFriendsList();
+    } catch (error) {
+        console.error("그룹 변경 오류:", error);
+        alert("그룹 변경 실패: 데이터베이스 연결을 확인해 주세요.");
+    }
+}

@@ -612,13 +612,17 @@ async function enterChatRoom(roomId, roomTitle) {
     }
 }
 
-// 💬 메시지 리스너 (수정: 입장 시점 필터링 + 날짜 구분선 + 안 읽은 수 표시)
+// 💬 메시지 리스너 (수정: 입장 시점 필터링 + 날짜 구분선 + 안 읽은 수 표시 + 🔔 소리/팝업 알림 연동)
 function listenMessages(roomId) {
     const msgBox = document.getElementById('msg-box');
     if (!msgBox) return;
 
     const msgRef = database.ref(`messages/${roomId}`);
     msgRef.off();
+
+    // 🔔 대화방 진입 시각 및 중복 알림 방지용 Set
+    const roomListenTime = Date.now();
+    const notifiedMsgIds = new Set();
 
     msgRef.limitToLast(100).on('value', (snapshot) => {
         if (currentRoomId === roomId) {
@@ -631,7 +635,7 @@ function listenMessages(roomId) {
         let lastSenderId = null;
         let lastDateHeader = '';
 
-        // 🛠️ [수정] 유저가 대화방에 들어온 시각(myJoinedAt) 계산
+        // 🛠️ 유저가 대화방에 들어온 시각(myJoinedAt) 계산
         const myJoinedAt = (currentUser && currentRoomMembersJoinedAt[currentUser.id]) 
             ? currentRoomMembersJoinedAt[currentUser.id] 
             : 0;
@@ -640,13 +644,42 @@ function listenMessages(roomId) {
             const msg = child.val();
             const msgId = child.key;
 
-            // 🛠️ [핵심 수정] 유저의 입장 시점(myJoinedAt) 이전의 과거 대화 메시지는 렌더링하지 않음
+            // 🛠️ 유저의 입장 시점(myJoinedAt) 이전의 과거 대화 메시지는 렌더링하지 않음
             if (msg.senderId !== 'system' && myJoinedAt > 0 && msg.timestamp < myJoinedAt) {
                 return;
             }
 
             const isMe = msg.senderId === (currentUser ? currentUser.id : '');
             const isSystem = msg.senderId === 'system';
+
+            // 🔔 ==========================================
+            // [핵심 추가] 방에 진입한 이후 도착한 상대방의 새 메시지일 때 소리 + 팝업 알림 실행
+            // ==========================================
+            if (!isMe && !isSystem && msg.timestamp >= roomListenTime && !notifiedMsgIds.has(msgId)) {
+                notifiedMsgIds.add(msgId);
+
+                // 🔊 1) 소리 재생
+                playNotificationSound();
+
+                // 📱 2) 팝업 알림 (윈도우 우측 하단 / 안드로이드 상단바)
+                if (Notification.permission === 'granted') {
+                    const notifyBody = msg.text || (msg.type === 'image' ? '📷 사진을 보냈습니다.' : (msg.type === 'file' ? '📂 파일을 보냈습니다.' : '새 메시지가 도착했습니다.'));
+                    
+                    const notification = new Notification(`${msg.senderName || '팀원'}님의 메시지`, {
+                        body: notifyBody,
+                        icon: './icons/icon-192.png',
+                        badge: './icons/icon-192.png',
+                        tag: msgId
+                    });
+
+                    notification.onclick = () => {
+                        window.focus();
+                        notification.close();
+                    };
+                }
+            }
+            // ==========================================
+
             const timeStr = formatTime(msg.timestamp);
             const dateHeaderStr = formatDateHeader(msg.timestamp);
             const userColor = getUserAvatarColor(msg.senderId || 'unknown');
@@ -660,7 +693,7 @@ function listenMessages(roomId) {
                 lastDateHeader = dateHeaderStr;
             }
 
-            // 🔢 2. 메시지 안 읽은 수 계산 ('1' 표시)
+            // 🔢 2. 메시지 안 읽은 수 계산
             let unreadCount = 0;
             if (currentRoomMembers) {
                 Object.keys(currentRoomMembers).forEach(memberId => {

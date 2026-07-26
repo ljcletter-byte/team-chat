@@ -691,7 +691,8 @@ function listenMessages(roomId) {
             }
         }
     }
-            
+}
+                
             // ==========================================
 
             const timeStr = formatTime(msg.timestamp);

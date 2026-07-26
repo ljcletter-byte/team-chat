@@ -1671,15 +1671,15 @@ async function requestNotificationPermission(userId) {
 
       // 📌 getToken 호출 시 serviceWorkerRegistration 옵션 전달
       const token = await messaging.getToken({
-        vapidKey: 'BD7trsKliH-oWHIcpBIoXI74qmoYHUNKi1n9KbPSexf0zX9CLUtrieqTwOhh4IhzD04R1zyqhxV1tk_AZsbOc-M',
+        vapidKey: 'BD7trsKliH-owHIcpBiOXI74qmoYHUNKiin9KbPSexf0zX9CLutrieqTwOhh4IhzD04RizyqhxV1tk_AZsbOc-M',
         serviceWorkerRegistration: registration
       });
 
- if (token) {
+      if (token) {
         console.log('FCM 토큰 발급 성공:', token);
         await firebase.database().ref(`users/${userId}/fcmToken`).set(token);
 
-        // 📌 [추가] 앱을 열어두었을 때 새 메시지가 오면 윈도우/모바일 팝업 알림 생성
+        // 📌 앱을 열어두었을 때 새 메시지가 오면 윈도우/모바일 팝업 알림 생성
         messaging.onMessage((payload) => {
           console.log('포그라운드 메시지 수신:', payload);
           const title = payload.notification?.title || payload.data?.title || '팀 메신저 알림';
@@ -1688,15 +1688,16 @@ async function requestNotificationPermission(userId) {
             icon: './icons/icon-192.png'
           };
 
-          // 화면 우측 하단/상단바에 브라우저 팝업 알림 생성
           new Notification(title, options);
         });
+      } else {
+        console.warn('알림 권한이 거부되었거나 토큰을 가져올 수 없습니다.');
       }
+    } // 👈 닫는 중괄호가 누락되어 있던 지점입니다!
   } catch (error) {
     console.error('푸시 토큰 발급 중 오류:', error);
   }
 }
-
 // ==========================================
 // 📱 모바일 키보드 대응 자동 스크롤
 // ==========================================

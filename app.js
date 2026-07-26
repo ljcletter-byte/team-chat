@@ -1686,3 +1686,27 @@ async function requestNotificationPermission(userId) {
     console.error('푸시 토큰 발급 중 오류:', error);
   }
 }
+
+// ==========================================
+// 📱 모바일 키보드 대응 자동 스크롤
+// ==========================================
+function scrollToBottom() {
+  const messageBox = document.getElementById('chat-messages-container') || document.querySelector('.chat-box');
+  if (messageBox) {
+    messageBox.scrollTop = messageBox.scrollHeight;
+  }
+}
+
+// 1. 모바일 키보드가 올라와서 화면 높이가 변할 때 맨 아래로 스크롤
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => {
+    setTimeout(scrollToBottom, 100);
+  });
+}
+
+// 2. 입력창(input)을 터치할 때 즉시 맨 아래로 스크롤
+document.addEventListener('focusin', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+    setTimeout(scrollToBottom, 300);
+  }
+});

@@ -1651,3 +1651,34 @@ async function changeUserGroup(targetUserId, newGroup) {
         console.error("그룹 변경 오류:", error);
     }
 }
+
+// ==========================================
+// 🔔 FCM 푸시 알림 권한 및 토큰 저장
+// ==========================================
+const messaging = firebase.messaging();
+
+async function requestNotificationPermission(userId) {
+  if (!userId) return;
+  
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      console.log('알림 권한 허용됨');
+
+      // ⚠️ '아까_복사한_VAPID_KEY' 부분에 1단계에서 생성된 긴 키를 넣으세요!
+      const token = await messaging.getToken({
+        vapidKey: 'BD7trsKliH-oWHIcpBIoXI74qmoYHUNKi1n9KbPSexf0zX9CLUtrieqTwOhh4IhzD04R1zyqhxV1tk_AZsbOc-M'
+      });
+
+      if (token) {
+        console.log('FCM 토큰 발급 성공:', token);
+        // Firebase DB 유저 정보에 토큰 저장
+        await firebase.database().ref(`users/${userId}/fcmToken`).set(token);
+      }
+    } else {
+      console.warn('알림 권한이 거부되었습니다.');
+    }
+  } catch (error) {
+    console.error('푸시 토큰 발급 중 오류:', error);
+  }
+}

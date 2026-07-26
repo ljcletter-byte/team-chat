@@ -1671,7 +1671,7 @@ async function requestNotificationPermission(userId) {
 
       // 📌 getToken 호출 시 serviceWorkerRegistration 옵션 전달
       const token = await messaging.getToken({
-        vapidKey: 'BD7trsKliH-owHIcpBiOXI74qmoYHUNKiin9KbPSexf0zX9CLutrieqTwOhh4IhzD04RizyqhxV1tk_AZsbOc-M',
+        vapidKey: 'BD7trsKliH-oWHIcpBIoXI74qmoYHUNKi1n9KbPSexf0zX9CLUtrieqTwOhh4IhzD04R1zyqhxV1tk_AZsbOc-M',
         serviceWorkerRegistration: registration
       });
 

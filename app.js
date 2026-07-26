@@ -776,8 +776,8 @@ function listenMessages(roomId) {
                 }
 
                 const safeText = escapeHtml(msg.text || msg.fileName || '첨부 메시지').replace(/'/g, "\\'");
-                const replyBtnHtml = `<button onclick="setReplyTarget('${msgId}', '${escapeHtml(msg.senderName || '알 수 없음')}', '${safeText}')" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:11px; padding:2px;">↪</button>`;
-                const deleteBtnHtml = isMe ? `<button onclick="deleteMessage('${msgId}')" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:11px; padding:2px;">🗑️</button>` : '';
+                const replyBtnHtml = `<button onclick="setReplyTarget('${msgId}', '${escapeHtml(msg.senderName || '알 수 없음')}', '${safeText}')" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:10px;">답장</button>`;
+                const deleteBtnHtml = isMe ? `<button onclick="deleteMessage('${msgId}')" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:10px;">삭제</button>` : '';
 
                 const bubbleHtml = `
                     <div style="display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'};">
@@ -798,12 +798,12 @@ function listenMessages(roomId) {
 
                 msgDiv.innerHTML = avatarHtml + bubbleHtml;
                 lastSenderId = msg.senderId;
-        }
+            }        
             msgBox.appendChild(msgDiv);
         });
         msgBox.scrollTop = msgBox.scrollHeight;
-    });
-}
+        });
+        }
 
 function deleteMessage(msgId) {
     if (!currentRoomId || !msgId) return;

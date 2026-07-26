@@ -278,7 +278,7 @@ async function handleLogin() {
 
         switchScreen('main-layout');
         switchSidebarTab('chats');
-        requestPushNotificationPermission(id);
+        requestNotificationPermission(id).catch(err => console.error("알림 오류:", err));
     } catch (error) {
         console.error("로그인 오류:", error);
         alert("로그인 중 오류가 발생했습니다.");
@@ -1655,12 +1655,13 @@ async function changeUserGroup(targetUserId, newGroup) {
 // ==========================================
 // 🔔 FCM 푸시 알림 권한 및 토큰 저장
 // ==========================================
-const messaging = firebase.messaging();
 
 async function requestNotificationPermission(userId) {
   if (!userId) return;
   
   try {
+    const messaging = firebase.messaging();
+
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
       console.log('알림 권한 허용됨');

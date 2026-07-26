@@ -7,6 +7,10 @@
     <!-- FontAwesome 아이콘 CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+
+    <!-- PWA Manifest 연동 -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#3182CE">
     
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -296,5 +300,16 @@
 
     <!-- 메인 로직 연결 -->
     <script src="app.js"></script>
+
+    <!-- 서비스 워커 등록 스크립트 -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./firebase-messaging-sw.js')
+          .then((reg) => console.log('서비스 워커 등록 성공:', reg.scope))
+          .catch((err) => console.error('서비스 워커 등록 실패:', err));
+      });
+    }
+  </script>
 </body>
 </html>

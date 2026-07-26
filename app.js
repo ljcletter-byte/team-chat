@@ -662,22 +662,36 @@ function listenMessages(roomId) {
                 playNotificationSound();
 
                 // 📱 2) 팝업 알림 (윈도우 우측 하단 / 안드로이드 상단바)
-                if (Notification.permission === 'granted') {
-                    const notifyBody = msg.text || (msg.type === 'image' ? '📷 사진을 보냈습니다.' : (msg.type === 'file' ? '📂 파일을 보냈습니다.' : '새 메시지가 도착했습니다.'));
-                    
-                    const notification = new Notification(`${msg.senderName || '팀원'}님의 메시지`, {
-                        body: notifyBody,
-                        icon: './icons/icon-192.png',
-                        badge: './icons/icon-192.png',
-                        tag: msgId
-                    });
+        if (Notification.permission === 'granted') {
+            const notifyBody = msg.text || (msg.type === 'image' ? '📷 사진을 보냈습니다.' : (msg.type === 'file' ? '📂 파일을 보냈습니다.' : '새 메시지가 도착했습니다.'));
+            const title = `${msg.senderName || '팀원'}님의 메시지`;
+            const options = {
+                body: notifyBody,
+                icon: './icons/icon-192.png',
+                badge: './icons/icon-192.png',
+                tag: msgId,
+                vibrate: [200, 100, 200] // 📳 안드로이드 진동 추가
+            };
 
-                    notification.onclick = () => {
-                        window.focus();
-                        notification.close();
-                    };
-                }
+        // 📱 안드로이드 크롬 상단바 팝업 연동 (Service Worker 방식)
+        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.ready.then((reg) => {
+                reg.showNotification(title, options);
+            });
+        } else {
+            // 💻 PC 데스크톱 백업
+            try {
+                const notification = new Notification(title, options);
+                notification.onclick = () => {
+                    window.focus();
+                    notification.close();
+                };
+            } catch (e) {
+                console.warn('Notification 실행 실패:', e);
             }
+        }
+    }
+            
             // ==========================================
 
             const timeStr = formatTime(msg.timestamp);

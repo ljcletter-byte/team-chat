@@ -661,8 +661,8 @@ function listenMessages(roomId) {
                 // 🔊 1) 소리 재생
                 playNotificationSound();
 
-                // 📱 2) 팝업 알림 (윈도우 우측 하단 / 안드로이드 상단바)
-        if (Notification.permission === 'granted') {
+                // 📱 2) 팝업 알림 (PC & 안드로이드 완벽 대응)
+        if ('Notification' in window && Notification.permission === 'granted') {
             const notifyBody = msg.text || (msg.type === 'image' ? '📷 사진을 보냈습니다.' : (msg.type === 'file' ? '📂 파일을 보냈습니다.' : '새 메시지가 도착했습니다.'));
             const title = `${msg.senderName || '팀원'}님의 메시지`;
             const options = {
@@ -670,28 +670,30 @@ function listenMessages(roomId) {
                 icon: './icons/icon-192.png',
                 badge: './icons/icon-192.png',
                 tag: msgId,
-                vibrate: [200, 100, 200] // 📳 안드로이드 진동 추가
+                vibrate: [200, 100, 200]
             };
 
-        // 📱 안드로이드 크롬 상단바 팝업 연동 (Service Worker 방식)
-        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-            navigator.serviceWorker.ready.then((reg) => {
-                reg.showNotification(title, options);
-            });
-        } else {
-            // 💻 PC 데스크톱 백업
-            try {
-                const notification = new Notification(title, options);
-                notification.onclick = () => {
-                    window.focus();
-                    notification.close();
-                };
-            } catch (e) {
-                console.warn('Notification 실행 실패:', e);
+            // 안드로이드 크롬은 반드시 ServiceWorkerReady를 통해 showNotification을 호출해야 합니다.
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.ready.then((reg) => {
+                    reg.showNotification(title, options);
+                }).catch((err) => {
+                    console.warn('Service Worker 알림 출력 실패:', err);
+                });
+            } else {
+                // SW를 지원하지 않는 환경(옛날 PC 브라우저 등) 백업
+                try {
+                    const notification = new Notification(title, options);
+                    notification.onclick = () => {
+                        window.focus();
+                        notification.close();
+                    };
+                } catch (e) {
+                    console.warn('Notification 실행 실패:', e);
+                }
             }
         }
     }
-}
                 
             // ==========================================
 

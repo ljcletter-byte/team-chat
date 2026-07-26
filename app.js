@@ -1675,13 +1675,23 @@ async function requestNotificationPermission(userId) {
         serviceWorkerRegistration: registration
       });
 
-      if (token) {
+ if (token) {
         console.log('FCM 토큰 발급 성공:', token);
         await firebase.database().ref(`users/${userId}/fcmToken`).set(token);
+
+        // 📌 [추가] 앱을 열어두었을 때 새 메시지가 오면 윈도우/모바일 팝업 알림 생성
+        messaging.onMessage((payload) => {
+          console.log('포그라운드 메시지 수신:', payload);
+          const title = payload.notification?.title || payload.data?.title || '팀 메신저 알림';
+          const options = {
+            body: payload.notification?.body || payload.data?.body || '새 메시지가 도착했습니다.',
+            icon: './icons/icon-192.png'
+          };
+
+          // 화면 우측 하단/상단바에 브라우저 팝업 알림 생성
+          new Notification(title, options);
+        });
       }
-    } else {
-      console.warn('알림 권한이 거부되었습니다.');
-    }
   } catch (error) {
     console.error('푸시 토큰 발급 중 오류:', error);
   }

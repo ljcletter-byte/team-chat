@@ -798,11 +798,11 @@ function listenMessages(roomId) {
 
                 msgDiv.innerHTML = avatarHtml + bubbleHtml;
                 lastSenderId = msg.senderId;
-            }
-            msgBox.appendChild(msgDiv);
-        });
-        msgBox.scrollTop = msgBox.scrollHeight;
+        }
+        msgBox.appendChild(msgDiv);
     });
+    msgBox.scrollTop = msgBox.scrollHeight;
+});
 }
 
 function deleteMessage(msgId) {

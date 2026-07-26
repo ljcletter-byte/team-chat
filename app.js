@@ -1658,7 +1658,7 @@ async function changeUserGroup(targetUserId, newGroup) {
 
 async function requestNotificationPermission(userId) {
   if (!userId) return;
-  
+
   try {
     const messaging = firebase.messaging();
 
@@ -1666,14 +1666,17 @@ async function requestNotificationPermission(userId) {
     if (permission === 'granted') {
       console.log('알림 권한 허용됨');
 
-      // ⚠️ '아까_복사한_VAPID_KEY' 부분에 1단계에서 생성된 긴 키를 넣으세요!
+      // 📌 [핵심] GitHub Pages 서브폴더(/team-chat/) 경로를 인식하도록 서비스 워커 수동 등록
+      const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+
+      // 📌 getToken 호출 시 serviceWorkerRegistration 옵션 전달
       const token = await messaging.getToken({
         vapidKey: 'BD7trsKliH-oWHIcpBIoXI74qmoYHUNKi1n9KbPSexf0zX9CLUtrieqTwOhh4IhzD04R1zyqhxV1tk_AZsbOc-M'
+        serviceWorkerRegistration: registration
       });
 
       if (token) {
         console.log('FCM 토큰 발급 성공:', token);
-        // Firebase DB 유저 정보에 토큰 저장
         await firebase.database().ref(`users/${userId}/fcmToken`).set(token);
       }
     } else {

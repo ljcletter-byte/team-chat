@@ -1488,6 +1488,17 @@ async function adminDeleteRoom(roomId, roomTitle) {
 // 🔔 푸시 알림 & 대화방 초대
 // ==========================================
 
+// 🔔 알림음 재생 함수
+function playNotificationSound() {
+  try {
+    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+    audio.volume = 0.8;
+    audio.play().catch(err => console.log('소리 재생 제한:', err));
+  } catch (e) {
+    console.error('알림음 오류:', e);
+  }
+}
+
 let messaging = null;
 try { messaging = firebase.messaging(); } catch (e) {}
 

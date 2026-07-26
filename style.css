@@ -253,3 +253,32 @@ body {
     box-shadow: 0 10px 25px rgba(0,0,0,0.5);
     object-fit: contain;
 }
+
+/* ==========================================
+   📱 모바일 100dvh 대응 및 스크롤 레이아웃
+   ========================================== */
+html, body {
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* 메인 앱 화면 전체 가짓수 고정 */
+#app, .app-container {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 메시지들이 쌓이는 박스 (스크롤 영역) */
+#chat-messages-container, .chat-box, .messages-list {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 입력창 박스 (하단 고정) */
+.chat-input-container, .input-area {
+  flex-shrink: 0;
+}

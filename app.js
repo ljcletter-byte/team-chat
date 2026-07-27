@@ -649,9 +649,12 @@ function listenMessages(roomId) {
                 return;
             }
 
-            // currentUser가 문자열인지 객체인지 자동 판별하여 ID 추출
-            const myId = currentUser ? (typeof currentUser === 'object' ? (currentUser.id || currentUser.uid || currentUser.userId || currentUser.username || '') : currentUser) : '';
-            const isMe = Boolean(myId && String(msg.senderId) === String(myId));
+            // 🛠️ 내 ID와 내 이름(nickname) 모두 추출
+            const myId = currentUser ? (typeof currentUser === 'object' ? (currentUser.id || currentUser.uid || '') : currentUser) : '';
+            const myName = currentUser && typeof currentUser === 'object' ? currentUser.name : '';
+
+            // 🛠️ DB에 ID로 저장되었든 이름으로 저장되었든 둘 중 하나라도 맞으면 내 메시지로 처리
+            const isMe = Boolean(currentUser && (msg.senderId === myId || msg.senderId === myName));
             const isSystem = msg.senderId === 'system';
 
             // 🔔 ==========================================

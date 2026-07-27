@@ -649,7 +649,9 @@ function listenMessages(roomId) {
                 return;
             }
 
-            const isMe = msg.senderId === (currentUser ? (currentUser.uid || currentUser.id) : '');
+            // currentUser가 문자열인지 객체인지 자동 판별하여 ID 추출
+            const myId = currentUser ? (typeof currentUser === 'object' ? (currentUser.id || currentUser.uid || currentUser.userId || currentUser.username || '') : currentUser) : '';
+            const isMe = Boolean(myId && String(msg.senderId) === String(myId));
             const isSystem = msg.senderId === 'system';
 
             // 🔔 ==========================================

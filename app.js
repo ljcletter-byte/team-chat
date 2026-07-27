@@ -649,7 +649,7 @@ function listenMessages(roomId) {
                 return;
             }
 
-            const isMe = msg.senderId === (currentUser ? currentUser.id : '');
+            const isMe = msg.senderId === (currentUser ? (currentUser.uid || currentUser.id) : '');
             const isSystem = msg.senderId === 'system';
 
             // 🔔 ==========================================

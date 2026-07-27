@@ -765,27 +765,35 @@ function listenMessages(roomId) {
                 let contentHtml = '';
                 const imgSrc = msg.imageUrl || (msg.type === 'image' ? msg.content : null);
 
-                if (imgSrc) {
-                    contentHtml = `<img src="${imgSrc}" style="max-width:200px; max-height:200px; border-radius:12px; border:1px solid #E2E8F0; cursor:pointer; display:block;" onclick="openImageViewer(this.src)">`;
-                } else if (msg.type === 'file') {
-                    contentHtml = `
-                        <div style="background:${isMe ? '#3182CE' : '#FFFFFF'}; color:${isMe ? '#FFF' : '#2D3748'}; padding:10px 12px; border-radius:12px; max-width:220px; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:${isMe ? 'none' : '1px solid #E2E8F0'};">
-                            <div style="font-weight:bold; font-size:12px; margin-bottom:4px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">📁 ${escapeHtml(msg.fileName || '첨부파일')}</div>
-                            <a href="${msg.fileData}" download="${escapeHtml(msg.fileName || 'file')}" style="color:${isMe ? '#EBF8FF' : '#3182CE'}; font-size:11px; text-decoration:underline; font-weight:600;">다운로드</a>
-                        </div>
-                    `;
-                } else {
-                    contentHtml = `
-                        <div style="background:${isMe ? '#3182CE' : '#FFFFFF'}; color:${isMe ? '#FFF' : '#2D3748'}; padding:8px 12px; border-radius:12px; max-width:220px; word-break:break-word; font-size:13px; line-height:1.4; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:${isMe ? 'none' : '1px solid #E2E8F0'};">
-                            ${replyQuoteHtml}
-                            ${escapeHtml(msg.text || msg.content || '')}
-                        </div>
-                    `;
-                }
+                // 📌 1. 삭제된 메시지인지 가장 먼저 확인합니다.
+                if (msg.isDeleted) {
+                contentHtml = `
+                    <div style="background:#EDF2F7; color:#A0AEC0; padding:8px 12px; border-radius:12px; font-size:12px; font-style:italic;">
+                        🚫 삭제된 메시지입니다.
+                    </div>
+                `;
+            } else if (imgSrc) {
+                contentHtml = `<img src="${imgSrc}" style="max-width:200px; max-height:200px; border-radius:12px; border:1px solid #E2E8F0; cursor:pointer">`;
+            } else if (msg.type === 'file') {
+                contentHtml = `
+                    <div style="background:${isMe ? '#3182CE' : '#FFFFFF'}; color:${isMe ? '#FFF' : '#2D3748'}; padding:10px 12px; border-radius:12px;">
+                        <div style="font-weight:bold; font-size:12px; margin-bottom:4px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${escapeHtml(msg.fileName || 'file')}</div>
+                        <a href="${msg.fileData}" download="${escapeHtml(msg.fileName || 'file')}" style="color:${isMe ? '#EBF8FF' : '#3182CE'}; font-size:11px;">다운로드</a>
+                    </div>
+                `;
+            } else {
+                contentHtml = `
+                    <div style="background:${isMe ? '#3182CE' : '#FFFFFF'}; color:${isMe ? '#FFF' : '#2D3748'}; padding:8px 12px; border-radius:12px; margin-top:2px;">
+                        ${replyQuoteHtml}
+                        ${escapeHtml(msg.text || msg.content || '')}
+                    </div>
+                `;
+            }
 
                 const safeText = escapeHtml(msg.text || msg.fileName || '첨부 메시지').replace(/'/g, "\\'");
-                const replyBtnHtml = `<button onclick="setReplyTarget('${msgId}', '${escapeHtml(msg.senderName || '알 수 없음')}', '${safeText}')" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:10px;">답장</button>`;
-                const deleteBtnHtml = isMe ? `<button onclick="deleteMessage('${msgId}')" style="background:none; border:none; color:#A0AEC0; cursor:pointer; font-size:10px;">삭제</button>` : '';
+                // 787~788번 줄 수정 (삭제된 메시지가 아닐 때만 버튼 표시)
+const replyBtnHtml = msg.isDeleted ? '' : `<button onclick="setReplyTarget('${msgId}', '${escapeHtml(msg.senderName || '알 수 없음')}', '${safeText}')" style="...">답장</button>`;
+const deleteBtnHtml = (isMe && !msg.isDeleted) ? `<button onclick="deleteMessage('${msgId}')" style="...">삭제</button>` : '';
 
                 const bubbleHtml = `
                     <div style="display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'};">
@@ -813,12 +821,37 @@ function listenMessages(roomId) {
         });
         }
 
-function deleteMessage(msgId) {
+async function deleteMessage(msgId) {
     if (!currentRoomId || !msgId) return;
-    if (confirm("이 메시지를 삭제하시겠습니까?")) {
-        database.ref(`messages/${currentRoomId}/${msgId}`).remove()
-            .then(() => document.getElementById(`msg-${msgId}`)?.remove())
-            .catch((error) => console.error("메시지 삭제 오류:", error));
+    if (!confirm("이 메시지를 삭제하시겠습니까?")) return;
+
+    try {
+        const msgRef = database.ref(`messages/${currentRoomId}/${msgId}`);
+        
+        // 📌 1. Hard Delete 대신 Soft Delete 적용 (isDeleted 플래그 세팅)
+        await msgRef.update({
+            isDeleted: true,
+            text: "삭제된 메시지입니다.",
+            content: null,
+            imageUrl: null,
+            fileData: null
+        });
+
+        // 📌 2. 대화방의 lastMessage가 삭제된 메시지라면 상태 갱신
+        const roomRef = database.ref(`rooms/${currentRoomId}`);
+        const roomSnap = await roomRef.once('value');
+        if (roomSnap.exists()) {
+            await roomRef.update({
+                lastMessage: "삭제된 메시지입니다."
+            });
+        }
+
+        // 💡 수동 DOM 제거(document.getElementById.remove)는 
+        // Firebase 실시간 리스너가 자동 처리하므로 제거했습니다.
+
+    } catch (error) {
+        console.error("메시지 삭제 오류:", error);
+        alert("메시지 삭제 권한이 없거나 오류가 발생했습니다.");
     }
 }
 

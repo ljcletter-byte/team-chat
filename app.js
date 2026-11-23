@@ -40,6 +40,25 @@ function escapeHtml(str) {
         .replace(/'/g, "&#039;");
 }
 
+// 🛡️ onclick="함수(...)" 안에 넣을 글자를 안전하게 만듭니다.
+// (이름·메시지에 따옴표가 있어도 코드로 실행되지 않도록 JSON 문자열 + HTML 이스케이프)
+function jsArg(value) {
+    return escapeHtml(JSON.stringify(String(value === null || value === undefined ? '' : value)));
+}
+
+// 🛡️ 사진/파일 주소는 data:·https:·blob: 만 허용합니다 (javascript: 같은 주소 차단)
+function safeUrl(url, imageOnly) {
+    if (typeof url !== 'string') return '';
+    const u = url.trim();
+    const lower = u.slice(0, 20).toLowerCase();
+    if (imageOnly) {
+        if (lower.startsWith('data:image/') || lower.startsWith('https://') || lower.startsWith('blob:')) return u;
+        return '';
+    }
+    if (lower.startsWith('data:') || lower.startsWith('https://') || lower.startsWith('blob:')) return u;
+    return '';
+}
+
 function getUserAvatarColor(userId) {
     if (!userId) return '#4299E1';
     const colors = [
@@ -296,6 +315,8 @@ function handleLogout() {
     }
 
     database.ref('rooms').off();
+    roomsListener = null;
+    unreadCache = {};
     currentUser = null;
 
     const idInput = document.getElementById('login-id');
@@ -433,7 +454,7 @@ function loadFriendsList() {
                         <div style="font-size:11px; color:#A0AEC0;">@${escapeHtml(user.id)}</div>
                     </div>
                 </div>
-                <button onclick="startDirectChat('${escapeHtml(user.id)}', '${escapeHtml(user.name)}')" style="background:#EBF8FF; color:#3182CE; border:none; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
+                <button onclick="startDirectChat(${jsArg(user.id)}, ${jsArg(user.name)})" style="background:#EBF8FF; color:#3182CE; border:none; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">
                     1:1 대화
                 </button>
             `;
@@ -585,7 +606,7 @@ async function enterChatRoom(roomId, roomTitle) {
         const headerActions = document.getElementById('chat-header-actions');
         if (headerActions) {
             const actionBtnHtml = isOwner ? `
-                <button onclick="deleteChatRoom('${currentRoomId}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">🗑️ 삭제</button>
+                <button onclick="deleteChatRoom(${jsArg(currentRoomId)})" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">🗑️ 삭제</button>
             ` : `
                 <button onclick="leaveChatRoom()" style="background:#EDF2F7; color:#4A5568; border:none; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">🚪 나가기</button>
             `;
@@ -675,7 +696,8 @@ function listenMessages(roomId) {
                 icon: './icons/icon-192.png',
                 badge: './icons/icon-192.png',
                 tag: msgId,
-                vibrate: [200, 100, 200]
+                vibrate: [200, 100, 200],
+                data: { url: window.location.origin + window.location.pathname }
             };
 
             // 안드로이드 크롬은 반드시 ServiceWorkerReady를 통해 showNotification을 호출해야 합니다.
@@ -763,7 +785,8 @@ function listenMessages(roomId) {
                 }
 
                 let contentHtml = '';
-                const imgSrc = msg.imageUrl || (msg.type === 'image' ? msg.content : null);
+                const imgSrc = safeUrl(msg.imageUrl || (msg.type === 'image' ? msg.content : ''), true);
+                const isImageMsg = !!(msg.imageUrl || msg.type === 'image');
 
                 // 📌 1. 삭제된 메시지인지 가장 먼저 확인합니다.
                 if (msg.isDeleted) {
@@ -772,13 +795,19 @@ function listenMessages(roomId) {
                         🚫 삭제된 메시지입니다.
                     </div>
                 `;
-            } else if (imgSrc) {
-                contentHtml = `<img src="${imgSrc}" style="max-width:200px; max-height:200px; border-radius:12px; border:1px solid #E2E8F0; cursor:pointer">`;
+            } else if (isImageMsg) {
+                contentHtml = imgSrc
+                    ? `<img src="${escapeHtml(imgSrc)}" onclick="openImageViewer(this.src)" style="max-width:200px; max-height:200px; border-radius:12px; border:1px solid #E2E8F0; cursor:pointer">`
+                    : `<div style="background:#EDF2F7; color:#A0AEC0; padding:8px 12px; border-radius:12px; font-size:12px;">📷 사진을 표시할 수 없습니다.</div>`;
             } else if (msg.type === 'file') {
+                const fileHref = safeUrl(msg.fileData, false);
+                const fileLinkHtml = fileHref
+                    ? `<a href="${escapeHtml(fileHref)}" download="${escapeHtml(msg.fileName || 'file')}" style="color:${isMe ? '#EBF8FF' : '#3182CE'}; font-size:11px;">다운로드</a>`
+                    : `<span style="font-size:11px; opacity:0.7;">파일을 열 수 없습니다</span>`;
                 contentHtml = `
                     <div style="background:${isMe ? '#3182CE' : '#FFFFFF'}; color:${isMe ? '#FFF' : '#2D3748'}; padding:10px 12px; border-radius:12px;">
                         <div style="font-weight:bold; font-size:12px; margin-bottom:4px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${escapeHtml(msg.fileName || 'file')}</div>
-                        <a href="${msg.fileData}" download="${escapeHtml(msg.fileName || 'file')}" style="color:${isMe ? '#EBF8FF' : '#3182CE'}; font-size:11px;">다운로드</a>
+                        ${fileLinkHtml}
                     </div>
                 `;
             } else {
@@ -790,10 +819,10 @@ function listenMessages(roomId) {
                 `;
             }
 
-                const safeText = escapeHtml(msg.text || msg.fileName || '첨부 메시지').replace(/'/g, "\\'");
-                // 787~788번 줄 수정 (삭제된 메시지가 아닐 때만 버튼 표시)
-const replyBtnHtml = msg.isDeleted ? '' : `<button onclick="setReplyTarget('${msgId}', '${escapeHtml(msg.senderName || '알 수 없음')}', '${safeText}')" style="...">답장</button>`;
-const deleteBtnHtml = (isMe && !msg.isDeleted) ? `<button onclick="deleteMessage('${msgId}')" style="...">삭제</button>` : '';
+                // 삭제된 메시지가 아닐 때만 답장/삭제 버튼 표시 (글자는 jsArg로 안전하게 넣음)
+                const replyText = msg.text || msg.fileName || '첨부 메시지';
+                const replyBtnHtml = msg.isDeleted ? '' : `<button onclick="setReplyTarget(${jsArg(msgId)}, ${jsArg(msg.senderName || '알 수 없음')}, ${jsArg(replyText)})" style="...">답장</button>`;
+                const deleteBtnHtml = (isMe && !msg.isDeleted) ? `<button onclick="deleteMessage(${jsArg(msgId)})" style="...">삭제</button>` : '';
 
                 const bubbleHtml = `
                     <div style="display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'};">
@@ -1046,13 +1075,55 @@ async function togglePinRoom(roomId, event) {
     }
 }
 
+// 📌 방 목록 듣기(하나만 유지)와 안 읽은 수 기억
+let roomsListener = null;
+let unreadCache = {}; // { 방ID: { key, count } }
+
+// 안 읽은 수: 방의 마지막 메시지 시각·내가 읽은 시각·들어온 시각이 바뀌었을 때만
+// 최근 100개 메시지를 읽어서 셉니다. (입력 중 표시 등 다른 변화에는 다시 읽지 않음)
+async function getUnreadCount(roomId, room) {
+    if (!currentUser) return 0;
+    if (roomId === currentRoomId) return 0; // 지금 보고 있는 방은 읽은 것으로 봄
+
+    const lastRead = (room.readStatus && room.readStatus[currentUser.id]) || 0;
+    const joinedAt = (room.membersJoinedAt && room.membersJoinedAt[currentUser.id]) || 0;
+    const since = Math.max(lastRead, joinedAt);
+    const lastTs = room.lastTimestamp || 0;
+    if (lastTs <= since) return 0;
+
+    const key = `${lastTs}|${since}`;
+    const cached = unreadCache[roomId];
+    if (cached && cached.key === key) return cached.count;
+
+    let count = 0;
+    try {
+        const msgSnap = await database.ref(`messages/${roomId}`).limitToLast(100).once('value');
+        msgSnap.forEach((msgChild) => {
+            const msg = msgChild.val() || {};
+            if (msg.senderId !== 'system' && msg.senderId !== currentUser?.id && msg.timestamp > since) {
+                count++;
+            }
+        });
+    } catch (e) {
+        console.error("안 읽은 수 계산 실패:", e);
+    }
+    unreadCache[roomId] = { key, count };
+    return count;
+}
+
 function loadChatRooms() {
     const chatListEl = document.getElementById('chat-list');
     if (!chatListEl) return;
 
-    chatListEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">대화방 목록 불러오는 중...</div>';
+    // 듣기는 하나만 유지합니다. 이미 듣고 있으면 그대로 두고 화면만 다시 그리게 합니다.
+    if (roomsListener) {
+        database.ref('rooms').off('value', roomsListener);
+        roomsListener = null;
+    } else {
+        chatListEl.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">대화방 목록 불러오는 중...</div>';
+    }
 
-    database.ref('rooms').on('value', async (snapshot) => {
+    roomsListener = database.ref('rooms').on('value', async (snapshot) => {
         const renderId = ++currentRenderId;
 
         if (!snapshot.exists()) {
@@ -1085,19 +1156,7 @@ function loadChatRooms() {
 
             if (!isSuperAdmin && !isJoined) return null;
 
-            let unreadCount = 0;
-            const lastRead = (room.readStatus && currentUser && room.readStatus[currentUser.id]) || 0;
-
-            const msgSnap = await database.ref(`messages/${roomId}`).once('value');
-            if (msgSnap.exists()) {
-                msgSnap.forEach((msgChild) => {
-                    const msg = msgChild.val();
-                    if (msg.senderId !== 'system' && msg.senderId !== currentUser?.id && msg.timestamp > lastRead) {
-                        unreadCount++;
-                    }
-                });
-            }
-
+            const unreadCount = await getUnreadCount(roomId, room);
             return { roomId, room, unreadCount, isJoined };
         });
 
@@ -1156,7 +1215,7 @@ function loadChatRooms() {
                         </span>
                         <div style="display:flex; align-items:center; gap:4px;">
                             <span style="font-size:10px; color:#A0AEC0; flex-shrink:0;">${timeStr}</span>
-                            <button onclick="togglePinRoom('${roomId}', event)" style="background:none; border:none; color:${isPinned ? '#DD6B20' : '#CBD5E0'}; cursor:pointer; font-size:12px; padding:0 2px;">
+                            <button onclick="togglePinRoom(${jsArg(roomId)}, event)" style="background:none; border:none; color:${isPinned ? '#DD6B20' : '#CBD5E0'}; cursor:pointer; font-size:12px; padding:0 2px;">
                                 📌
                             </button>
                         </div>
@@ -1331,7 +1390,7 @@ function listenSharedSchedules() {
                         📅 ${escapeHtml(sched.date)} <span style="margin-left:6px; color:#3182CE;">by ${escapeHtml(sched.creatorName)}</span>
                     </div>
                 </div>
-                <button onclick="deleteSharedSchedule('${schedId}')" style="background:none; border:none; color:#E53E3E; cursor:pointer; font-size:12px; padding:4px;">🗑️</button>
+                <button onclick="deleteSharedSchedule(${jsArg(schedId)})" style="background:none; border:none; color:#E53E3E; cursor:pointer; font-size:12px; padding:4px;">🗑️</button>
             `;
             listEl.appendChild(item);
         });
@@ -1503,7 +1562,7 @@ function loadAdminUsersList() {
                     <span style="font-size:10px; color:#A0AEC0;">(@${escapeHtml(user.id)})</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:6px;">
-                    <select onchange="changeUserGroup('${escapeHtml(user.id)}', this.value)" style="padding:3px 5px; font-size:11px; border-radius:4px; border:1px solid #CBD5E0; background:#fff; color:#4A5568;">
+                    <select onchange="changeUserGroup(${jsArg(user.id)}, this.value)" style="padding:3px 5px; font-size:11px; border-radius:4px; border:1px solid #CBD5E0; background:#fff; color:#4A5568;">
                         <option value="company" ${userGroup === 'company' ? 'selected' : ''}>🏢 회사</option>
                         <option value="family" ${userGroup === 'family' ? 'selected' : ''}>🏠 가족</option>
                         <option value="friends" ${userGroup === 'friends' ? 'selected' : ''}>🎓 친구</option>
@@ -1512,7 +1571,7 @@ function loadAdminUsersList() {
 
                     ${(isMe || isTargetAdmin) 
                         ? '<span style="font-size:10px; color:#CBD5E0;">(본인/관리자)</span>' 
-                        : `<button onclick="adminKickUser('${escapeHtml(user.id)}', '${escapeHtml(user.name)}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:3px 6px; border-radius:4px; font-size:11px; cursor:pointer;">🚫 강퇴</button>`
+                        : `<button onclick="adminKickUser(${jsArg(user.id)}, ${jsArg(user.name)})" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:3px 6px; border-radius:4px; font-size:11px; cursor:pointer;">🚫 강퇴</button>`
                     }
                 </div>
             `;
@@ -1550,7 +1609,7 @@ function loadAdminRoomsList() {
                 <div style="overflow:hidden; padding-right:8px;">
                     <div style="font-weight:600; color:#2D3748; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(room.title || '1:1 대화방')}</div>
                 </div>
-                <button onclick="adminDeleteRoom('${roomId}', '${escapeHtml(room.title || '대화방')}')" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:3px 6px; border-radius:4px; font-size:11px; cursor:pointer;">
+                <button onclick="adminDeleteRoom(${jsArg(roomId)}, ${jsArg(room.title || '대화방')})" style="background:#FFF5F5; color:#E53E3E; border:1px solid #FEB2B2; padding:3px 6px; border-radius:4px; font-size:11px; cursor:pointer;">
                     🗑️ 폐쇄
                 </button>
             `;
@@ -1779,6 +1838,9 @@ async function requestNotificationPermission(userId) {
         await firebase.database().ref(`users/${userId}/fcmToken`).set(token);
 
         // 📌 앱을 열어두었을 때 새 메시지가 오면 윈도우/모바일 팝업 알림 생성
+        // (다시 로그인해도 같은 알림이 두 번 뜨지 않도록 한 번만 등록)
+        if (window.__onMessageBound) return;
+        window.__onMessageBound = true;
         messaging.onMessage((payload) => {
           console.log('포그라운드 메시지 수신:', payload);
           const title = payload.notification?.title || payload.data?.title || '팀 메신저 알림';

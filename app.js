@@ -303,19 +303,86 @@ async function handleLogin() {
             return alert('비밀번호가 일치하지 않습니다.');
         }
 
-        currentUser = { ...userData, groupId: userData.groupId || 'etc' };
-        
-        const userDisplay = document.getElementById('current-user-display');
-        if (userDisplay) userDisplay.innerText = `${currentUser.name} 님`;
+        // "로그인 상태 유지"를 체크했으면 이 기기에 기억, 아니면 지움
+        if (document.getElementById('remember-me')?.checked) {
+            saveRememberedLogin(id, hashedPassword);
+        } else {
+            clearRememberedLogin();
+        }
 
-        switchScreen('main-layout');
-        switchSidebarTab('chats');
-        requestNotificationPermission(id).catch(err => console.error("알림 오류:", err));
+        completeLogin(userData, true);
     } catch (error) {
         console.error("로그인 오류:", error);
         alert("로그인 중 오류가 발생했습니다.");
     }
 }
+
+// 로그인 성공 후 화면 전환 (직접 로그인·자동 로그인 공통)
+function completeLogin(userData, askNotification) {
+    currentUser = { ...userData, groupId: userData.groupId || 'etc' };
+
+    const userDisplay = document.getElementById('current-user-display');
+    if (userDisplay) userDisplay.innerText = `${currentUser.name} 님`;
+
+    switchScreen('main-layout');
+    switchSidebarTab('chats');
+
+    // 자동 로그인 때는 알림 권한을 새로 묻지 않고, 이미 허용된 경우에만 토큰을 갱신
+    const alreadyGranted = ('Notification' in window) && Notification.permission === 'granted';
+    if (askNotification || alreadyGranted) {
+        requestNotificationPermission(currentUser.id).catch(err => console.error("알림 오류:", err));
+    }
+}
+
+// ==========================================
+// 🔑 로그인 상태 유지 (이 기기에만 저장, 체크했을 때만)
+// ==========================================
+const REMEMBER_KEY = 'teamchat.rememberLogin';
+
+function saveRememberedLogin(id, passwordHash) {
+    try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ id, h: passwordHash })); } catch (e) {}
+}
+
+function clearRememberedLogin() {
+    try { localStorage.removeItem(REMEMBER_KEY); } catch (e) {}
+}
+
+function readRememberedLogin() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(REMEMBER_KEY) || 'null');
+        if (saved && typeof saved.id === 'string' && typeof saved.h === 'string') return saved;
+    } catch (e) {}
+    return null;
+}
+
+// 앱을 열 때 기억된 로그인이 있으면 자동으로 들어갑니다.
+// 비밀번호가 바뀌었거나 계정이 지워졌으면 기억을 지우고 로그인 화면을 그대로 둡니다.
+async function tryAutoLogin() {
+    if (currentUser) return;
+    if (new URLSearchParams(window.location.search).get('invite')) return; // 초대 링크로 연 경우는 가입 화면 우선
+    const saved = readRememberedLogin();
+    if (!saved || !isSafeKey(saved.id)) return;
+
+    const rememberBox = document.getElementById('remember-me');
+    if (rememberBox) rememberBox.checked = true;
+    const idInput = document.getElementById('login-id');
+    if (idInput) idInput.value = saved.id;
+
+    try {
+        const snapshot = await database.ref('users/' + saved.id).once('value');
+        const userData = snapshot.exists() ? snapshot.val() : null;
+        if (!userData || userData.password !== saved.h) {
+            clearRememberedLogin();
+            return;
+        }
+        if (currentUser) return; // 그 사이 직접 로그인한 경우
+        completeLogin(userData, false);
+    } catch (e) {
+        console.error("자동 로그인 실패:", e); // 연결 문제일 수 있으므로 기억은 지우지 않음
+    }
+}
+
+window.addEventListener('DOMContentLoaded', tryAutoLogin);
 
 function handleLogout() {
     if (!confirm("로그아웃 하시겠습니까?")) return;
@@ -331,6 +398,7 @@ function handleLogout() {
     roomsListener = null;
     unreadCache = {};
     currentUser = null;
+    clearRememberedLogin(); // 로그아웃하면 이 기기의 자동 로그인도 해제
 
     const idInput = document.getElementById('login-id');
     const pwInput = document.getElementById('login-pw');
@@ -1498,6 +1566,9 @@ async function handleChangePassword() {
         const hashedPw = await sha256(newPw);
         await database.ref(`users/${currentUser.id}`).update({ password: hashedPw });
         currentUser.password = hashedPw;
+        // 자동 로그인을 쓰는 기기라면 새 비밀번호로 기억을 바꿈
+        const saved = readRememberedLogin();
+        if (saved && saved.id === currentUser.id) saveRememberedLogin(currentUser.id, hashedPw);
 
         alert("비밀번호가 성공적으로 변경되었습니다!");
         toggleChangePwModal();

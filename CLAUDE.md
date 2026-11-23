@@ -20,7 +20,7 @@
 ## 구조
 
 - 순수 HTML/CSS/JS, 빌드 도구 없음.
-- index.html(약 320줄): 화면 뼈대 + Firebase 초기화. app.js(약 1880줄): 앱 로직 전부(전역 함수). style.css, firebase-messaging-sw.js, manifest.json, icons/, tests/(시험).
+- index.html(약 320줄): 화면 뼈대 + Firebase 초기화. app.js(약 1970줄): 앱 로직 전부(전역 함수). style.css, firebase-messaging-sw.js, manifest.json, icons/, tests/(시험).
 - Firebase 8.10.1(옛 firebase.xxx() 방식, gstatic CDN)의 app·database(Realtime Database)·messaging을 씁니다. 프로젝트 ID my-team-chat-2712e.
 - Firebase 설정값(apiKey 등)은 웹앱용 공개 식별자이며 비밀이 아닙니다. index.html과 firebase-messaging-sw.js에 같은 값이 한 번씩 들어 있어서 바꿀 때는 둘 다 고칩니다.
   푸시용 공개 키(VAPID)는 app.js에 있습니다. 메모·보고에 옮겨 적지 않습니다.
@@ -36,7 +36,10 @@
 - Firebase 로그인(Firebase Authentication)을 쓰지 않고 직접 만든 아이디/비밀번호 방식입니다.
   가입(handleRegisterWithCode)하면 users/{아이디}에 이름과 비밀번호의 SHA-256 값(sha256)을 저장하고, 로그인(handleLogin)은 그 값을 화면 코드에서 비교합니다.
   가입에는 초대 코드가 필요합니다(generateInviteLink가 일회용 코드를 만듭니다).
-- 로그인 상태(currentUser)는 메모리에만 있습니다. 앱을 닫았다 열면 다시 로그인해야 합니다. 로그인 화면의 "로그인 상태 유지" 체크칸은 아무 기능이 없습니다.
+- 로그인 상태(currentUser)는 메모리에 있습니다. 로그인 화면의 "로그인 상태 유지"를 체크하면 이 기기의 localStorage
+  ('teamchat.rememberLogin')에 아이디와 비밀번호의 SHA-256 값을 기억하고, 앱을 열 때 tryAutoLogin이 서버 값과 비교해 자동으로 들어갑니다.
+  로그아웃·값 불일치(비밀번호 변경·계정 삭제) 때 지우고, 비밀번호 변경 때는 새 값으로 바꿉니다. 자동 로그인 때는 알림 권한을 새로 묻지 않습니다.
+  기억된 값은 그 기기에서 비밀번호 역할을 하므로, 여러 사람이 쓰는 기기에서는 체크하지 않도록 안내합니다.
 - 관리자 확인(checkIsAdmin)과 방 입장·삭제 같은 권한 확인은 모두 화면 코드에서만 합니다.
   Firebase 로그인을 쓰지 않으므로 서버 쪽 규칙(Realtime Database 보안 규칙)이 사용자를 구분해서 지켜 주는 방식이 아닙니다.
   규칙은 저장소에 없어서 실제 내용은 확인하지 못했습니다.
@@ -78,8 +81,7 @@
    기존 관리자 계정이 이어지도록 남겨 두었습니다.
    남은 근본 문제: 모든 확인이 화면 코드에서만 이루어지므로, 기술을 아는 사람은 데이터베이스에 직접 쓸 수 있습니다(보안 규칙 확인 못 함).
    제대로 막으려면 Firebase 로그인(Authentication) + 보안 규칙으로 옮겨야 하며, 큰 작업이라 사용자와 상의 후 진행합니다.
-2. 로그인 상태가 메모리에만 있어 앱을 열 때마다 다시 로그인해야 합니다(iPhone 홈 화면 앱에서 불편). 상의 후 진행.
-3. 이름이 제각각입니다: 화면 제목 "팀 메신저", 설치 이름 "팀채팅"·"Team Chat App", 페이지 제목 "Web Messenger". 어떤 이름으로 맞출지 사용자에게 물어봄.
+2. 이름이 제각각입니다: 화면 제목 "팀 메신저", 설치 이름 "팀채팅"·"Team Chat App", 페이지 제목 "Web Messenger". 어떤 이름으로 맞출지 사용자에게 물어봄.
 
 ## 시험 방법
 
@@ -97,3 +99,4 @@
 - 2026-11-23 (c3f4a35) 이름·메시지로 코드가 실행되던 문제, 알림 클릭 오류, 방 목록 듣기가 쌓이던 문제와 안 읽은 수 읽기 과다,
   나중에 들어온 사람의 안 읽은 수, 사진 크게 보기, 알림 중복 등록을 고치고 tests/ 시험(31개)을 추가했습니다.
 - 2026-11-23 공용 가입 코드 제거, 'admin'·경로 글자가 든 아이디 가입 차단, 초대 코드를 더 맞히기 어렵게(crypto 10자) 변경. 시험 42개.
+- 2026-11-23 "로그인 상태 유지" 체크칸이 실제로 동작하도록 함(자동 로그인). 시험 51개.

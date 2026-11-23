@@ -315,6 +315,49 @@ def main():
         check("관리자가 초대 코드를 만들 수 있음", len(codes) == 1 and codes[0].startswith("INV-") and len(codes[0]) == 14, str(codes))
         ctx.close()
 
+        print("[8] 로그인 상태 유지")
+        ctx, page = new_page(browser)
+        page.goto(BASE)
+        page.fill("#login-id", "tester1"); page.fill("#login-pw", PW)
+        page.check("#remember-me")
+        page.evaluate("handleLogin()")
+        page.wait_for_selector("#main-layout", state="visible")
+        stored = page.evaluate("localStorage.getItem('teamchat.rememberLogin')") or ""
+        check("체크하면 이 기기에 기억 (비밀번호 글자 그대로는 저장 안 함)", "tester1" in stored and PW not in stored, stored[:40])
+        page.reload()
+        page.wait_for_selector("#main-layout", state="visible", timeout=3000)
+        check("앱을 다시 열면 자동 로그인", "가짜엄마" in page.inner_text("#current-user-display"))
+        page.wait_for_timeout(300)
+        check("자동 로그인 후 방 목록 보임", page.locator("#room-item--Room0001").count() == 1)
+        page.evaluate("handleLogout()"); page.wait_for_timeout(200)
+        page.reload(); page.wait_for_timeout(500)
+        check("로그아웃하면 자동 로그인 해제", page.is_visible("#login-screen") and not page.is_visible("#main-layout"))
+        # 체크하지 않고 로그인
+        page.fill("#login-id", "tester1"); page.fill("#login-pw", PW)
+        page.evaluate("handleLogin()"); page.wait_for_selector("#main-layout", state="visible")
+        page.reload(); page.wait_for_timeout(500)
+        check("체크하지 않으면 다시 로그인 필요", page.is_visible("#login-screen"))
+        # 비밀번호가 바뀐 경우(기억된 값이 틀림)
+        page.evaluate("localStorage.setItem('teamchat.rememberLogin', JSON.stringify({id:'tester1', h:'0000'}))")
+        page.reload(); page.wait_for_timeout(500)
+        check("비밀번호가 바뀌었으면 자동 로그인 안 하고 기억 삭제",
+              page.is_visible("#login-screen") and page.evaluate("localStorage.getItem('teamchat.rememberLogin')") is None)
+        # 비밀번호 변경 시 기억도 새 값으로
+        page.fill("#login-id", "tester1"); page.fill("#login-pw", PW); page.check("#remember-me")
+        page.evaluate("handleLogin()"); page.wait_for_selector("#main-layout", state="visible")
+        page.evaluate("toggleChangePwModal()")
+        page.fill("#new-password-input", "newpass99"); page.fill("#new-password-confirm", "newpass99")
+        page.evaluate("handleChangePassword()"); page.wait_for_timeout(300)
+        new_hash = hashlib.sha256(b"newpass99").hexdigest()
+        check("비밀번호를 바꾸면 기억도 새 값으로",
+              new_hash in (page.evaluate("localStorage.getItem('teamchat.rememberLogin')") or ""))
+        # 초대 링크로 열면 가입 화면 우선
+        page.goto(BASE + "?invite=INV-ANY")
+        page.wait_for_timeout(500)
+        check("초대 링크로 열면 자동 로그인 대신 가입 화면", page.is_visible("#register-screen"))
+        check("화면 오류 없음", not page.__errors, "; ".join(page.__errors))
+        ctx.close()
+
         # 일반 회원은 관리자 아님
         ctx, page = new_page(browser)
         login(page, "tester1")

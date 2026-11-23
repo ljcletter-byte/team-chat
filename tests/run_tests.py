@@ -143,15 +143,15 @@ def main():
         check("로그인 후 이름 표시", "가짜엄마" in page.inner_text("#current-user-display"))
         check("방 목록에 가족방 표시", page.locator("#room-item--Room0001").count() == 1)
         badge = page.inner_text("#room-item--Room0001")
-        check("안 읽은 수 2 표시", "2" in badge, badge)
+        check("안 읽은 수 2 표시", page.inner_text('#room-item--Room0001 span[style*="E53E3E"]') == "2", badge)
         page.evaluate("database.ref('messages/-Room0001').push({senderId:'tester2', senderName:'가짜아빠', text:'하나 더', timestamp: Date.now()}).then(()=>database.ref('rooms/-Room0001').update({lastMessage:'하나 더', lastTimestamp: Date.now()}))")
         page.wait_for_timeout(400)
         badge = page.inner_text("#room-item--Room0001")
-        check("새 메시지가 오면 안 읽은 수 3으로 늘어남", "3" in badge.split("하나 더")[-1], badge)
+        check("새 메시지가 오면 안 읽은 수 3으로 늘어남", page.inner_text('#room-item--Room0001 span[style*="E53E3E"]') == "3", badge)
         enter_room(page)
         check("메시지 보임", "안녕" in page.inner_text("#msg-box"))
         check("방에 들어가면 안 읽은 수가 사라짐",
-              page.locator("#room-item--Room0001 span", has_text="3").count() == 0)
+              page.locator('#room-item--Room0001 span[style*="E53E3E"]').count() == 0)
         page.evaluate("""database.ref('messages/-Room0001').push({senderId:'tester2', senderName:'가짜아빠', type:'image',
             imageUrl:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
             timestamp: Date.now()})""")
@@ -248,7 +248,8 @@ def main():
         ctx, page = new_page(browser)
         login(page, "tester3")
         item = page.inner_text("#room-item--Room0001")
-        check("들어오기 전 메시지는 안 읽은 수에 넣지 않음", "2" not in item.split("안녕")[-1], item)
+        red = page.locator('#room-item--Room0001 span[style*="E53E3E"]')
+        check("들어오기 전 메시지는 안 읽은 수에 넣지 않음", red.count() == 1 and red.inner_text() == "1", item)
         enter_room(page)
         box = page.inner_text("#msg-box")
         check("들어오기 전 메시지는 보이지 않음", "옛날 메시지" not in box and "안녕" in box, box)
@@ -266,11 +267,64 @@ def main():
         d = page.evaluate("__fakeDump()")
         check("가입 + 그룹 지정", d["users"].get("newbie", {}).get("groupId") == "friends")
         check("초대 코드 사용 처리", d["invites"]["INV-FAKE0001"].get("isUsed") is True)
+        page.evaluate("handleRegisterWithCode()"); page.wait_for_timeout(200)
+        check("같은 아이디로 다시 가입 안 됨", "이미 존재" in page.evaluate("window.__alerts")[-1])
+        ctx.close()
+
+        print("[6] 가입 보안")
+        app_js = (ROOT / "app.js").read_text(encoding="utf-8")
+        check("코드 안에 공용 가입 코드가 없음", "SYSTEM_INVITE_CODE" not in app_js)
+
+        def try_register(uid, code, name="가짜가입자"):
+            db = seed()
+            db["invites"] = {"INV-FAKE0002": {"code": "INV-FAKE0002", "groupId": "etc", "createdBy": "boss", "createdAt": NOW, "isUsed": False},
+                             "INV-USED0003": {"code": "INV-USED0003", "groupId": "etc", "createdBy": "boss", "createdAt": NOW, "isUsed": True}}
+            ctx, page = new_page(browser, db)
+            page.goto(BASE)
+            page.evaluate("switchScreen('register-screen')")
+            page.fill("#reg-id", uid); page.fill("#reg-pw", PW); page.fill("#reg-name", name); page.fill("#reg-invite-code", code)
+            page.evaluate("handleRegisterWithCode()"); page.wait_for_timeout(300)
+            users = page.evaluate("__fakeDump()").get("users", {})
+            alerts = page.evaluate("window.__alerts")
+            ctx.close()
+            return users, alerts
+
+        users, _ = try_register("stranger", "ANYCODE")
+        check("없는 초대 코드로는 가입 안 됨", "stranger" not in users)
+        users, _ = try_register("stranger", "INV-USED0003")
+        check("이미 쓴 초대 코드로는 가입 안 됨", "stranger" not in users)
+        users, alerts = try_register("myadmin", "INV-FAKE0002")
+        check("'admin'이 든 아이디는 가입 안 됨", "myadmin" not in users, str(alerts))
+        users, _ = try_register("SuperAdmin1", "INV-FAKE0002")
+        check("대문자 'Admin'도 가입 안 됨", "SuperAdmin1" not in users)
+        users, _ = try_register("boss/password", "INV-FAKE0002")
+        check("'/'가 든 아이디로 다른 사람 정보를 덮어쓰지 못함",
+              users.get("boss", {}).get("password") == PW_HASH and "boss/password" not in users)
+        users, _ = try_register("가짜사촌_1", "INV-FAKE0002")
+        check("한글 아이디는 정상 가입", "가짜사촌_1" in users)
+
+        # 예전부터 있던 'admin' 아이디 관리자 계정은 그대로 관리자
+        db = seed()
+        db["users"]["familyadmin"] = {"id": "familyadmin", "name": "가짜옛관리자", "password": PW_HASH, "groupId": "family", "createdAt": NOW}
+        ctx, page = new_page(browser, db)
+        login(page, "familyadmin")
+        page.evaluate("openSettingsOrAdmin()"); page.wait_for_timeout(300)
+        check("기존 'admin' 아이디 계정은 계속 관리자", page.is_visible("#admin-modal"))
+        page.evaluate("generateInviteLink()"); page.wait_for_timeout(300)
+        codes = [k for k in page.evaluate("__fakeDump()").get("invites", {})]
+        check("관리자가 초대 코드를 만들 수 있음", len(codes) == 1 and codes[0].startswith("INV-") and len(codes[0]) == 14, str(codes))
+        ctx.close()
+
+        # 일반 회원은 관리자 아님
+        ctx, page = new_page(browser)
+        login(page, "tester1")
+        page.evaluate("openSettingsOrAdmin()"); page.wait_for_timeout(200)
+        check("일반 회원은 관리자 화면이 안 열림", not page.is_visible("#admin-modal"))
         ctx.close()
 
         browser.close()
 
-    print("[6] 알림을 눌렀을 때 (서비스 워커)")
+    print("[7] 알림을 눌렀을 때 (서비스 워커)")
     out = subprocess.run(["node", str(TESTS / "sw_test.js"), str(ROOT / "firebase-messaging-sw.js")], capture_output=True, text=True)
     for line in out.stdout.strip().splitlines():
         name, _, status = line.rpartition(" ")

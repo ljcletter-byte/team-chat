@@ -13,7 +13,17 @@ let currentRoomReadStatus = {}; // 📌 개별 메시지 안 읽은 수 계산�
 let currentRoomMembers = {};
 let currentRoomMembersJoinedAt = {}; // 🛠️ [신규] 유저별 대화방 입장 시각 관리
 
-const SYSTEM_INVITE_CODE = "SECRET2026"; 
+// 🔒 가입은 관리자가 만든 일회용 초대 코드(invites/)로만 할 수 있습니다.
+//    (예전의 공용 가입 코드는 공개 저장소에 노출되어 없앴습니다)
+
+// 🔒 아이디 규칙: Firebase 경로에 쓰면 안 되는 글자( . # $ [ ] / )와 공백은 금지
+function isSafeKey(str) {
+    return typeof str === 'string' && str.length > 0 && !/[.#$\[\]\/\s]/.test(str);
+}
+// 새로 가입하는 아이디: 한글·영문·숫자·_·- 만, 2~20자
+function isValidNewId(id) {
+    return /^[0-9A-Za-z가-힣_-]{2,20}$/.test(id);
+}
 
 // ==========================================
 // 🛠️ 유틸리티 함수 (Utility Functions)
@@ -26,6 +36,8 @@ function checkIsAdmin(user) {
         user.role === 'admin' || 
         user.role === 'super_admin' || 
         user.isAdmin === true || 
+        // ⚠️ 예전부터 있던 아이디에 'admin'이 든 관리자 계정을 위해 남겨 둡니다.
+        //    대신 새 가입에서는 'admin'이 든 아이디를 막습니다(handleRegisterWithCode).
         (user.id && user.id.includes('admin'))
     );
 }
@@ -278,6 +290,7 @@ async function handleLogin() {
     const pw = pwInput.value.trim();
 
     if (!id || !pw) return alert('아이디와 비밀번호를 입력해 주세요.');
+    if (!isSafeKey(id)) return alert('존재하지 않는 아이디입니다.');
 
     try {
         const snapshot = await database.ref('users/' + id).once('value');
@@ -338,6 +351,10 @@ async function handleRegisterWithCode() {
     const inviteCode = document.getElementById('reg-invite-code')?.value.trim();
 
     if (!id || !pw || !name || !inviteCode) return alert('모든 항목과 초대 코드를 입력해 주세요.');
+    if (!isValidNewId(id)) return alert('아이디는 한글·영문·숫자·_·- 로 2~20자까지 쓸 수 있습니다.');
+    if (id.toLowerCase().includes('admin')) return alert("'admin'이 들어간 아이디는 사용할 수 없습니다.");
+    if (pw.length < 4) return alert('비밀번호는 최소 4자리 이상이어야 합니다.');
+    if (!isSafeKey(inviteCode)) return alert('유효하지 않거나 이미 사용된 초대 코드입니다.');
 
     try {
         const userRef = database.ref('users/' + id);
@@ -348,16 +365,11 @@ async function handleRegisterWithCode() {
         let assignedGroup = 'etc';
         let inviteRefToUpdate = null;
 
-        if (inviteCode === SYSTEM_INVITE_CODE) {
+        const inviteSnap = await database.ref(`invites/${inviteCode}`).once('value');
+        if (inviteSnap.exists() && !inviteSnap.val().isUsed) {
             isValidInvite = true;
-            assignedGroup = 'etc';
-        } else {
-            const inviteSnap = await database.ref(`invites/${inviteCode}`).once('value');
-            if (inviteSnap.exists() && !inviteSnap.val().isUsed) {
-                isValidInvite = true;
-                assignedGroup = inviteSnap.val().groupId || 'etc';
-                inviteRefToUpdate = database.ref(`invites/${inviteCode}`);
-            }
+            assignedGroup = inviteSnap.val().groupId || 'etc';
+            inviteRefToUpdate = database.ref(`invites/${inviteCode}`);
         }
 
         if (!isValidInvite) return alert('유효하지 않거나 이미 사용된 초대 코드입니다.');
@@ -1761,7 +1773,11 @@ async function generateInviteLink() {
         const groupNames = { company: '회사', family: '가족', friends: '친구', etc: '기타' };
         const groupLabel = groupNames[selectedGroup] || '기타';
 
-        const randomCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+        // 맞히기 어려운 무작위 코드 (영문 대문자+숫자 10자)
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        const bytes = new Uint8Array(10);
+        crypto.getRandomValues(bytes);
+        const randomCode = Array.from(bytes, b => chars[b % chars.length]).join('');
         const inviteCode = `INV-${randomCode}`;
 
         await database.ref(`invites/${inviteCode}`).set({

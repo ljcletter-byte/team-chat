@@ -24,7 +24,7 @@ const APP_URL = (self.registration && self.registration.scope) || './';
 messaging.onBackgroundMessage(function(payload) {
   console.log('[Service Worker] 백그라운드 메시지 수신:', payload);
 
-  const title = payload.notification?.title || payload.data?.title || '팀 메신저 알림';
+  const title = payload.notification?.title || payload.data?.title || 'Web Messenger 알림';
   const options = {
     body: payload.notification?.body || payload.data?.body || '새로운 메시지가 도착했습니다.',
     icon: './icons/icon-192.png',

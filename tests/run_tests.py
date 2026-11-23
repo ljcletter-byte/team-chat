@@ -167,6 +167,18 @@ def main():
         check("화면 오류 없음", not page.__errors, "; ".join(page.__errors))
         ctx.close()
 
+        print("[1-1] 앱 이름 통일 (Web Messenger)")
+        manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
+        html = (ROOT / "index.html").read_text(encoding="utf-8")
+        check("설치 이름이 Web Messenger", manifest["name"] == "Web Messenger" and manifest["short_name"] == "Web Messenger")
+        check("페이지 제목·화면 제목·iPhone 홈 화면 이름이 Web Messenger",
+              "<title>Web Messenger</title>" in html and ">Web Messenger</h2>" in html
+              and 'apple-mobile-web-app-title" content="Web Messenger"' in html)
+        old_names = [n for n in ("팀 메신저", "팀채팅", "Team Chat")
+                     for f in ("index.html", "app.js", "firebase-messaging-sw.js", "manifest.json")
+                     if n in (ROOT / f).read_text(encoding="utf-8")]
+        check("예전 이름이 남아 있지 않음", not old_names, str(old_names))
+
         print("[2] 위험한 글자가 든 메시지·이름")
         evil = seed()
         evil["users"]["tester2"]["name"] = "아빠');window.__pwned='name';//"

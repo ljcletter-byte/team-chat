@@ -327,46 +327,135 @@ def main():
         check("관리자가 초대 코드를 만들 수 있음", len(codes) == 1 and codes[0].startswith("INV-") and len(codes[0]) == 14, str(codes))
         ctx.close()
 
-        print("[8] 로그인 상태 유지")
+        print("[8] 정식 로그인 연결과 로그인 상태 유지")
+
+        def fresh_login(page, uid, pw=PW, remember=False):
+            page.fill("#login-id", uid); page.fill("#login-pw", pw)
+            if remember: page.check("#remember-me")
+            else: page.uncheck("#remember-me")
+            page.evaluate("handleLogin()")
+            page.wait_for_timeout(400)
+
+        def logout(page):
+            page.evaluate("window.confirm = () => true; handleLogout()"); page.wait_for_timeout(300)
+
         ctx, page = new_page(browser)
-        page.goto(BASE)
-        page.fill("#login-id", "tester1"); page.fill("#login-pw", PW)
-        page.check("#remember-me")
-        page.evaluate("handleLogin()")
-        page.wait_for_selector("#main-layout", state="visible")
-        stored = page.evaluate("localStorage.getItem('teamchat.rememberLogin')") or ""
-        check("체크하면 이 기기에 기억 (비밀번호 글자 그대로는 저장 안 함)", "tester1" in stored and PW not in stored, stored[:40])
-        page.reload()
-        page.wait_for_selector("#main-layout", state="visible", timeout=3000)
-        check("앱을 다시 열면 자동 로그인", "가짜엄마" in page.inner_text("#current-user-display"))
+        page.goto(BASE); page.wait_for_timeout(300)
+        fresh_login(page, "tester1", remember=True)
+        check("기존 계정으로 로그인됨", page.is_visible("#main-layout"))
+        d = page.evaluate("__fakeDump()")
+        uid = d["users"]["tester1"].get("authUid")
+        check("로그인하면 정식 계정이 만들어져 연결됨", bool(uid) and d.get("authUsers", {}).get(uid) == "tester1", str(uid))
+        check("기존 대화·정보는 그대로", d["users"]["tester1"]["name"] == "가짜엄마" and d["users"]["tester1"]["password"] == PW_HASH)
+        emails = list(page.evaluate("__fakeAuthAccounts()").keys())
+        check("정식 계정 이메일은 내부용 주소(아이디가 그대로 드러나지 않음)",
+              len(emails) == 1 and emails[0].endswith("@my-team-chat-2712e.firebaseapp.com") and "tester1" not in emails[0], str(emails))
+        ls = page.evaluate("JSON.stringify(Object.keys(localStorage).filter(k => !k.startsWith('__fake')).map(k => [k, localStorage.getItem(k)]))")
+        check("이 기기에 비밀번호 값을 저장하지 않음", PW_HASH not in ls and "teamchat.rememberLogin" not in ls)
+        page.reload(); page.wait_for_timeout(800)
+        check("체크했으면 앱을 다시 열 때 자동 로그인", page.is_visible("#main-layout") and "가짜엄마" in page.inner_text("#current-user-display"))
         page.wait_for_timeout(300)
         check("자동 로그인 후 방 목록 보임", page.locator("#room-item--Room0001").count() == 1)
-        page.evaluate("handleLogout()"); page.wait_for_timeout(200)
-        page.reload(); page.wait_for_timeout(500)
+        logout(page)
+        page.reload(); page.wait_for_timeout(800)
         check("로그아웃하면 자동 로그인 해제", page.is_visible("#login-screen") and not page.is_visible("#main-layout"))
-        # 체크하지 않고 로그인
-        page.fill("#login-id", "tester1"); page.fill("#login-pw", PW)
-        page.evaluate("handleLogin()"); page.wait_for_selector("#main-layout", state="visible")
-        page.reload(); page.wait_for_timeout(500)
-        check("체크하지 않으면 다시 로그인 필요", page.is_visible("#login-screen"))
-        # 비밀번호가 바뀐 경우(기억된 값이 틀림)
-        page.evaluate("localStorage.setItem('teamchat.rememberLogin', JSON.stringify({id:'tester1', h:'0000'}))")
-        page.reload(); page.wait_for_timeout(500)
-        check("비밀번호가 바뀌었으면 자동 로그인 안 하고 기억 삭제",
-              page.is_visible("#login-screen") and page.evaluate("localStorage.getItem('teamchat.rememberLogin')") is None)
-        # 비밀번호 변경 시 기억도 새 값으로
-        page.fill("#login-id", "tester1"); page.fill("#login-pw", PW); page.check("#remember-me")
-        page.evaluate("handleLogin()"); page.wait_for_selector("#main-layout", state="visible")
+        calls_before = page.evaluate("window.__fakeStats.authCalls || 0")
+        fresh_login(page, "tester1")
+        check("두 번째부터는 정식 계정으로 로그인", page.is_visible("#main-layout")
+              and page.evaluate("window.__fakeStats.authCalls") > calls_before
+              and page.evaluate("firebase.auth().currentUser && firebase.auth().currentUser.uid") == uid)
+        check("연결은 한 번만 (계정이 두 개 생기지 않음)", len(page.evaluate("__fakeAuthAccounts()")) == 1)
+        page.reload(); page.wait_for_timeout(800)
+        check("체크하지 않으면 새로고침 때 다시 로그인 필요", page.is_visible("#login-screen"))
+        fresh_login(page, "tester1", pw="wrongpw")
+        check("틀린 비밀번호는 거절", page.is_visible("#login-screen")
+              and page.evaluate("firebase.auth().currentUser") is None)
+        # 비밀번호 변경: 정식 계정과 기존 값 모두 바뀜
+        fresh_login(page, "tester1")
         page.evaluate("toggleChangePwModal()")
         page.fill("#new-password-input", "newpass99"); page.fill("#new-password-confirm", "newpass99")
         page.evaluate("handleChangePassword()"); page.wait_for_timeout(300)
         new_hash = hashlib.sha256(b"newpass99").hexdigest()
-        check("비밀번호를 바꾸면 기억도 새 값으로",
-              new_hash in (page.evaluate("localStorage.getItem('teamchat.rememberLogin')") or ""))
-        # 초대 링크로 열면 가입 화면 우선
-        page.goto(BASE + "?invite=INV-ANY")
-        page.wait_for_timeout(500)
-        check("초대 링크로 열면 자동 로그인 대신 가입 화면", page.is_visible("#register-screen"))
+        check("비밀번호 변경: 기존 값도 새 값으로", page.evaluate("__fakeDump()")["users"]["tester1"]["password"] == new_hash)
+        check("비밀번호 변경: 정식 계정도 새 비밀번호로",
+              list(page.evaluate("__fakeAuthAccounts()").values())[0]["password"] == "wm1:newpass99")
+        logout(page)
+        fresh_login(page, "tester1", pw=PW)
+        check("예전 비밀번호로는 로그인 안 됨", page.is_visible("#login-screen"))
+        fresh_login(page, "tester1", pw="newpass99")
+        check("새 비밀번호로 로그인됨", page.is_visible("#main-layout"))
+        # 오래된 로그인이라 정식 계정 비밀번호를 못 바꾸면, 둘 다 바꾸지 않음
+        page.evaluate("window.__FAKE_AUTH_REQUIRE_RECENT__ = true; toggleChangePwModal()")
+        page.fill("#new-password-input", "another77"); page.fill("#new-password-confirm", "another77")
+        page.evaluate("handleChangePassword()"); page.wait_for_timeout(300)
+        check("다시 로그인이 필요하면 안내하고 비밀번호를 바꾸지 않음",
+              "다시 로그인" in page.evaluate("window.__alerts")[-1]
+              and page.evaluate("__fakeDump()")["users"]["tester1"]["password"] == new_hash)
+        check("화면 오류 없음", not page.__errors, "; ".join(page.__errors))
+        ctx.close()
+
+        # 예전 방식으로 "로그인 상태 유지"를 해 둔 기기
+        ctx, page = new_page(browser)
+        page.goto(BASE)
+        page.evaluate(f"localStorage.setItem('teamchat.rememberLogin', JSON.stringify({{id:'tester2', h:'{PW_HASH}'}}))")
+        page.reload(); page.wait_for_timeout(800)
+        notice = page.evaluate("document.getElementById('login-notice') && document.getElementById('login-notice').innerText") or ""
+        check("예전 자동 로그인 기기: 한 번만 다시 로그인 안내", page.is_visible("#login-screen") and "다시 입력" in notice, notice)
+        check("예전 기기: 아이디는 미리 채워 두고 저장된 값은 삭제",
+              page.input_value("#login-id") == "tester2" and page.evaluate("localStorage.getItem('teamchat.rememberLogin')") is None)
+        page.fill("#login-pw", PW); page.evaluate("handleLogin()"); page.wait_for_timeout(400)
+        check("예전 기기: 다시 로그인하면 연결되고 안내 사라짐",
+              page.is_visible("#main-layout") and bool(page.evaluate("__fakeDump()")["users"]["tester2"].get("authUid")))
+        page.reload(); page.wait_for_timeout(800)
+        check("예전 기기: 그다음부터 자동 로그인", page.is_visible("#main-layout"))
+        ctx.close()
+
+        # 정식 로그인이 아직 꺼져 있어도(콘솔 설정 전) 기존 방식으로 로그인됨
+        ctx, page = new_page(browser)
+        page.add_init_script("window.__FAKE_AUTH_DISABLED__ = true;")
+        page.goto(BASE); page.wait_for_timeout(300)
+        fresh_login(page, "tester1")
+        check("정식 로그인이 꺼져 있어도 로그인됨(연결은 보류)", page.is_visible("#main-layout")
+              and not page.evaluate("__fakeDump()")["users"]["tester1"].get("authUid"))
+        check("화면 오류 없음", not page.__errors, "; ".join(page.__errors))
+        ctx.close()
+
+        # 다른 사람이 먼저 같은 이메일의 정식 계정을 만들어 둔 경우
+        ctx, page = new_page(browser)
+        page.goto(BASE); page.wait_for_timeout(300)
+        page.evaluate("authEmailFor('tester2').then(e => firebase.auth().createUserWithEmailAndPassword(e, 'wm1:hacker1')).then(() => firebase.auth().signOut())")
+        page.wait_for_timeout(200)
+        fresh_login(page, "tester2", pw="hacker1")
+        check("남이 만든 정식 계정 비밀번호로는 로그인 안 됨", page.is_visible("#login-screen")
+              and not page.evaluate("__fakeDump()")["users"]["tester2"].get("authUid"))
+        fresh_login(page, "tester2", pw=PW)
+        check("본인은 기존 비밀번호로 계속 로그인됨(연결은 안 됨)", page.is_visible("#main-layout")
+              and not page.evaluate("__fakeDump()")["users"]["tester2"].get("authUid"))
+        ctx.close()
+
+        # 새 가입은 처음부터 연결 + 관리자 화면 현황 + 강퇴 시 연결 정리
+        db = seed()
+        db["invites"] = {"INV-FAKE0009": {"code": "INV-FAKE0009", "groupId": "family", "createdBy": "boss", "createdAt": NOW, "isUsed": False}}
+        ctx, page = new_page(browser, db)
+        page.goto(BASE); page.evaluate("switchScreen('register-screen')")
+        page.fill("#reg-id", "가짜조카"); page.fill("#reg-pw", "abcd"); page.fill("#reg-name", "가짜조카"); page.fill("#reg-invite-code", "INV-FAKE0009")
+        page.evaluate("handleRegisterWithCode()"); page.wait_for_timeout(400)
+        d = page.evaluate("__fakeDump()")
+        nu = d["users"].get("가짜조카", {})
+        check("새 가입(한글 아이디, 4자리 비밀번호)도 정식 계정에 바로 연결",
+              bool(nu.get("authUid")) and d.get("authUsers", {}).get(nu.get("authUid")) == "가짜조카", str(nu))
+        check("가입 후에는 로그아웃 상태", page.evaluate("firebase.auth().currentUser") is None)
+        fresh_login(page, "가짜조카", pw="abcd")
+        check("새 가입자 로그인", page.is_visible("#main-layout"))
+        logout(page)
+        fresh_login(page, "boss")
+        page.evaluate("toggleAdminModal()"); page.wait_for_timeout(400)
+        summary = page.inner_text("#admin-auth-summary")
+        check("관리자 화면에 연결 현황 표시", "2/5" in summary, summary)
+        check("회원마다 연결 표시", page.locator("#admin-tab-users .auth-link-badge", has_text="연결됨").count() == 2)
+        page.evaluate("adminKickUser('가짜조카', '가짜조카')"); page.wait_for_timeout(300)
+        d = page.evaluate("__fakeDump()")
+        check("강퇴하면 연결 정보도 지움", "가짜조카" not in d["users"] and nu.get("authUid") not in d.get("authUsers", {}))
         check("화면 오류 없음", not page.__errors, "; ".join(page.__errors))
         ctx.close()
 

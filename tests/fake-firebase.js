@@ -5,7 +5,12 @@
   const clone = (v) => (v === undefined ? null : JSON.parse(JSON.stringify(v)));
   const split = (p) => String(p || '').split('/').filter(Boolean);
 
-  let root = clone(window.__FAKE_DB__ || {}) || {};
+  // 새로고침해도 같은 가짜 데이터가 이어지도록 이 시험 브라우저의 localStorage에 보관
+  const DB_KEY = '__fakeDB';
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(DB_KEY) || 'null'); } catch (e) {}
+  let root = clone(saved || window.__FAKE_DB__ || {}) || {};
+  function persist() { try { localStorage.setItem(DB_KEY, JSON.stringify(root)); } catch (e) {} }
   const stats = { reads: {}, writes: [], listeners: 0 };
   window.__fakeStats = stats;
   window.__fakeDump = () => clone(root);
@@ -76,6 +81,7 @@
     stats.reads[key] = (stats.reads[key] || 0) + 1;
   }
   function notify(changedParts) {
+    persist();
     const changed = changedParts.join('/');
     setTimeout(() => {
       for (const l of listeners.slice()) {
@@ -161,11 +167,86 @@
     onBackgroundMessage: () => {},
   };
 
+  // ---- 가짜 Firebase 로그인(Authentication) ----
+  const ACC_KEY = '__fakeAuthAccounts', SES_KEY = '__fakeAuthSession';
+  let accounts = null;
+  try { accounts = JSON.parse(localStorage.getItem(ACC_KEY) || 'null'); } catch (e) {}
+  if (!accounts) accounts = clone(window.__FAKE_AUTH__ || {}) || {}; // { email: { uid, password } }
+  const saveAccounts = () => { try { localStorage.setItem(ACC_KEY, JSON.stringify(accounts)); } catch (e) {} };
+  saveAccounts();
+  window.__fakeAuthAccounts = () => clone(accounts);
+  const Persistence = { LOCAL: 'local', SESSION: 'session', NONE: 'none' };
+  let persistence = Persistence.LOCAL;
+  let current = null;
+  const authListeners = [];
+  const authErr = (code) => { const e = new Error(code); e.code = code; return e; };
+  function makeUser(email, uid) {
+    return {
+      uid, email,
+      updatePassword: (pw) => {
+        if (window.__FAKE_AUTH_REQUIRE_RECENT__) return Promise.reject(authErr('auth/requires-recent-login'));
+        if (String(pw).length < 6) return Promise.reject(authErr('auth/weak-password'));
+        accounts[email].password = pw; saveAccounts(); return Promise.resolve();
+      },
+    };
+  }
+  function storeSession() {
+    try {
+      localStorage.removeItem(SES_KEY); sessionStorage.removeItem(SES_KEY);
+      if (!current) return;
+      const v = JSON.stringify({ email: current.email, uid: current.uid });
+      if (persistence === Persistence.LOCAL) localStorage.setItem(SES_KEY, v);
+      if (persistence === Persistence.SESSION) sessionStorage.setItem(SES_KEY, v);
+    } catch (e) {}
+  }
+  function setCurrent(u) {
+    current = u; storeSession();
+    for (const cb of authListeners.slice()) setTimeout(() => cb(current), 0);
+  }
+  try {
+    const s = JSON.parse(localStorage.getItem(SES_KEY) || sessionStorage.getItem(SES_KEY) || 'null');
+    if (s && accounts[s.email] && accounts[s.email].uid === s.uid) current = makeUser(s.email, s.uid);
+  } catch (e) {}
+  let uidCounter = 0;
+  const auth = {
+    get currentUser() { return current; },
+    setPersistence: (p) => { persistence = p; return Promise.resolve(); },
+    onAuthStateChanged: (cb) => {
+      authListeners.push(cb);
+      setTimeout(() => cb(current), 0);
+      return () => { const i = authListeners.indexOf(cb); if (i >= 0) authListeners.splice(i, 1); };
+    },
+    signInWithEmailAndPassword: (email, pw) => {
+      stats.authCalls = (stats.authCalls || 0) + 1;
+      if (window.__FAKE_AUTH_DISABLED__) return Promise.reject(authErr('auth/operation-not-allowed'));
+      const a = accounts[email];
+      if (!a) return Promise.reject(authErr('auth/user-not-found'));
+      if (a.password !== pw) return Promise.reject(authErr('auth/wrong-password'));
+      setCurrent(makeUser(email, a.uid));
+      return Promise.resolve({ user: current });
+    },
+    createUserWithEmailAndPassword: (email, pw) => {
+      if (window.__FAKE_AUTH_DISABLED__) return Promise.reject(authErr('auth/operation-not-allowed'));
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return Promise.reject(authErr('auth/invalid-email'));
+      if (accounts[email]) return Promise.reject(authErr('auth/email-already-in-use'));
+      if (String(pw).length < 6) return Promise.reject(authErr('auth/weak-password'));
+      uidCounter++;
+      const uid = 'fakeuid' + Date.now().toString(36) + uidCounter;
+      accounts[email] = { uid, password: pw }; saveAccounts();
+      setCurrent(makeUser(email, uid));
+      return Promise.resolve({ user: current });
+    },
+    signOut: () => { setCurrent(null); return Promise.resolve(); },
+  };
+  const authFn = () => auth;
+  authFn.Auth = { Persistence };
+
   const apps = [];
   window.firebase = {
     apps,
     initializeApp: (cfg) => { apps.push({ options: cfg }); return apps[0]; },
     database: () => database,
     messaging: () => messaging,
+    auth: authFn,
   };
 })();

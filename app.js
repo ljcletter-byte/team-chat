@@ -281,6 +281,70 @@ function switchSidebarTab(tabName) {
 // 🔐 인증 관련 함수 (Auth Functions)
 // ==========================================
 
+// ==========================================
+// 🔐 Firebase 정식 로그인(Authentication) 연결 — 1단계
+//  - 지금까지처럼 아이디/비밀번호로 로그인하면, 뒤에서 Firebase 정식 계정을 만들어
+//    users/{아이디}/authUid 와 authUsers/{uid} 에 서로 연결해 둡니다.
+//  - 2단계에서 보안 규칙을 "로그인한 회원만"으로 바꾸기 위한 준비입니다.
+//  - 정식 로그인이 꺼져 있거나 실패해도, 1단계에서는 기존 방식으로 로그인됩니다.
+// ==========================================
+const AUTH_EMAIL_DOMAIN = 'my-team-chat-2712e.firebaseapp.com';
+let fbAuth = null;
+try { if (typeof firebase.auth === 'function') fbAuth = firebase.auth(); } catch (e) { fbAuth = null; }
+
+// 아이디 → 정식 계정용 이메일 (실제로 메일을 보내지 않는 내부용 주소)
+async function authEmailFor(id) {
+    const h = await sha256('wm-id:' + id);
+    return `u${h.slice(0, 40)}@${AUTH_EMAIL_DOMAIN}`;
+}
+// 정식 계정 비밀번호 (Firebase는 6자 이상이 필요해서 앞에 고정 글자를 붙임)
+function authPasswordFor(pw) {
+    return 'wm1:' + pw;
+}
+function authPersistence(remember) {
+    const P = firebase.auth && firebase.auth.Auth && firebase.auth.Auth.Persistence;
+    if (!P) return null;
+    return remember ? P.LOCAL : P.NONE; // 체크 안 하면 앱을 닫거나 새로고침하면 로그아웃
+}
+
+// 정식 계정으로 로그인 시도 → 성공하면 uid, 아니면 null
+async function trySignInAuth(id, pw, remember) {
+    if (!fbAuth) return null;
+    try {
+        const p = authPersistence(remember);
+        if (p) await fbAuth.setPersistence(p);
+        const cred = await fbAuth.signInWithEmailAndPassword(await authEmailFor(id), authPasswordFor(pw));
+        return cred && cred.user ? cred.user.uid : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+// 정식 계정 만들기 → { uid } 또는 { error: 코드 }
+async function tryCreateAuth(id, pw, remember) {
+    if (!fbAuth) return { error: 'no-auth' };
+    try {
+        const p = authPersistence(remember);
+        if (p) await fbAuth.setPersistence(p);
+        const cred = await fbAuth.createUserWithEmailAndPassword(await authEmailFor(id), authPasswordFor(pw));
+        return { uid: cred.user.uid };
+    } catch (e) {
+        return { error: (e && e.code) || 'unknown' };
+    }
+}
+
+async function linkAuthUid(id, uid) {
+    await database.ref().update({
+        [`users/${id}/authUid`]: uid,
+        [`authUsers/${uid}`]: id
+    });
+}
+
+async function signOutAuth() {
+    if (!fbAuth) return;
+    try { await fbAuth.signOut(); } catch (e) {}
+}
+
 async function handleLogin() {
     const idInput = document.getElementById('login-id');
     const pwInput = document.getElementById('login-pw');
@@ -288,28 +352,49 @@ async function handleLogin() {
 
     const id = idInput.value.trim();
     const pw = pwInput.value.trim();
+    const remember = !!document.getElementById('remember-me')?.checked;
 
     if (!id || !pw) return alert('아이디와 비밀번호를 입력해 주세요.');
     if (!isSafeKey(id)) return alert('존재하지 않는 아이디입니다.');
 
     try {
+        // 1) 정식 계정으로 먼저 로그인 시도
+        let authUid = await trySignInAuth(id, pw, remember);
+
+        // 2) 회원 정보 읽기
         const snapshot = await database.ref('users/' + id).once('value');
-        if (!snapshot.exists()) return alert('존재하지 않는 아이디입니다.');
-
+        if (!snapshot.exists()) {
+            if (authUid) await signOutAuth();
+            return alert('존재하지 않는 아이디입니다.');
+        }
         const userData = snapshot.val();
-        const hashedPassword = await sha256(pw);
 
-        if (userData.password !== hashedPassword) {
+        // 3) 확인: 이미 연결된 정식 계정이 맞거나, 기존 비밀번호 값이 맞아야 함
+        const linkedOk = !!authUid && userData.authUid === authUid;
+        const legacyOk = !!userData.password && userData.password === await sha256(pw);
+        if (!linkedOk && !legacyOk) {
+            if (authUid) await signOutAuth();
             return alert('비밀번호가 일치하지 않습니다.');
         }
 
-        // "로그인 상태 유지"를 체크했으면 이 기기에 기억, 아니면 지움
-        if (document.getElementById('remember-me')?.checked) {
-            saveRememberedLogin(id, hashedPassword);
-        } else {
-            clearRememberedLogin();
+        // 4) 아직 연결 안 된 계정이면 지금 연결
+        if (!linkedOk) {
+            if (!authUid) {
+                const created = await tryCreateAuth(id, pw, remember);
+                if (created.uid) authUid = created.uid;
+                else console.warn('정식 계정 연결 보류:', created.error);
+            }
+            if (authUid && !userData.authUid) {
+                try {
+                    await linkAuthUid(id, authUid);
+                    userData.authUid = authUid;
+                } catch (e) {
+                    console.warn('정식 계정 연결 저장 실패:', e);
+                }
+            }
         }
 
+        clearOldRememberedLogin();
         completeLogin(userData, true);
     } catch (error) {
         console.error("로그인 오류:", error);
@@ -323,6 +408,7 @@ function completeLogin(userData, askNotification) {
 
     const userDisplay = document.getElementById('current-user-display');
     if (userDisplay) userDisplay.innerText = `${currentUser.name} 님`;
+    showLoginNotice('');
 
     switchScreen('main-layout');
     switchSidebarTab('chats');
@@ -335,50 +421,92 @@ function completeLogin(userData, askNotification) {
 }
 
 // ==========================================
-// 🔑 로그인 상태 유지 (이 기기에만 저장, 체크했을 때만)
+// 🔑 로그인 상태 유지
+//  - 체크하고 로그인하면 Firebase 정식 로그인이 이 기기에 로그인 상태를 저장합니다.
+//  - 예전 방식(이 기기에 비밀번호 값을 저장)은 없앴습니다. 예전에 저장된 값은 지웁니다.
 // ==========================================
-const REMEMBER_KEY = 'teamchat.rememberLogin';
+const OLD_REMEMBER_KEY = 'teamchat.rememberLogin';
 
-function saveRememberedLogin(id, passwordHash) {
-    try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ id, h: passwordHash })); } catch (e) {}
+function clearOldRememberedLogin() {
+    try { localStorage.removeItem(OLD_REMEMBER_KEY); } catch (e) {}
 }
 
-function clearRememberedLogin() {
-    try { localStorage.removeItem(REMEMBER_KEY); } catch (e) {}
-}
-
-function readRememberedLogin() {
+function readOldRememberedLogin() {
     try {
-        const saved = JSON.parse(localStorage.getItem(REMEMBER_KEY) || 'null');
-        if (saved && typeof saved.id === 'string' && typeof saved.h === 'string') return saved;
+        const saved = JSON.parse(localStorage.getItem(OLD_REMEMBER_KEY) || 'null');
+        if (saved && typeof saved.id === 'string') return saved;
     } catch (e) {}
     return null;
 }
 
-// 앱을 열 때 기억된 로그인이 있으면 자동으로 들어갑니다.
-// 비밀번호가 바뀌었거나 계정이 지워졌으면 기억을 지우고 로그인 화면을 그대로 둡니다.
+function showLoginNotice(text) {
+    let el = document.getElementById('login-notice');
+    if (!el) {
+        const pw = document.getElementById('login-pw');
+        if (!pw || !text) return;
+        el = document.createElement('div');
+        el.id = 'login-notice';
+        el.style = "margin:8px 0; padding:8px 10px; background:#EBF8FF; color:#2B6CB0; border-radius:8px; font-size:12px; line-height:1.5;";
+        pw.insertAdjacentElement('afterend', el);
+    }
+    el.innerText = text;
+    el.style.display = text ? 'block' : 'none';
+}
+
+function waitForAuthState() {
+    return new Promise((resolve) => {
+        if (!fbAuth) return resolve(null);
+        let done = false;
+        const unsub = fbAuth.onAuthStateChanged((user) => {
+            if (done) return;
+            done = true;
+            try { unsub && unsub(); } catch (e) {}
+            resolve(user || null);
+        });
+        setTimeout(() => { if (!done) { done = true; resolve(null); } }, 8000);
+    });
+}
+
+// 앱을 열 때 정식 로그인 상태가 남아 있으면 자동으로 들어갑니다.
 async function tryAutoLogin() {
     if (currentUser) return;
     if (new URLSearchParams(window.location.search).get('invite')) return; // 초대 링크로 연 경우는 가입 화면 우선
-    const saved = readRememberedLogin();
-    if (!saved || !isSafeKey(saved.id)) return;
 
-    const rememberBox = document.getElementById('remember-me');
-    if (rememberBox) rememberBox.checked = true;
-    const idInput = document.getElementById('login-id');
-    if (idInput) idInput.value = saved.id;
+    const old = readOldRememberedLogin();
+    const user = await waitForAuthState();
+    if (currentUser) return; // 그 사이 직접 로그인한 경우
 
-    try {
-        const snapshot = await database.ref('users/' + saved.id).once('value');
-        const userData = snapshot.exists() ? snapshot.val() : null;
-        if (!userData || userData.password !== saved.h) {
-            clearRememberedLogin();
-            return;
+    if (user) {
+        try {
+            const idSnap = await database.ref(`authUsers/${user.uid}`).once('value');
+            const id = idSnap.val();
+            if (typeof id === 'string' && isSafeKey(id)) {
+                const snapshot = await database.ref('users/' + id).once('value');
+                const userData = snapshot.exists() ? snapshot.val() : null;
+                if (userData && userData.authUid === user.uid) {
+                    if (currentUser) return;
+                    const rememberBox = document.getElementById('remember-me');
+                    if (rememberBox) rememberBox.checked = true;
+                    clearOldRememberedLogin();
+                    completeLogin(userData, false);
+                    return;
+                }
+            }
+        } catch (e) {
+            console.error("자동 로그인 실패:", e);
+            return; // 연결 문제일 수 있으므로 로그인 상태는 그대로 둠
         }
-        if (currentUser) return; // 그 사이 직접 로그인한 경우
-        completeLogin(userData, false);
-    } catch (e) {
-        console.error("자동 로그인 실패:", e); // 연결 문제일 수 있으므로 기억은 지우지 않음
+        await signOutAuth(); // 계정이 지워졌거나 연결이 맞지 않음
+    }
+
+    // 예전 방식으로 "로그인 상태 유지"를 해 두었던 기기: 한 번만 다시 로그인 안내
+    if (old) {
+        clearOldRememberedLogin();
+        const idInput = document.getElementById('login-id');
+        if (idInput && isSafeKey(old.id)) idInput.value = old.id;
+        const rememberBox = document.getElementById('remember-me');
+        if (rememberBox) rememberBox.checked = true;
+        showLoginNotice('🔐 보안 업데이트로 한 번만 비밀번호를 다시 입력해 주세요. 다음부터는 자동으로 로그인됩니다.');
     }
 }
 
@@ -398,7 +526,8 @@ function handleLogout() {
     roomsListener = null;
     unreadCache = {};
     currentUser = null;
-    clearRememberedLogin(); // 로그아웃하면 이 기기의 자동 로그인도 해제
+    clearOldRememberedLogin();
+    signOutAuth(); // 정식 로그인도 로그아웃 (자동 로그인 해제)
 
     const idInput = document.getElementById('login-id');
     const pwInput = document.getElementById('login-pw');
@@ -429,33 +558,38 @@ async function handleRegisterWithCode() {
         const userSnap = await userRef.once('value');
         if (userSnap.exists()) return alert('이미 존재하는 아이디입니다.');
 
-        let isValidInvite = false;
-        let assignedGroup = 'etc';
-        let inviteRefToUpdate = null;
-
         const inviteSnap = await database.ref(`invites/${inviteCode}`).once('value');
-        if (inviteSnap.exists() && !inviteSnap.val().isUsed) {
-            isValidInvite = true;
-            assignedGroup = inviteSnap.val().groupId || 'etc';
-            inviteRefToUpdate = database.ref(`invites/${inviteCode}`);
-        }
+        if (!inviteSnap.exists() || inviteSnap.val().isUsed) return alert('유효하지 않거나 이미 사용된 초대 코드입니다.');
+        const assignedGroup = inviteSnap.val().groupId || 'etc';
 
-        if (!isValidInvite) return alert('유효하지 않거나 이미 사용된 초대 코드입니다.');
+        // 정식 계정 만들기 (1단계: 정식 로그인이 꺼져 있으면 기존 방식으로만 가입)
+        const created = await tryCreateAuth(id, pw, false);
+        if (created.error === 'auth/email-already-in-use') {
+            return alert('이미 사용된 적이 있는 아이디입니다. 다른 아이디를 써 주세요.');
+        }
+        if (created.error) console.warn('정식 계정 만들기 보류:', created.error);
 
         const hashedPassword = await sha256(pw);
-        await userRef.set({
+        const newUser = {
             id: id,
             name: name,
             password: hashedPassword,
             role: 'member',
             groupId: assignedGroup,
-            createdAt: Date.now()
-        });
+            createdAt: Date.now(),
+            inviteCode: inviteCode
+        };
+        if (created.uid) newUser.authUid = created.uid;
 
-        if (inviteRefToUpdate) {
-            await inviteRefToUpdate.update({ isUsed: true, usedBy: id });
-        }
+        const updates = {
+            [`users/${id}`]: newUser,
+            [`invites/${inviteCode}/isUsed`]: true,
+            [`invites/${inviteCode}/usedBy`]: id
+        };
+        if (created.uid) updates[`authUsers/${created.uid}`] = id;
+        await database.ref().update(updates);
 
+        await signOutAuth(); // 가입 후에는 로그인 화면에서 다시 로그인
         alert('회원가입이 완료되었습니다! 로그인해 주세요.');
         switchScreen('login-screen');
     } catch (error) {
@@ -1563,12 +1697,23 @@ async function handleChangePassword() {
     if (newPw.length < 4) return alert("비밀번호는 최소 4자리 이상이어야 합니다.");
 
     try {
+        // 정식 계정이 연결되어 있으면 정식 계정 비밀번호부터 바꿈 (둘이 어긋나지 않도록)
+        const authUser = fbAuth && fbAuth.currentUser;
+        if (authUser && currentUser.authUid && authUser.uid === currentUser.authUid) {
+            try {
+                await authUser.updatePassword(authPasswordFor(newPw));
+            } catch (e) {
+                if (e && e.code === 'auth/requires-recent-login') {
+                    return alert("보안을 위해 로그아웃 후 다시 로그인한 다음, 바로 비밀번호를 바꿔 주세요.");
+                }
+                console.error("정식 계정 비밀번호 변경 오류:", e);
+                return alert("비밀번호 변경 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+            }
+        }
+
         const hashedPw = await sha256(newPw);
         await database.ref(`users/${currentUser.id}`).update({ password: hashedPw });
         currentUser.password = hashedPw;
-        // 자동 로그인을 쓰는 기기라면 새 비밀번호로 기억을 바꿈
-        const saved = readRememberedLogin();
-        if (saved && saved.id === currentUser.id) saveRememberedLogin(currentUser.id, hashedPw);
 
         alert("비밀번호가 성공적으로 변경되었습니다!");
         toggleChangePwModal();
@@ -1630,6 +1775,17 @@ function loadAdminUsersList() {
         listEl.innerHTML = '';
         if (!snapshot.exists()) return;
 
+        // 🔐 정식 계정 연결 현황 (모두 연결되면 2단계 보안 규칙으로 넘어갈 수 있음)
+        let total = 0, linked = 0;
+        snapshot.forEach((child) => { total++; if ((child.val() || {}).authUid) linked++; });
+        const summary = document.createElement('div');
+        summary.id = 'admin-auth-summary';
+        summary.style = `margin-bottom:8px; padding:8px 10px; border-radius:8px; font-size:12px; ${linked === total ? 'background:#F0FFF4; color:#276749;' : 'background:#FFFAF0; color:#9C4221;'}`;
+        summary.innerText = linked === total
+            ? `🔐 모든 회원(${total}명)이 보안 계정에 연결되었습니다.`
+            : `🔐 보안 계정 연결: ${linked}/${total}명 — 아직인 분은 앱에서 한 번 로그인하시면 연결됩니다.`;
+        listEl.appendChild(summary);
+
         snapshot.forEach((child) => {
             const user = child.val();
             const isMe = currentUser && user.id === currentUser.id;
@@ -1643,6 +1799,7 @@ function loadAdminUsersList() {
                 <div>
                     <span style="font-weight:600; color:#2D3748;">${isTargetAdmin ? '👑 ' : ''}${escapeHtml(user.name)}</span>
                     <span style="font-size:10px; color:#A0AEC0;">(@${escapeHtml(user.id)})</span>
+                    <span class="auth-link-badge" style="font-size:10px; margin-left:4px; color:${user.authUid ? '#38A169' : '#DD6B20'};">${user.authUid ? '🔐연결됨' : '⏳미연결'}</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:6px;">
                     <select onchange="changeUserGroup(${jsArg(user.id)}, this.value)" style="padding:3px 5px; font-size:11px; border-radius:4px; border:1px solid #CBD5E0; background:#fff; color:#4A5568;">
@@ -1666,7 +1823,11 @@ function loadAdminUsersList() {
 async function adminKickUser(targetUserId, targetUserName) {
     if (!confirm(`정말로 [${targetUserName}] 계정을 삭제하시겠습니까?`)) return;
     try {
-        await database.ref(`users/${targetUserId}`).remove();
+        const snap = await database.ref(`users/${targetUserId}/authUid`).once('value');
+        const authUid = snap.val();
+        const updates = { [`users/${targetUserId}`]: null };
+        if (typeof authUid === 'string' && isSafeKey(authUid)) updates[`authUsers/${authUid}`] = null;
+        await database.ref().update(updates);
         alert(`[${targetUserName}] 계정이 삭제되었습니다.`);
         loadAdminUsersList();
     } catch (error) {

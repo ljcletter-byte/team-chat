@@ -20,7 +20,7 @@
 ## 구조
 
 - 순수 HTML/CSS/JS, 빌드 도구 없음.
-- index.html(약 320줄): 화면 뼈대 + Firebase 초기화. app.js(약 1970줄): 앱 로직 전부(전역 함수). style.css, firebase-messaging-sw.js, manifest.json, icons/, tests/(시험).
+- index.html(약 320줄): 화면 뼈대 + Firebase 초기화. app.js(약 2130줄): 앱 로직 전부(전역 함수). style.css, firebase-messaging-sw.js, manifest.json, icons/, tests/(시험).
 - Firebase 8.10.1(옛 firebase.xxx() 방식, gstatic CDN)의 app·database(Realtime Database)·messaging을 씁니다. 프로젝트 ID my-team-chat-2712e.
 - Firebase 설정값(apiKey 등)은 웹앱용 공개 식별자이며 비밀이 아닙니다. index.html과 firebase-messaging-sw.js에 같은 값이 한 번씩 들어 있어서 바꿀 때는 둘 다 고칩니다.
   푸시용 공개 키(VAPID)는 app.js에 있습니다. 메모·보고에 옮겨 적지 않습니다.
@@ -33,21 +33,30 @@
 
 ## 로그인과 권한 (함부로 바꾸지 마세요)
 
-- Firebase 로그인(Firebase Authentication)을 쓰지 않고 직접 만든 아이디/비밀번호 방식입니다.
-  가입(handleRegisterWithCode)하면 users/{아이디}에 이름과 비밀번호의 SHA-256 값(sha256)을 저장하고, 로그인(handleLogin)은 그 값을 화면 코드에서 비교합니다.
-  가입에는 초대 코드가 필요합니다(generateInviteLink가 일회용 코드를 만듭니다).
-- 로그인 상태(currentUser)는 메모리에 있습니다. 로그인 화면의 "로그인 상태 유지"를 체크하면 이 기기의 localStorage
-  ('teamchat.rememberLogin')에 아이디와 비밀번호의 SHA-256 값을 기억하고, 앱을 열 때 tryAutoLogin이 서버 값과 비교해 자동으로 들어갑니다.
-  로그아웃·값 불일치(비밀번호 변경·계정 삭제) 때 지우고, 비밀번호 변경 때는 새 값으로 바꿉니다. 자동 로그인 때는 알림 권한을 새로 묻지 않습니다.
-  기억된 값은 그 기기에서 비밀번호 역할을 하므로, 여러 사람이 쓰는 기기에서는 체크하지 않도록 안내합니다.
+- 원래는 Firebase 로그인 없이 직접 만든 아이디/비밀번호 방식이었고(users/{아이디}/password = 비밀번호 SHA-256 값), 2026-11-25부터 Firebase 로그인
+  (Authentication, 이메일/비밀번호)으로 옮기는 중입니다. 3단계 계획: 1) 로그인할 때 정식 계정을 자동으로 만들어 연결(완료)
+  2) 모두 연결되면 보안 규칙을 "로그인한 회원만"으로 교체(사용자가 콘솔에 붙여 넣음) 3) users/{아이디}/password 값 삭제.
+- 정식 계정: 이메일은 authEmailFor(id) = "u" + sha256('wm-id:'+아이디) 앞 40자 + "@my-team-chat-2712e.firebaseapp.com"(메일은 보내지 않음),
+  비밀번호는 authPasswordFor(pw) = 'wm1:' + 비밀번호(Firebase 6자 이상 조건 때문). 연결은 users/{아이디}/authUid 와 authUsers/{uid} = 아이디.
+- handleLogin: 정식 계정 로그인 시도 → users/{아이디} 읽기 → (연결된 uid가 맞음) 또는 (기존 비밀번호 값이 맞음)이면 통과 →
+  아직 연결 전이면 정식 계정을 만들어 연결. 정식 로그인이 콘솔에서 꺼져 있거나 실패해도 1단계에서는 기존 방식으로 로그인됩니다.
+  남이 같은 이메일로 먼저 만든 정식 계정은 연결하지 않습니다(그 비밀번호로는 로그인도 안 됨).
+- 가입(handleRegisterWithCode)은 정식 계정을 먼저 만들고 users/{아이디}(inviteCode 포함)·authUsers·invites 사용 처리를 한 번에 씁니다. 가입에는 초대 코드가 필요합니다.
+- "로그인 상태 유지": 체크하면 Firebase 로그인 상태를 기기에 저장(Persistence.LOCAL), 안 하면 NONE(새로고침·앱 종료 시 로그아웃).
+  앱을 열 때 tryAutoLogin이 authUsers/{uid} → users/{아이디}.authUid 를 확인해 들어갑니다. 예전 방식으로 저장된 값('teamchat.rememberLogin')은 지우고
+  "한 번만 다시 입력" 안내를 띄웁니다. 로그아웃 때 정식 로그인도 로그아웃합니다.
+- 비밀번호 변경은 정식 계정 비밀번호를 먼저 바꾸고 기존 값도 바꿉니다. 'auth/requires-recent-login'이면 둘 다 바꾸지 않고 다시 로그인 안내.
+- 관리자 강퇴는 users/{아이디}와 authUsers/{uid}를 지웁니다(정식 계정 자체는 콘솔에서만 지울 수 있음). 관리자 회원 탭에 연결 현황(🔐연결됨/⏳미연결)이 나옵니다.
 - 관리자 확인(checkIsAdmin)과 방 입장·삭제 같은 권한 확인은 모두 화면 코드에서만 합니다.
   Firebase 로그인을 쓰지 않으므로 서버 쪽 규칙(Realtime Database 보안 규칙)이 사용자를 구분해서 지켜 주는 방식이 아닙니다.
-  규칙은 저장소에 없어서 실제 내용은 확인하지 못했습니다.
+  2026-11-25 사용자가 보여 준 실제 규칙: 루트와 admin_meta·users·invites·friends·user_rooms·rooms·kakao_style 모두 ".read": true, ".write": true
+  (누구나 전부 읽고 쓰고 지울 수 있음). admin_meta·friends·user_rooms·kakao_style은 지금 코드에서 쓰지 않습니다(예전 버전의 흔적으로 보임, 확인 못 함).
 - 그래서 로그인 방식·권한·보안 규칙을 바꾸는 수정은 사용자와 먼저 상의합니다. 바꿀 때는 지금 쓰는 계정과 대화 기록이 그대로 이어지는 방법부터 정합니다.
 
 ## 데이터 (Realtime Database)
 
-- users/{아이디}: id, name, password(SHA-256 값), role, groupId, createdAt, fcmToken(푸시 토큰).
+- users/{아이디}: id, name, password(SHA-256 값), role, groupId, createdAt, fcmToken(푸시 토큰), authUid(정식 계정 uid), inviteCode(2026-11-25 이후 가입자).
+- authUsers/{uid}: 아이디 (정식 계정 → 아이디 연결, 보안 규칙에서 쓰기 위함)
   pushToken도 있을 수 있으나 그것을 쓰는 requestPushNotificationPermission은 어디에서도 부르지 않습니다.
 - rooms/{방ID}: title, createdBy, creatorName, createdAt, lastMessage, lastTimestamp, isDirect(1:1 대화),
   members·membersInfo·membersJoinedAt(아이디별), password(방 비밀번호의 SHA-256 값, 선택).
@@ -75,12 +84,11 @@
 
 ## 알려진 문제 (코드를 읽어서 본 것 — 사용자가 고치라고 하면 진행)
 
-1. 로그인·권한 구조(위 "로그인과 권한"): 사용자와 상의가 필요한 큰 주제입니다. 먼저 상의하고 진행합니다.
-   2026-11-23 처리: 공용 가입 코드를 없앴고(가입은 invites/ 일회용 코드로만), 새 가입에서 'admin'이 든 아이디와
-   경로 글자(. # $ [ ] / 공백)를 막았습니다(isValidNewId·isSafeKey). checkIsAdmin의 "아이디에 admin 포함" 조건은
-   기존 관리자 계정이 이어지도록 남겨 두었습니다.
-   남은 근본 문제: 모든 확인이 화면 코드에서만 이루어지므로, 기술을 아는 사람은 데이터베이스에 직접 쓸 수 있습니다(보안 규칙 확인 못 함).
-   제대로 막으려면 Firebase 로그인(Authentication) + 보안 규칙으로 옮겨야 하며, 큰 작업이라 사용자와 상의 후 진행합니다.
+1. 로그인·권한 구조: 보안 규칙이 전부 열려 있어 누구나 데이터베이스를 읽고 쓸 수 있습니다(가장 급함).
+   2026-11-23 공용 가입 코드 제거, 'admin'·경로 글자가 든 아이디 가입 차단. checkIsAdmin의 "아이디에 admin 포함" 조건은 기존 관리자 계정 때문에 남겨 둠.
+   2026-11-25 1단계(정식 계정 자동 연결) 배포. 사용자가 콘솔에서 이메일/비밀번호 로그인을 켜야 연결이 시작됩니다.
+   다음: 관리자 화면에서 모두 "연결됨"이 되면 2단계 보안 규칙 초안을 만들어 가짜 데이터로 시험한 뒤 사용자에게 붙여 넣도록 안내.
+   비밀번호 값이 공개되어 있었으므로, 같은 비밀번호를 다른 곳에 쓰는 가족은 그쪽 비밀번호를 바꾸도록 안내함.
 
 ## 시험 방법
 
@@ -88,6 +96,8 @@
 - Playwright(Chromium)로 https://app.test/team-chat/ 라는 가짜 주소에 저장소 파일을 띄우고, gstatic의 Firebase 8.10.1 스크립트를
   tests/fake-firebase.js(가짜 database·messaging, 메모리 안에서만 동작)로 바꿔 끼웁니다. 그 밖의 바깥 요청은 모두 막습니다.
 - 가짜 database.ref(...)는 once·on·off·set·update·push·remove·limitToLast를 흉내 내고, 읽기 횟수(__fakeStats)를 셉니다.
+- 가짜 firebase.auth()도 있습니다(계정·로그인 상태를 시험 브라우저 localStorage에 보관, Persistence LOCAL/SESSION/NONE 흉내,
+  __FAKE_AUTH_DISABLED__ / __FAKE_AUTH_REQUIRE_RECENT__ 로 오류 상황 재현). 가짜 DB도 새로고침 사이에 이어지도록 localStorage('__fakeDB')에 보관합니다.
 - 알림 권한·서비스 워커 등록·alert/confirm·소리는 시험에서 가짜로 처리합니다. 서비스 워커는 tests/sw_test.js가 node로 따로 시험합니다.
 - 시험 데이터는 모두 가짜 이름·가짜 대화로 만듭니다(가짜 메시지 키는 실제 push 키보다 앞서도록 -A로 시작).
 - 고칠 때마다 이 시험을 돌리고, 새로 고친 내용에 맞는 시험을 함께 추가합니다.
@@ -100,3 +110,5 @@
 - 2026-11-23 공용 가입 코드 제거, 'admin'·경로 글자가 든 아이디 가입 차단, 초대 코드를 더 맞히기 어렵게(crypto 10자) 변경. 시험 42개.
 - 2026-11-23 "로그인 상태 유지" 체크칸이 실제로 동작하도록 함(자동 로그인). 시험 51개.
 - 2026-11-23 앱 이름을 "Web Messenger"로 통일(화면 제목·manifest·iPhone 홈 화면 이름·알림 기본 제목). 시험 54개.
+- 2026-11-25 보안 1단계: 로그인할 때 Firebase 정식 계정(Authentication)을 자동으로 만들어 연결, 자동 로그인을 정식 로그인 상태로 변경
+  (기기에 비밀번호 값 저장 안 함), 관리자 화면에 연결 현황 표시. 시험 78개.
